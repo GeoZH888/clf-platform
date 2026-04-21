@@ -1,11 +1,18 @@
 # ──────────────────────────────────────────────────────────────────────
-#  大卫学中文 — Netlify config (v3 — Anthropic + DeepSeek + Voyage + Stability + RAG)
+#  大卫学中文 — Netlify config
 # ──────────────────────────────────────────────────────────────────────
 
 [build]
   command   = "npm run build"
   publish   = "dist"
   functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Supabase ANON URL + KEY are public by design (anon role, RLS-protected).
+  # They are embedded in index.html (font URLs) and compiled into the Vite bundle.
+  # Tell Netlify's secret scanner to ignore them.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
 
 [functions]
   node_bundler          = "esbuild"
@@ -64,21 +71,22 @@
   targetPort = 5173
   autoLaunch = false
 
-# ─── Production env ────────────────────────────────────────────────────
-[context.production.environment]
-  NODE_VERSION = "20"
-  VITE_SUPABASE_URL      = "https://yqcojudvvjntaajnrilr.supabase.co"
-  VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY29qdWR2dmpudGFham5yaWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNDkxNzQsImV4cCI6MjA5MDkyNTE3NH0.pJuxsTRieYTnZtEysOLcPfUZ9Map0z74o2lKtc8uGAk"
-
 # ──────────────────────────────────────────────────────────────────────
-#  Required env vars — set in Netlify UI or via CLI:
+#  Environment variables — set in Netlify UI:
 #
-#    netlify env:set VITE_SUPABASE_URL         "https://xxx.supabase.co"
-#    netlify env:set VITE_SUPABASE_ANON_KEY    "eyJhbG..."
-#    netlify env:set SUPABASE_SERVICE_ROLE_KEY "eyJhbG..."   --secret
-#    netlify env:set ANTHROPIC_API_KEY         "sk-ant-..."   --secret
-#    netlify env:set DEEPSEEK_API_KEY          "sk-..."       --secret
-#    netlify env:set VOYAGE_API_KEY            "pa-..."       --secret
-#    netlify env:set STABILITY_API_KEY         "sk-..."       --secret
-#    netlify env:set ADMIN_EMAIL_ALLOWLIST     "you@example.com,other@example.com"
+#   Site configuration → Environment variables → Add a variable
+#
+#   Required (non-secret, public):
+#     VITE_SUPABASE_URL         = "https://xxx.supabase.co"
+#     VITE_SUPABASE_ANON_KEY    = "eyJhbG..."    (public anon JWT)
+#
+#   Required (secret, protect these!):
+#     SUPABASE_SERVICE_ROLE_KEY = "eyJhbG..."    (admin access, PROTECT)
+#     ANTHROPIC_API_KEY         = "sk-ant-..."
+#     DEEPSEEK_API_KEY          = "sk-..."
+#     VOYAGE_API_KEY            = "pa-..."
+#     STABILITY_API_KEY         = "sk-..."
+#     AZURE_SPEECH_KEY          = "..."
+#     AZURE_SPEECH_REGION       = "westeurope"
+#     ADMIN_EMAIL_ALLOWLIST     = "you@example.com"
 # ──────────────────────────────────────────────────────────────────────
