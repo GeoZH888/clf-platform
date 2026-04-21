@@ -69,6 +69,7 @@ export default function HomeScreen({
     }),
 
     // Games card at the end (always visible)
+    /*
     {
       id:     'games',
       icon:   '🎮',
@@ -79,6 +80,9 @@ export default function HomeScreen({
       accent: '#6A1B9A',
       onClick: onGames,
     },
+    */
+
+    
   ];
 
   const statsChips = [
