@@ -1,0 +1,737 @@
+// src/admin/ChengyuAdminTab.jsx
+// SuperAdmin panel: batch generate 成语 + AI illustration with style selector
+// v2 features:
+//   【1】 Click a row to edit (modal with all fields + image preview)
+//   【2】 Dropdown count + custom number input
+//   【3】 API key status dots in dropdown + panel with test buttons
+//   【4】 Story length bumped to 200字
+//   【5】 Speak button: Azure TTS with fallback to browser speechSynthesis
+
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase.js';
+
+// ── Illustration styles ───────────────────────────────────────────────────────
+const IMG_STYLES = [
+  { id:'ink',       label:'水墨画',   en:'Ink Wash',      prompt:'traditional Chinese ink wash painting (水墨画), monochrome brush strokes, minimalist, aged paper texture' },
+  { id:'cartoon',   label:'卡通',     en:'Cartoon',       prompt:'flat vector cartoon illustration, bright colors, cute Chinese style, simple shapes, educational for children' },
+  { id:'oil',       label:'油画',     en:'Oil Painting',  prompt:'oil painting style, rich colors, impressionist brushwork, dramatic lighting' },
+  { id:'woodblock', label:'版画',     en:'Woodblock',     prompt:'traditional Chinese woodblock print (木版画), bold lines, limited colors, stamp-like texture' },
+  { id:'minimal',   label:'简约',     en:'Minimalist',    prompt:'minimalist flat design, clean lines, 2-3 colors only, modern Chinese aesthetic' },
+  { id:'manga',     label:'漫画',     en:'Manga',         prompt:'manga comic style, black and white line art, expressive characters, dynamic composition' },
+];
+
+// ── AI Providers for illustration ─────────────────────────────────────────────
+const IMG_PROVIDERS = [
+  { id:'dalle3',     label:'DALL-E 3',        fn:'generate-illustration', model:'dall-e-3' },
+  { id:'stability',  label:'Stability AI',    fn:'stability-proxy',       model:'stable-diffusion-xl-1024-v1-0' },
+  { id:'flux',       label:'Flux (JINAN)',     fn:'ai-gateway',            model:'flux' },
+];
+
+// ── Text providers for batch generation ──────────────────────────────────────
+const TEXT_PROVIDERS = [
+  { id:'claude',   label:'Claude (Anthropic)', keyId:'anthropic' },
+  { id:'openai',   label:'GPT-4o (OpenAI)',    keyId:'openai'    },
+  { id:'gemini',   label:'Gemini (Google)',     keyId:'gemini'    },
+  { id:'deepseek', label:'DeepSeek',            keyId:'deepseek'  },
+  { id:'qwen',     label:'Qwen 通义千问',        keyId:'qwen'      },
+  { id:'grok',     label:'Grok (xAI)',           keyId:'grok'      },
+  { id:'mistral',  label:'Mistral',              keyId:'mistral'   },
+];
+
+const THEMES = ['wisdom','animals','nature','history','general','emotion','achievement','warning'];
+
+const COUNT_PRESETS = [3, 5, 10, 20];  // dropdown values
+const CUSTOM_SENTINEL = -1;             // marker for "custom" selection
+
+// ── Tolerant JSON parser (handles Chinese quotes, trailing text, etc.) ───────
+function parseTolerant(text) {
+  const stripped = text.replace(/```json|```/gi, '').trim();
+  try { return JSON.parse(stripped); } catch (_) {}
+  const match = stripped.match(/\[[\s\S]*\]/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch (_) {}
+    const cleaned = match[0]
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/，/g, ',')
+      .replace(/：/g, ':');
+    try { return JSON.parse(cleaned); } catch (_) {}
+    // Last resort: escape unescaped inner quotes
+    const deepClean = cleaned.replace(
+      /"([^"\\]*)":\s*"((?:[^"\\]|\\.)*)"(?=\s*[,}\]])/g,
+      (_, k, v) => `"${k}":"${v.replace(/(?<!\\)"/g, '\\"')}"`
+    );
+    try { return JSON.parse(deepClean); } catch (e) {
+      throw new Error(`Parse failed. First 200 chars: ${stripped.slice(0, 200)}`);
+    }
+  }
+  throw new Error('No JSON array found in AI response');
+}
+
+// ── TTS helper: Azure first, browser fallback ────────────────────────────────
+async function speakChinese(text) {
+  if (!text) return;
+  // Try Azure TTS (premium quality if AZURE_SPEECH_KEY is set on Netlify)
+  try {
+    const res = await fetch('/.netlify/functions/azure-tts-speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang: 'zh-CN', voice: 'zh-CN-XiaoxiaoNeural' }),
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size > 100 && blob.type.startsWith('audio')) {
+        const audio = new Audio(URL.createObjectURL(blob));
+        await audio.play();
+        return;
+      }
+    }
+  } catch (e) { /* fall through to browser */ }
+
+  // Fallback: browser speechSynthesis
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'zh-CN';
+    utter.rate = 0.85;
+    // Prefer a Chinese voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const zhVoice = voices.find(v =>
+      v.lang.startsWith('zh') && (v.name.includes('Chinese') || v.name.includes('Mandarin') || v.name.includes('中文'))
+    ) || voices.find(v => v.lang.startsWith('zh'));
+    if (zhVoice) utter.voice = zhVoice;
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+export default function ChengyuAdminTab({ apiKeys }) {
+  const [idioms,       setIdioms]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
+
+  // Batch generation state
+  const [batchTheme,   setBatchTheme]   = useState('animals');
+  const [batchHsk,     setBatchHsk]     = useState(4);
+  const [batchCount,   setBatchCount]   = useState(5);    // actual N sent to AI
+  const [countMode,    setCountMode]    = useState(5);    // dropdown selection (preset or sentinel)
+  const [batchProv,    setBatchProv]    = useState('claude');
+  const [generating,   setGenerating]   = useState(false);
+  const [genLog,       setGenLog]       = useState([]);
+
+  // Illustration state
+  const [imgStyle,     setImgStyle]     = useState('cartoon');
+  const [imgProvider,  setImgProvider]  = useState('stability');
+  const [imgLoading,   setImgLoading]   = useState({});
+
+  // Edit modal state
+  const [editingIdiom, setEditingIdiom] = useState(null);
+
+  // API key status panel: { claude: 'ok' | 'err' | 'unknown' | 'testing', ... }
+  const [keyStatus,    setKeyStatus]    = useState({});
+
+  const V = {
+    bg:'#fdf6e3', border:'#e8d5b0', verm:'#8B4513',
+    text:'#1a0a05', text2:'#6b4c2a', text3:'#a07850',
+  };
+
+  // Load idioms
+  useEffect(() => {
+    supabase.from('jgw_chengyu').select('*').order('sort_order')
+      .then(({ data }) => { setIdioms(data ?? []); setLoading(false); });
+  }, []);
+
+  function log(msg) {
+    setGenLog(prev => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev].slice(0, 20));
+  }
+
+  // ── API key status: test each provider with a tiny ping ──────────────────
+  async function testProvider(provId) {
+    setKeyStatus(s => ({ ...s, [provId]: 'testing' }));
+    try {
+      const res = await fetch('/.netlify/functions/ai-gateway', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: provId, prompt: 'Say "ok"', max_tokens: 5 }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && (d.content || d.text || d.result)) {
+        setKeyStatus(s => ({ ...s, [provId]: 'ok' }));
+        return true;
+      } else {
+        setKeyStatus(s => ({ ...s, [provId]: 'err' }));
+        return false;
+      }
+    } catch {
+      setKeyStatus(s => ({ ...s, [provId]: 'err' }));
+      return false;
+    }
+  }
+
+  async function testAllKeys() {
+    for (const p of TEXT_PROVIDERS) {
+      await testProvider(p.id);
+      await new Promise(r => setTimeout(r, 300));  // gentle rate limit
+    }
+  }
+
+  function statusDot(provId) {
+    const s = keyStatus[provId];
+    if (s === 'ok')      return '🟢';
+    if (s === 'err')     return '🔴';
+    if (s === 'testing') return '⏳';
+    return '⚪';
+  }
+
+  // ── Batch generate text ───────────────────────────────────────────────────
+  async function handleBatchGenerate() {
+    const count = Math.max(1, Math.min(50, Number(batchCount) || 5));
+    setGenerating(true);
+    log(`开始生成 ${count} 条 ${batchTheme} 主题成语…`);
+    try {
+      const prompt = `生成 ${count} 条中文成语，要求：
+- 主题：${batchTheme}
+- HSK等级：${batchHsk}
+- 每条包含：成语、拼音、中文意思、英语意思、意大利语意思、历史典故（中文，200字以内）、例句（中文）、难度（1-4）
+- 返回纯 JSON 数组，不要任何 markdown 或说明文字
+- ⚠️ 字符串中的双引号必须用反斜杠转义（例如 "他说\\"你好\\""），不要使用中文引号 " " 『 』
+格式：[{"idiom":"...","pinyin":"...","meaning_zh":"...","meaning_en":"...","meaning_it":"...","story_zh":"...","example_zh":"...","difficulty":2,"theme":"${batchTheme}","hsk_level":${batchHsk}}]`;
+
+      const res = await fetch('/.netlify/functions/ai-gateway', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: batchProv, prompt, max_tokens: 4000 }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`AI gateway ${res.status}: ${errText.slice(0, 200)}`);
+      }
+
+      const d = await res.json();
+      const raw = (d.content || d.text || d.result || '');
+      const arr = parseTolerant(raw);
+
+      if (!Array.isArray(arr) || arr.length === 0) {
+        throw new Error('AI 返回空或非数组');
+      }
+
+      // Insert into Supabase
+      const { data: inserted, error } = await supabase.from('jgw_chengyu')
+        .upsert(arr.map((item, i) => ({ ...item, sort_order: idioms.length + i + 1 })),
+          { onConflict: 'idiom' })
+        .select();
+
+      if (error) throw error;
+      log(`✓ 成功生成并保存 ${inserted?.length ?? arr.length} 条成语`);
+
+      // Reload
+      const { data } = await supabase.from('jgw_chengyu').select('*').order('sort_order');
+      setIdioms(data ?? []);
+    } catch (e) {
+      log(`✗ 生成失败: ${e.message}`);
+      console.error('Chengyu batch generate error:', e);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // ── Generate single illustration ──────────────────────────────────────────
+  async function handleGenerateImage(idiom) {
+    const style = IMG_STYLES.find(s => s.id === imgStyle);
+    const provider = IMG_PROVIDERS.find(p => p.id === imgProvider);
+    setImgLoading(prev => ({ ...prev, [idiom.id]: true }));
+    log(`生成插图: ${idiom.idiom} · ${style.label} · ${provider.label}`);
+
+    try {
+      const prompt = `Illustration for Chinese idiom "${idiom.idiom}" (${idiom.meaning_zh}). ${style.prompt}. The image should visually represent the idiom's meaning. Clean background, educational style.`;
+
+      let imageUrl;
+
+      if (imgProvider === 'dalle3') {
+        const key = apiKeys?.openai;
+        if (!key) throw new Error('需要 OpenAI API Key');
+        const res = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1024', quality: 'standard' }),
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message);
+        imageUrl = d.data[0].url;
+      } else if (imgProvider === 'stability') {
+        const res = await fetch('/.netlify/functions/stability-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, negative_prompt: 'text, watermark, blurry', width: 512, height: 512 }),
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
+        imageUrl = `data:image/png;base64,${d.image_base64}`;
+      } else {
+        const res = await fetch('/.netlify/functions/ai-gateway', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: imgProvider, prompt, type: 'image' }),
+        });
+        const d = await res.json();
+        imageUrl = d.url || d.image_url;
+        if (!imageUrl) throw new Error('No image URL returned');
+      }
+
+      // Upload to storage if remote URL
+      let storedUrl = imageUrl;
+      if (imageUrl.startsWith('http')) {
+        const blob = await fetch(imageUrl).then(r => r.blob());
+        const path = `${idiom.id}_${imgStyle}.png`;
+        const { error: upErr } = await supabase.storage
+          .from('chengyu-images').upload(path, blob, { upsert: true });
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('chengyu-images').getPublicUrl(path);
+          storedUrl = publicUrl;
+        }
+      }
+
+      await supabase.from('jgw_chengyu')
+        .update({ image_url: storedUrl, image_style: imgStyle })
+        .eq('id', idiom.id);
+
+      setIdioms(prev => prev.map(i => i.id === idiom.id
+        ? { ...i, image_url: storedUrl, image_style: imgStyle } : i));
+      log(`✓ ${idiom.idiom} 插图已保存`);
+
+    } catch (e) {
+      log(`✗ ${idiom.idiom} 插图失败: ${e.message}`);
+    } finally {
+      setImgLoading(prev => ({ ...prev, [idiom.id]: false }));
+    }
+  }
+
+  async function handleBatchIllustrate() {
+    const needImg = idioms.filter(i => !i.image_url);
+    log(`批量生成 ${needImg.length} 张插图…`);
+    for (const idiom of needImg) {
+      await handleGenerateImage(idiom);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    log('✓ 批量插图完成');
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('确定删除这条成语？')) return;
+    await supabase.from('jgw_chengyu').delete().eq('id', id);
+    setIdioms(prev => prev.filter(i => i.id !== id));
+  }
+
+  // ── Count dropdown handler ──────────────────────────────────────────────
+  function handleCountChange(e) {
+    const v = Number(e.target.value);
+    setCountMode(v);
+    if (v !== CUSTOM_SENTINEL) setBatchCount(v);
+  }
+
+  return (
+    <div style={{ padding: '0 2px' }}>
+
+      {/* ── API Key Status Panel ── */}
+      <div style={{ background:'#E8F5E9', border:'1px solid #A5D6A7',
+        borderRadius:12, padding:'10px 14px', marginBottom:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+          <span style={{ fontWeight:600, color:'#2E7D32', fontSize:13 }}>
+            🔑 API Key 状态
+          </span>
+          {TEXT_PROVIDERS.map(p => (
+            <button key={p.id} onClick={() => testProvider(p.id)}
+              title={`测试 ${p.label}`}
+              style={{ background:'#fff', border:'1px solid #C8E6C9',
+                borderRadius:16, padding:'3px 10px', fontSize:11,
+                cursor:'pointer', display:'flex', gap:4, alignItems:'center' }}>
+              <span>{statusDot(p.id)}</span>
+              <span style={{ color:'#2E7D32' }}>{p.label.replace(/\s*\([^)]+\)/, '')}</span>
+            </button>
+          ))}
+          <button onClick={testAllKeys}
+            style={{ background:'#2E7D32', color:'#fff', border:'none',
+              borderRadius:16, padding:'3px 12px', fontSize:11, cursor:'pointer',
+              marginLeft:'auto' }}>
+            🔄 全部测试
+          </button>
+        </div>
+      </div>
+
+      {/* ── Batch generation ── */}
+      <div style={{ background:'#F3E5F5', border:'2px solid #CE93D8',
+        borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
+        <div style={{ fontWeight:600, color:'#4A148C', fontSize:14, marginBottom:12 }}>
+          🤖 AI 批量生成成语
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10, alignItems:'flex-end' }}>
+          <div>
+            <div style={{ fontSize:11, color:'#7B1FA2', marginBottom:3 }}>AI引擎</div>
+            <select value={batchProv} onChange={e=>setBatchProv(e.target.value)}
+              style={{ padding:'5px 8px', borderRadius:8, border:'1px solid #CE93D8',
+                background:'#fff', fontSize:12 }}>
+              {TEXT_PROVIDERS.map(p => (
+                <option key={p.id} value={p.id}>
+                  {statusDot(p.id)} {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#7B1FA2', marginBottom:3 }}>主题</div>
+            <select value={batchTheme} onChange={e=>setBatchTheme(e.target.value)}
+              style={{ padding:'5px 8px', borderRadius:8, border:'1px solid #CE93D8',
+                background:'#fff', fontSize:12 }}>
+              {THEMES.map(th => <option key={th} value={th}>{th}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#7B1FA2', marginBottom:3 }}>HSK</div>
+            <select value={batchHsk} onChange={e=>setBatchHsk(Number(e.target.value))}
+              style={{ padding:'5px 8px', borderRadius:8, border:'1px solid #CE93D8',
+                background:'#fff', fontSize:12 }}>
+              {[3,4,5,6].map(n => <option key={n} value={n}>HSK {n}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#7B1FA2', marginBottom:3 }}>数量</div>
+            <select value={countMode} onChange={handleCountChange}
+              style={{ padding:'5px 8px', borderRadius:8, border:'1px solid #CE93D8',
+                background:'#fff', fontSize:12 }}>
+              {COUNT_PRESETS.map(n => <option key={n} value={n}>{n}条</option>)}
+              <option value={CUSTOM_SENTINEL}>其他...</option>
+            </select>
+          </div>
+          {countMode === CUSTOM_SENTINEL && (
+            <div>
+              <div style={{ fontSize:11, color:'#7B1FA2', marginBottom:3 }}>自定义</div>
+              <input type="number" min={1} max={50} value={batchCount}
+                onChange={e=>setBatchCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                style={{ width:56, padding:'5px 8px', borderRadius:8,
+                  border:'1px solid #CE93D8', background:'#fff', fontSize:12 }}/>
+            </div>
+          )}
+          <button onClick={handleBatchGenerate} disabled={generating}
+            style={{ padding:'7px 16px', borderRadius:8, border:'none',
+              background: generating ? '#E0E0E0' : '#7B1FA2',
+              color: generating ? '#aaa' : '#fff',
+              fontWeight:600, fontSize:12, cursor: generating ? 'default' : 'pointer' }}>
+            {generating ? '生成中…' : '🚀 开始生成'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Illustration settings ── */}
+      <div style={{ background:V.bg, border:`1px solid ${V.border}`,
+        borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
+        <div style={{ fontWeight:600, color:V.verm, fontSize:14, marginBottom:10 }}>
+          🎨 插图生成设置
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:11, color:V.text3, marginBottom:3 }}>AI 引擎</div>
+            <select value={imgProvider} onChange={e=>setImgProvider(e.target.value)}
+              style={{ padding:'5px 8px', borderRadius:8, border:`1px solid ${V.border}`,
+                background:'#fff', fontSize:12 }}>
+              {IMG_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:V.text3, marginBottom:3 }}>风格</div>
+            <select value={imgStyle} onChange={e=>setImgStyle(e.target.value)}
+              style={{ padding:'5px 8px', borderRadius:8, border:`1px solid ${V.border}`,
+                background:'#fff', fontSize:12 }}>
+              {IMG_STYLES.map(s => <option key={s.id} value={s.id}>{s.label} · {s.en}</option>)}
+            </select>
+          </div>
+          <div style={{ display:'flex', alignItems:'flex-end' }}>
+            <button onClick={handleBatchIllustrate}
+              style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${V.border}`,
+                background:V.bg, color:V.verm, fontSize:12, cursor:'pointer' }}>
+              🖼 批量生成无图插图
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Log ── */}
+      {genLog.length > 0 && (
+        <div style={{ background:'#1a0a05', borderRadius:10, padding:'10px 12px',
+          marginBottom:14, maxHeight:120, overflowY:'auto' }}>
+          {genLog.map((l, i) => (
+            <div key={i} style={{ fontSize:11, color: l.includes('✓') ? '#69F0AE'
+              : l.includes('✗') ? '#FF5252' : '#aaa', lineHeight:1.6 }}>{l}</div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Idiom list ── */}
+      <div style={{ fontWeight:600, color:V.verm, fontSize:13, marginBottom:8 }}>
+        成语列表 ({idioms.length} 条) · <span style={{ fontWeight:400, color:V.text3 }}>点击任意条目编辑</span>
+      </div>
+      {loading ? (
+        <div style={{ textAlign:'center', color:V.text3, padding:20 }}>加载中…</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {idioms.map(item => (
+            <div key={item.id}
+              onClick={() => setEditingIdiom(item)}
+              style={{ background:'#fff', border:`1px solid ${V.border}`,
+                borderRadius:12, padding:'10px 12px',
+                display:'flex', gap:12, alignItems:'flex-start',
+                cursor:'pointer', transition:'border-color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = V.verm}
+              onMouseLeave={e => e.currentTarget.style.borderColor = V.border}>
+
+              {/* Thumbnail (click to preview) */}
+              <div style={{ width:52, height:52, borderRadius:10, flexShrink:0,
+                background: item.image_url ? 'transparent' : '#f5ede0',
+                border:`1px solid ${V.border}`, overflow:'hidden',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                cursor: item.image_url ? 'zoom-in' : 'default' }}>
+                {item.image_url
+                  ? <img src={item.image_url} alt={item.idiom}
+                      style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                  : <span style={{ fontSize:20, color:V.text3 }}>📜</span>}
+              </div>
+
+              {/* Info */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', gap:6, alignItems:'baseline', flexWrap:'wrap' }}>
+                  <span style={{ fontSize:17, fontWeight:700, color:V.verm,
+                    fontFamily:"'STKaiti','KaiTi',serif", letterSpacing:2 }}>
+                    {item.idiom}
+                  </span>
+                  <span style={{ fontSize:11, color:V.text3 }}>{item.pinyin}</span>
+                  <span style={{ fontSize:10, background:'#f5ede0', color:V.text2,
+                    padding:'1px 6px', borderRadius:8 }}>
+                    {item.theme} · HSK{item.hsk_level} · Lv{item.difficulty}
+                  </span>
+                </div>
+                <div style={{ fontSize:12, color:V.text2, marginTop:2,
+                  whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                  {item.meaning_zh}
+                </div>
+              </div>
+
+              {/* Actions (stop propagation so clicks don't open modal) */}
+              <div style={{ display:'flex', gap:6, flexShrink:0, alignItems:'center' }}
+                onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => speakChinese(item.idiom)}
+                  title="朗读成语"
+                  style={{ padding:'4px 8px', borderRadius:8, border:`1px solid ${V.border}`,
+                    background:'#E1F5FE', color:'#0277BD', fontSize:11, cursor:'pointer' }}>
+                  🔈
+                </button>
+                <button
+                  onClick={() => handleGenerateImage(item)}
+                  disabled={imgLoading[item.id]}
+                  title={`生成插图 (${IMG_STYLES.find(s=>s.id===imgStyle)?.label})`}
+                  style={{ padding:'4px 8px', borderRadius:8, border:`1px solid ${V.border}`,
+                    background:V.bg, color:V.verm, fontSize:11,
+                    cursor:imgLoading[item.id]?'default':'pointer',
+                    opacity:imgLoading[item.id]?0.5:1 }}>
+                  {imgLoading[item.id] ? '…' : '🎨'}
+                </button>
+                <button onClick={() => handleDelete(item.id)}
+                  style={{ padding:'4px 8px', borderRadius:8, border:'1px solid #FFCDD2',
+                    background:'#FFEBEE', color:'#C62828', fontSize:11, cursor:'pointer' }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Edit Modal ── */}
+      {editingIdiom && (
+        <EditIdiomModal
+          idiom={editingIdiom}
+          onClose={() => setEditingIdiom(null)}
+          onSaved={updated => {
+            setIdioms(prev => prev.map(i => i.id === updated.id ? updated : i));
+            setEditingIdiom(null);
+            log(`✓ ${updated.idiom} 已更新`);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Edit Modal
+// ═══════════════════════════════════════════════════════════════════════════
+function EditIdiomModal({ idiom, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    idiom:       idiom.idiom       || '',
+    pinyin:      idiom.pinyin      || '',
+    meaning_zh:  idiom.meaning_zh  || '',
+    meaning_en:  idiom.meaning_en  || '',
+    meaning_it:  idiom.meaning_it  || '',
+    story_zh:    idiom.story_zh    || '',
+    example_zh:  idiom.example_zh  || '',
+    theme:       idiom.theme       || 'general',
+    hsk_level:   idiom.hsk_level   || 3,
+    difficulty:  idiom.difficulty  || 2,
+  });
+  const [saving,    setSaving]    = useState(false);
+  const [imgError,  setImgError]  = useState(false);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function save() {
+    setSaving(true);
+    const { data, error } = await supabase
+      .from('jgw_chengyu')
+      .update(form)
+      .eq('id', idiom.id)
+      .select()
+      .maybeSingle();
+    setSaving(false);
+    if (error) {
+      alert('保存失败: ' + error.message);
+      return;
+    }
+    onSaved(data);
+  }
+
+  const V = {
+    bg:'#fdf6e3', border:'#e8d5b0', verm:'#8B4513',
+    text:'#1a0a05', text2:'#6b4c2a', text3:'#a07850',
+  };
+
+  const inputStyle = {
+    width:'100%', padding:'8px 10px', fontSize:13, borderRadius:8,
+    border:`1px solid ${V.border}`, boxSizing:'border-box',
+    background:'#fff', color:V.text,
+  };
+  const labelStyle = {
+    fontSize:11, color:V.verm, fontWeight:600, marginBottom:4, display:'block',
+  };
+
+  return (
+    <div onClick={onClose} style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,0.5)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      zIndex:9999, padding:20, overflowY:'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:V.bg, borderRadius:16, maxWidth:640, width:'100%',
+        maxHeight:'90vh', overflowY:'auto', padding:'20px 22px',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.35)',
+      }}>
+
+        {/* Header */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <div style={{ fontWeight:700, color:V.verm, fontSize:16 }}>
+            编辑成语
+          </div>
+          <button onClick={onClose}
+            style={{ border:'none', background:'transparent', fontSize:22, cursor:'pointer', color:V.text3 }}>
+            ×
+          </button>
+        </div>
+
+        {/* Image preview */}
+        {idiom.image_url && !imgError && (
+          <div style={{ marginBottom:16, textAlign:'center' }}>
+            <img src={idiom.image_url} alt={idiom.idiom}
+              onError={() => setImgError(true)}
+              style={{ maxWidth:'100%', maxHeight:220, borderRadius:12,
+                border:`1px solid ${V.border}`, objectFit:'contain' }}/>
+          </div>
+        )}
+
+        {/* Form */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+          <div style={{ gridColumn:'1 / 3' }}>
+            <label style={labelStyle}>成语 <span style={{ color:'#999' }}>(主键,不可改)</span></label>
+            <input value={form.idiom} disabled style={{ ...inputStyle,
+              background:'#f5ede0', fontFamily:"'STKaiti','KaiTi',serif",
+              fontSize:18, letterSpacing:2, color:V.verm }}/>
+          </div>
+
+          <div>
+            <label style={labelStyle}>拼音</label>
+            <input value={form.pinyin} onChange={e=>set('pinyin', e.target.value)}
+              style={inputStyle}/>
+          </div>
+
+          <div>
+            <label style={labelStyle}>主题</label>
+            <select value={form.theme} onChange={e=>set('theme', e.target.value)} style={inputStyle}>
+              {THEMES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>HSK等级</label>
+            <select value={form.hsk_level} onChange={e=>set('hsk_level', Number(e.target.value))} style={inputStyle}>
+              {[1,2,3,4,5,6].map(n => <option key={n} value={n}>HSK {n}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>难度 (1-4)</label>
+            <select value={form.difficulty} onChange={e=>set('difficulty', Number(e.target.value))} style={inputStyle}>
+              {[1,2,3,4].map(n => <option key={n} value={n}>Lv {n}</option>)}
+            </select>
+          </div>
+
+          <div style={{ gridColumn:'1 / 3' }}>
+            <label style={labelStyle}>中文意思</label>
+            <input value={form.meaning_zh} onChange={e=>set('meaning_zh', e.target.value)} style={inputStyle}/>
+          </div>
+
+          <div>
+            <label style={labelStyle}>English</label>
+            <input value={form.meaning_en} onChange={e=>set('meaning_en', e.target.value)} style={inputStyle}/>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Italiano</label>
+            <input value={form.meaning_it} onChange={e=>set('meaning_it', e.target.value)} style={inputStyle}/>
+          </div>
+
+          <div style={{ gridColumn:'1 / 3' }}>
+            <label style={labelStyle}>历史典故 · Story <span style={{ color:V.text3, fontWeight:400 }}>({form.story_zh.length} 字)</span></label>
+            <textarea value={form.story_zh} onChange={e=>set('story_zh', e.target.value)}
+              rows={4}
+              style={{ ...inputStyle, fontFamily:'inherit', resize:'vertical', minHeight:80 }}/>
+          </div>
+
+          <div style={{ gridColumn:'1 / 3' }}>
+            <label style={labelStyle}>例句 · Example</label>
+            <textarea value={form.example_zh} onChange={e=>set('example_zh', e.target.value)}
+              rows={2}
+              style={{ ...inputStyle, fontFamily:'inherit', resize:'vertical', minHeight:48 }}/>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:16 }}>
+          <button onClick={() => speakChinese(form.idiom)}
+            style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${V.border}`,
+              background:'#E1F5FE', color:'#0277BD', fontSize:13, cursor:'pointer' }}>
+            🔈 朗读
+          </button>
+          <button onClick={onClose}
+            style={{ padding:'8px 16px', borderRadius:10, border:`1px solid ${V.border}`,
+              background:'#fff', color:V.text2, fontSize:13, cursor:'pointer' }}>
+            取消
+          </button>
+          <button onClick={save} disabled={saving}
+            style={{ padding:'8px 20px', borderRadius:10, border:'none',
+              background: saving ? '#E0E0E0' : V.verm,
+              color: saving ? '#aaa' : '#fff',
+              fontSize:13, fontWeight:600, cursor: saving ? 'default' : 'pointer' }}>
+            {saving ? '保存中…' : '💾 保存'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

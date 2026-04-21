@@ -1,0 +1,21 @@
+{
+  "_comment_": "Merge these into your existing package.json. Do NOT replace — you have many other deps.",
+
+  "dependencies_to_add": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+
+  "devDependencies_to_add": {
+    "@types/node": "^20.0.0"
+  },
+
+  "function_only_dependencies_note": "The three packages below are used ONLY inside netlify/functions/*.js. They are installed at the Netlify-function level. You have TWO options:",
+
+  "option_A_add_to_root_package_json": {
+    "pdf-parse": "^1.1.1",
+    "adm-zip":   "^0.5.16",
+    "mammoth":   "^1.9.1"
+  },
+
+  "option_B_separate_functions_package": "Create netlify/functions/package.json with the three deps above — cleaner isolation but Netlify must be told to install it. See README_DEPLOY.md."
+}

@@ -1,0 +1,98 @@
+// src/data/pinyinData.js
+// Pinyin data with IPA transcriptions and Italian/English sound bridges
+
+export const INITIALS = [
+  { py:'b',  ipa:'p',    eg:'爸 bā',  color:'#1565C0', it:'come "b" in "bello"',              en:'like "b" in "boy" (unaspirated)' },
+  { py:'p',  ipa:'pʰ',   eg:'怕 pā',  color:'#1565C0', it:'come "p" in "porta" aspirata',      en:'like "p" in "pin" (aspirated)' },
+  { py:'m',  ipa:'m',    eg:'妈 mā',  color:'#1565C0', it:'come "m" in "mare"',                en:'like "m" in "mother"' },
+  { py:'f',  ipa:'f',    eg:'发 fā',  color:'#1565C0', it:'come "f" in "fare"',                en:'like "f" in "food"' },
+  { py:'d',  ipa:'t',    eg:'打 dā',  color:'#2E7D32', it:'come "d" in "dado" (non aspirata)', en:'like "d" in "door" (unaspirated)' },
+  { py:'t',  ipa:'tʰ',   eg:'他 tā',  color:'#2E7D32', it:'come "t" in "tavolo" aspirata',     en:'like "t" in "top" (aspirated)' },
+  { py:'n',  ipa:'n',    eg:'拿 ná',  color:'#2E7D32', it:'come "n" in "notte"',               en:'like "n" in "night"' },
+  { py:'l',  ipa:'l',    eg:'拉 lā',  color:'#2E7D32', it:'come "l" in "luce"',                en:'like "l" in "light"' },
+  { py:'g',  ipa:'k',    eg:'哥 gē',  color:'#6A1B9A', it:'come "g" in "gatto" (non aspirata)',en:'like "g" in "go" (unaspirated)' },
+  { py:'k',  ipa:'kʰ',   eg:'可 kē',  color:'#6A1B9A', it:'come "c" in "cane" aspirata',       en:'like "k" in "key" (aspirated)' },
+  { py:'h',  ipa:'x',    eg:'喝 hē',  color:'#6A1B9A', it:'come "ch" in tedesco "Bach"',       en:'like "h" but with friction from throat' },
+  { py:'j',  ipa:'tɕ',   eg:'鸡 jī',  color:'#B71C1C', it:'come "gi" in "giorno"',             en:'like "j" in "jeep"' },
+  { py:'q',  ipa:'tɕʰ',  eg:'七 qī',  color:'#B71C1C', it:'come "ci" in "cielo" aspirata',     en:'like "ch" in "cheap" (aspirated)' },
+  { py:'x',  ipa:'ɕ',    eg:'西 xī',  color:'#B71C1C', it:'come "sci" in "scienza"',           en:'like "sh" but tongue forward — NOT "xia"' },
+  { py:'zh', ipa:'ʈʂ',   eg:'知 zhī', color:'#E65100', it:'simile a "gi" retroflex, lingua arretrata',en:'like "j" but tongue curled back' },
+  { py:'ch', ipa:'ʈʂʰ',  eg:'吃 chī', color:'#E65100', it:'retroflex aspirata',                en:'like "ch" but tongue curled back' },
+  { py:'sh', ipa:'ʂ',    eg:'师 shī', color:'#E65100', it:'come "sc" retroflex',               en:'like "sh" but tongue curled back' },
+  { py:'r',  ipa:'ʐ',    eg:'日 rì',  color:'#E65100', it:'retroflex sonoro, simile a "r" americano',en:'like "r" in American English + buzz' },
+  { py:'z',  ipa:'ts',   eg:'字 zì',  color:'#00695C', it:'come "z" in "pizza"',               en:'like "ds" in "reads"' },
+  { py:'c',  ipa:'tsʰ',  eg:'次 cì',  color:'#00695C', it:'come "z" in "pizza" aspirata',      en:'like "ts" in "cats" (aspirated)' },
+  { py:'s',  ipa:'s',    eg:'四 sì',  color:'#00695C', it:'come "s" in "sole"',                en:'like "s" in "sun"' },
+];
+
+export const FINALS = [
+  // IPA + proper phonetic description (no toned syllables as representatives)
+  { py:'a',   ipa:'a',    eg:'啊 ā',   color:'#1565C0', it:'come "a" in "casa"',          en:'open "a" like in "father"' },
+  { py:'o',   ipa:'o',    eg:'哦 ō',   color:'#1565C0', it:'come "o" in "oro"',            en:'rounded "o" like in "or"' },
+  { py:'e',   ipa:'ɤ',    eg:'呃 ē',   color:'#1565C0', it:'suono gutturale, non è "e" italiana',en:'back unrounded vowel, no English equiv.' },
+  { py:'i',   ipa:'i',    eg:'衣 yī',  color:'#1565C0', it:'come "i" in "vita"',           en:'like "ee" in "see"' },
+  { py:'u',   ipa:'u',    eg:'屋 wū',  color:'#1565C0', it:'come "u" in "luna"',           en:'like "oo" in "food"' },
+  { py:'ü',   ipa:'y',    eg:'鱼 yú',  color:'#1565C0', it:'come "u" francese in "lune"',  en:'like French "u" — round lips, say "ee"' },
+  { py:'ai',  ipa:'aɪ',   eg:'爱 ài',  color:'#2E7D32', it:'come "ai" in "dai"',           en:'like "ai" in "aisle"' },
+  { py:'ei',  ipa:'eɪ',   eg:'诶 ēi',  color:'#2E7D32', it:'come "ei" in "lei"',           en:'like "ay" in "day"' },
+  { py:'ui',  ipa:'ueɪ',  eg:'威 wēi', color:'#2E7D32', it:'come "ui" ma inizia con "u"',  en:'like "way" — u+ei combined' },
+  { py:'ao',  ipa:'ɑʊ',   eg:'凹 āo',  color:'#2E7D32', it:'come "ao" in "caos"',          en:'like "ow" in "cow"' },
+  { py:'ou',  ipa:'oʊ',   eg:'欧 ōu',  color:'#2E7D32', it:'come "ou" in "outletˮ',        en:'like "oe" in "toe"' },
+  { py:'iu',  ipa:'ɪoʊ',  eg:'优 yōu', color:'#2E7D32', it:'come "iou" rapido',            en:'like "yo" — i+ou combined' },
+  { py:'ie',  ipa:'iɛ',   eg:'耶 yē',  color:'#6A1B9A', it:'come "ie" in "ieri"',          en:'like "ye" in "yes"' },
+  { py:'üe',  ipa:'yɛ',   eg:'约 yuē', color:'#6A1B9A', it:'ü + e combinati',              en:'like "ü" + "e" combined' },
+  { py:'er',  ipa:'əɻ',   eg:'儿 ér',  color:'#6A1B9A', it:'come "er" americano in "butter"',en:'like "er" in American "butter"' },
+  { py:'an',  ipa:'an',   eg:'安 ān',  color:'#B71C1C', it:'come "an" in "pane"',          en:'like "an" in "ran"' },
+  { py:'en',  ipa:'ən',   eg:'恩 ēn',  color:'#B71C1C', it:'suono ridotto, come "en" in "open"',en:'like "un" in "under" (schwa+n)' },
+  { py:'in',  ipa:'in',   eg:'因 yīn', color:'#B71C1C', it:'come "in" in "fine"',          en:'like "een" in "seen"' },
+  { py:'un',  ipa:'uən',  eg:'温 wēn', color:'#B71C1C', it:'u + en combinati (non "yun"!)',  en:'like "wen" — u+en, NOT "yun"' },
+  { py:'ün',  ipa:'yn',   eg:'晕 yūn', color:'#B71C1C', it:'ü + n, come francese "un"',    en:'like "ü" + n combined' },
+  { py:'ang', ipa:'aŋ',   eg:'昂 āng', color:'#E65100', it:'come "ang" in "tango"',        en:'like "ong" in "song" but with "a"' },
+  { py:'eng', ipa:'əŋ',   eg:'鹰 yīng',color:'#E65100', it:'suono ridotto + ng nasale',    en:'like "ung" in "sung"' },
+  { py:'ing', ipa:'iŋ',   eg:'应 yīng',color:'#E65100', it:'come "ing" in inglese "sing"', en:'like "ing" in "sing"' },
+  { py:'ong', ipa:'ʊŋ',   eg:'翁 wēng',color:'#E65100', it:'come "ong" in "gong"',         en:'like "ong" in "long"' },
+];
+
+export const TONES = [
+  { num:1, mark:'ā', name:'阴平', nameEn:'1st tone', nameIt:'1° tono',
+    desc:'高平调，像唱歌', descEn:'High and level — like a musical note held steady',
+    descIt:'Alto e piatto — come una nota musicale tenuta',
+    color:'#1565C0', arrow:'→', contour:[0.9,0.9,0.9,0.9,0.9] },
+  { num:2, mark:'á', name:'阳平', nameEn:'2nd tone', nameIt:'2° tono',
+    desc:'从中升高，像问句', descEn:'Rising — like asking "What?" in English',
+    descIt:'In salita — come dire "Cosa?" in italiano',
+    color:'#2E7D32', arrow:'↗', contour:[0.35,0.5,0.65,0.8,0.9] },
+  { num:3, mark:'ǎ', name:'上声', nameEn:'3rd tone', nameIt:'3° tono',
+    desc:'先降后升，像惊讶', descEn:'Dip then rise — like saying "oh?" skeptically',
+    descIt:'Scende poi sale — come "ah?" con scetticismo',
+    color:'#E65100', arrow:'↘↗', contour:[0.5,0.25,0.15,0.25,0.55] },
+  { num:4, mark:'à', name:'去声', nameEn:'4th tone', nameIt:'4° tono',
+    desc:'从高急降，像命令', descEn:'Sharp falling — like saying "Stop!" firmly',
+    descIt:'Cade bruscamente — come dire "Basta!" con fermezza',
+    color:'#B71C1C', arrow:'↘', contour:[0.9,0.7,0.5,0.3,0.1] },
+  { num:0, mark:'a',  name:'轻声', nameEn:'Neutral tone', nameIt:'Tono neutro',
+    desc:'轻而短，不标调', descEn:'Short and light — barely stressed',
+    descIt:'Breve e leggero — quasi inudibile',
+    color:'#888', arrow:'·', contour:[0.3,0.3,0.3,0.3,0.3] },
+];
+
+export const TONE_EXAMPLES = [
+  { py:'mā', char:'妈', meaning:'mother',   meaningIt:'mamma',   tone:1, ipa:'ma˥˥' },
+  { py:'má', char:'麻', meaning:'hemp/numb', meaningIt:'canapa',  tone:2, ipa:'ma˧˥' },
+  { py:'mǎ', char:'马', meaning:'horse',    meaningIt:'cavallo',  tone:3, ipa:'ma˨˩˦' },
+  { py:'mà', char:'骂', meaning:'scold',    meaningIt:'sgridare', tone:4, ipa:'ma˥˩' },
+  { py:'ma', char:'吗', meaning:'(question)',meaningIt:'(domanda)',tone:0, ipa:'ma' },
+];
+
+export const LISTEN_EXERCISES = [
+  { py:'bā',  char:'八',  tone:1, options:['bā','bá','bǎ','bà'] },
+  { py:'máo', char:'猫',  tone:2, options:['māo','máo','mǎo','mào'] },
+  { py:'nǐ',  char:'你',  tone:3, options:['nī','ní','nǐ','nì'] },
+  { py:'dà',  char:'大',  tone:4, options:['dā','dá','dǎ','dà'] },
+  { py:'hē',  char:'喝',  tone:1, options:['hē','hé','hě','hè'] },
+  { py:'lái', char:'来',  tone:2, options:['lāi','lái','lǎi','lài'] },
+  { py:'wǒ',  char:'我',  tone:3, options:['wō','wó','wǒ','wò'] },
+  { py:'shì', char:'是',  tone:4, options:['shī','shí','shǐ','shì'] },
+  { py:'chī', char:'吃',  tone:1, options:['chī','chí','chǐ','chì'] },
+  { py:'yǒu', char:'有',  tone:3, options:['yōu','yóu','yǒu','yòu'] },
+];

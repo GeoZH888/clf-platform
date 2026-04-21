@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#8B4513" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="大卫学中文" />
+    <meta name="description" content="Trace oracle bone script characters from the Shang Dynasty — 描红练习" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- ═══════════════════════════════════════════════════════════
+         四体字库:楷 · 行 · 隶 · 篆
+         ═══════════════════════════════════════════════════════════ -->
+
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://yqcojudvvjntaajnrilr.supabase.co" crossorigin>
+
+    <!-- 楷书:霞鹜文楷(LXGW WenKai,OFL 1.1) -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-lite-webfont@1.1.0/style.css" />
+
+    <!-- 行书:Google Fonts -->
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Liu+Jian+Mao+Cao&display=swap">
+
+    <!-- 隶书 + 篆书:自托管 Supabase Storage (unconditional load) -->
+    <style>
+      @font-face {
+        font-family: 'LishuWZ';
+        src: url('https://yqcojudvvjntaajnrilr.supabase.co/storage/v1/object/public/fonts/lishu.ttf')
+             format('truetype');
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'ZhuantiWZ';
+        src: url('https://yqcojudvvjntaajnrilr.supabase.co/storage/v1/object/public/fonts/zhuanti.ttf')
+             format('truetype');
+        font-display: swap;
+      }
+    </style>
+
+    <title>大卫学中文</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

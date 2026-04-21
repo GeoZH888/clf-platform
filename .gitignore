@@ -1,0 +1,36 @@
+﻿# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.netlify/
+
+# Env files (SECRET — 绝对不能上 GitHub)
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+
+# Backup directories
+src.backup/
+*.backup/
+
+# Ad-hoc test files
+body.json
+test_body.json
