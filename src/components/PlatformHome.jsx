@@ -130,7 +130,7 @@ const PANDA_SVG = {
   grammar: PandaReading,
   hsk:     PandaReading,
   poetry:  PandaReading,
-  games:   PandaReading,
+  //games:   PandaReading,
 };
 
 // ── Module data ───────────────────────────────────────────────────────────────
@@ -233,20 +233,20 @@ const MODULES = [
       { zh:'语法速查表', en:'Grammar cheatsheet', it:'Riepilogo rapido' },
     ],
   },
-  {
-    id: 'games',
-    pandaEmotion: 'games',
-    zh: '游戏', en: 'Games', it: 'Giochi',
-    desc: { zh:'⚡问答 · 🃏记忆 · 🌧字雨 · 🔤拼词', en:'⚡Quiz · 🃏Memory · 🌧Falling · 🔤Spell', it:'⚡Quiz · 🃏Memoria · 🌧Pioggia · 🔤Componi' },
-    color: '#212121', border: '#F57F17', text: '#FFD740',
-    tag: { zh:'趣味', en:'Fun', it:'Divertente' },
-    features: [
-      { zh:'⚡ 闪电问答 — 8秒连击加分', en:'⚡ Speed Quiz — 8s combos', it:'⚡ Quiz veloce — combo' },
-      { zh:'🃏 翻牌记忆 — 配对挑战', en:'🃏 Memory Match — flip cards', it:'🃏 Abbina le carte' },
-      { zh:'🌧 字雨 — 字符从天而降', en:'🌧 Falling Sky — react fast', it:'🌧 Pioggia di caratteri' },
-      { zh:'🔤 拼词游戏 — 造词挑战', en:'🔤 Word Spell — build words', it:'🔤 Componi le parole' },
-    ],
-  },
+  // {
+  //   id: 'games',
+  //   pandaEmotion: 'games',
+  //   zh: '游戏', en: 'Games', it: 'Giochi',
+  //   desc: { zh:'⚡问答 · 🃏记忆 · 🌧字雨 · 🔤拼词', en:'⚡Quiz · 🃏Memory · 🌧Falling · 🔤Spell', it:'⚡Quiz · 🃏Memoria · 🌧Pioggia · 🔤Componi' },
+  //   color: '#212121', border: '#F57F17', text: '#FFD740',
+  //   tag: { zh:'趣味', en:'Fun', it:'Divertente' },
+  //   features: [
+  //     { zh:'⚡ 闪电问答 — 8秒连击加分', en:'⚡ Speed Quiz — 8s combos', it:'⚡ Quiz veloce — combo' },
+  //     { zh:'🃏 翻牌记忆 — 配对挑战', en:'🃏 Memory Match — flip cards', it:'🃏 Abbina le carte' },
+  //     { zh:'🌧 字雨 — 字符从天而降', en:'🌧 Falling Sky — react fast', it:'🌧 Pioggia di caratteri' },
+  //     { zh:'🔤 拼词游戏 — 造词挑战', en:'🔤 Word Spell — build words', it:'🔤 Componi le parole' },
+  //   ],
+  // },
 ];
 
 // ── Module card ───────────────────────────────────────────────────────────────
