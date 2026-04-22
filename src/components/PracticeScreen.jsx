@@ -32,15 +32,43 @@ const V = {
 // Strategy: rasterize the target char into a hidden offscreen canvas
 // (no grid lines, just black pixels) and compare with the user canvas.
 // ─────────────────────────────────────────────────────────────────────
-let _guideCache = { char: null, css: null, data: null };
+// Cache guide rasterization AND its precomputed bbox + centroid + pixel list.
+// Adding those here means we don't recompute them every score.
+let _guideCache = { char: null, css: null, data: null, bbox: null, centroid: null, count: 0 };
+
+function _analyzeInkAlpha(data, size, thresh) {
+  // Single pass: bbox + centroid + pixel count for pixels whose alpha > thresh
+  let minX = size, maxX = -1, minY = size, maxY = -1;
+  let sumX = 0, sumY = 0, count = 0;
+  for (let i = 3, idx = 0; i < data.length; i += 4, idx++) {
+    if (data[i] > thresh) {
+      const x = idx % size, y = (idx / size) | 0;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      sumX += x; sumY += y; count++;
+    }
+  }
+  if (count === 0) return { count: 0 };
+  return {
+    count,
+    bbox:     { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 },
+    centroid: { x: sumX / count, y: sumY / count },
+  };
+}
+
+// Position-invariant scoring. We align user ink's centroid to the guide's
+// centroid before measuring overlap, so writing in a corner of the 田字格
+// scores the same as writing dead-center — only the shape matters.
+// Scale is NOT normalized here (a tiny squiggle still won't match a large glyph),
+// but translation is. Per Geo's ask: "先不强调位置".
 function computeScore(userCanvas, char, fontCss) {
   if (!char) return null;
   const size = S;
 
-  // Build (or reuse) a clean rasterization of the target character
-  let guideData;
+  // ── Rasterize target glyph (cached) ──────────────────────────────
+  let guide;
   if (_guideCache.char === char && _guideCache.css === fontCss && _guideCache.data) {
-    guideData = _guideCache.data;
+    guide = _guideCache;
   } else {
     const off = document.createElement('canvas');
     off.width = size; off.height = size;
@@ -50,36 +78,45 @@ function computeScore(userCanvas, char, fontCss) {
     ctx.textBaseline = 'middle';
     ctx.font = `230px ${fontCss || "'STKaiti','KaiTi',serif"}`;
     ctx.fillText(char, size / 2, size / 2 + 6);
-    guideData = ctx.getImageData(0, 0, size, size).data;
-    _guideCache = { char, css: fontCss, data: guideData };
+    const data = ctx.getImageData(0, 0, size, size).data;
+    const analysis = _analyzeInkAlpha(data, size, 128);
+    guide = { char, css: fontCss, data, ...analysis };
+    _guideCache = guide;
   }
 
+  if (guide.count < 100) {
+    return { score: 0, coverage: 0, precision: 0, userPixels: 0, guidePixels: guide.count, level: 'unknown' };
+  }
+
+  // ── Analyze user ink ─────────────────────────────────────────────
   const userData = userCanvas.getContext('2d').getImageData(0, 0, size, size).data;
+  const user = _analyzeInkAlpha(userData, size, 40);
 
-  let userPixels = 0;
-  let guidePixels = 0;
+  if (user.count < 30) {
+    return { score: 0, coverage: 0, precision: 0, userPixels: user.count, guidePixels: guide.count, level: 'practice' };
+  }
+
+  // ── Translation: shift user so its centroid aligns with guide's ──
+  const dx = Math.round(guide.centroid.x - user.centroid.x);
+  const dy = Math.round(guide.centroid.y - user.centroid.y);
+
+  // Walk the guide's pixels; for each, check user at the shifted location.
+  // Iterating the guide instead of every pixel is an optimisation —
+  // we only care about overlap on guide pixels for coverage.
   let overlap = 0;
-
-  // Use alpha channel. User ink alpha > 40 counts as "drawn".
-  // Target rasterization is solid black, alpha is basically 0 or 255.
-  for (let i = 3; i < userData.length; i += 4) {
-    const u = userData[i] > 40;
-    const g = guideData[i] > 128;
-    if (u) userPixels++;
-    if (g) guidePixels++;
-    if (u && g) overlap++;
+  for (let i = 3, idx = 0; i < guide.data.length; i += 4, idx++) {
+    if (guide.data[i] <= 128) continue;
+    const gx = idx % size, gy = (idx / size) | 0;
+    const ux = gx - dx, uy = gy - dy;
+    if (ux < 0 || ux >= size || uy < 0 || uy >= size) continue;
+    const uAlpha = userData[(uy * size + ux) * 4 + 3];
+    if (uAlpha > 40) overlap++;
   }
 
-  if (guidePixels < 100) {
-    // Font didn't render — can't score
-    return { score: 0, coverage: 0, precision: 0, userPixels, guidePixels, level: 'unknown' };
-  }
+  const coverage  = Math.min(1, overlap / guide.count);
+  const precision = user.count > 0 ? overlap / user.count : 0;
 
-  const coverage  = Math.min(1, overlap / guidePixels);
-  const precision = userPixels > 0 ? overlap / userPixels : 0;
-
-  // Score: coverage is king (70%), precision balances it (30%)
-  // Coverage < 0.3 = clearly incomplete, cap at proportional score
+  // Keep same weighting as before: coverage 70%, precision 30%
   const raw = coverage * 0.7 + precision * 0.3;
   const score = Math.round(100 * raw);
 
@@ -88,7 +125,7 @@ function computeScore(userCanvas, char, fontCss) {
               : score >= 40 ? 'fair'
               : 'practice';
 
-  return { score, coverage, precision, userPixels, guidePixels, level };
+  return { score, coverage, precision, userPixels: user.count, guidePixels: guide.count, level };
 }
 
 
@@ -349,7 +386,7 @@ function DifficultyDots({ level = 1 }) {
 }
 
 // ── Main PracticeScreen ────────────────────────────────────────────
-export default function PracticeScreen({ char, set, onBack, onNext, onPracticed, onQuizComplete }) {
+export default function PracticeScreen({ char, set, initialMode = 'free', onBack, onNext, onPracticed, onQuizComplete }) {
   const { lang } = useLang();
   const [selFont,   setSelFont]   = useState(0);
   const [penMode,   setPenMode]   = useState('soft');
@@ -364,7 +401,9 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
   };
   const { forceUniform } = useDeviceType();
   const [sizeScale, setSizeScale] = useState(1.0);
-  const [mode,      setMode]      = useState('free');
+  const [mode,      setMode]      = useState(initialMode);
+  // If user re-enters via the mode picker with a different mode, reflect that.
+  useEffect(() => { if (initialMode) setMode(initialMode); }, [initialMode]);
   const [showGuide, setShowGuide] = useState(true);
   const [strokeIdx, setStrokeIdx] = useState(0);
   const [totalStr,  setTotalStr]  = useState(0);
@@ -451,7 +490,11 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
 
   // ── HanziWriter ───────────────────────────────────────────────────
   useEffect(() => {
+    // Also re-runs when `mode` changes — because the hzRef DOM element is
+    // unmounted while in dictation/completion, and we need to re-mount the
+    // HanziWriter instance when the user returns to free/quiz/speak.
     if (!hzRef.current || !char?.c) return;
+    if (mode === 'dictation' || mode === 'completion') return;
     hzRef.current.innerHTML = '';
     setStrokeIdx(0); setTotalStr(0); setIsAnim(false); setQStroke(0);
     setQFb({ msg:'准备好了请开始描画第 1 笔', cls:'' });
@@ -468,7 +511,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
     });
     writer.current = w;
     return () => { try { w.cancelQuiz(); } catch {} };
-  }, [char?.c]);
+  }, [char?.c, mode]);
 
   // ── Canvas drawing ────────────────────────────────────────────────
   useEffect(() => {
@@ -898,7 +941,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
       {/* ── Mode toggle + stroke buttons + settings ─────────────────── */}
       <div style={{width:'100%',maxWidth:320,margin:'0 auto',display:'flex',gap:6,alignItems:'center'}}>
         <div style={{display:'flex',border:'0.5px solid var(--border)',borderRadius:20,overflow:'hidden',flex:1}}>
-          {[['free','✏'],['dictation','⏱'],['completion','◧'],['speak','🎤']].map(([m,icon])=>(
+          {[['free','✏'],['speak','🎤']].map(([m,icon])=>(
             <button key={m} onClick={()=>switchMode(m)}
               style={{flex:1,padding:'7px 4px',fontSize:12,cursor:'pointer',border:'none',
                 fontFamily:'inherit',background:mode===m?'#8B4513':'var(--card)',

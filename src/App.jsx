@@ -7,6 +7,7 @@ import SetScreen      from './components/SetScreen.jsx';
 import PracticeScreen from './components/PracticeScreen.jsx';
 import ProgressScreen from './components/ProgressScreen.jsx';
 import MyStatsScreen  from './components/MyStatsScreen.jsx';
+import PracticeModeScreen from './components/PracticeModeScreen.jsx';
 import PinyinApp      from './pinyin/PinyinApp.jsx';
 import WordsApp       from './words/WordsApp.jsx';
 import GrammarApp     from './grammar/GrammarApp.jsx';
@@ -213,6 +214,7 @@ function UserApp() {
   const [activeSet,  setSet]     = useState(null);
   const [charIdx,    setCharIdx] = useState(0);
   const [prevScreen, setPrev]    = useState('platform');
+  const [practiceMode, setPracticeMode] = useState('free');  // 'free' | 'dictation' | 'completion' | 'speak'
   const { progress, stats, recordPractice, recordQuiz, resetProgress } = useProgress();
   const { sets: SETS, loading: setsLoading } = useCharacters();
 
@@ -266,7 +268,7 @@ function UserApp() {
 
   function handleNav(id) {
     if (id === 'home')     setScreen('platform');
-    if (id === 'practice') setScreen('home');      // always land on set list
+    if (id === 'practice') setScreen('practice-modes');   // ← picker, not set list
     if (id === 'progress') setScreen('progress');
     if (id === 'settings') setScreen('settings');
   }
@@ -302,6 +304,14 @@ function UserApp() {
               onLogout={logout}
               userLabel={label}/>
           )}
+          {screen === 'practice-modes' && (
+            <PracticeModeScreen
+              onSelectMode={(m) => {
+                setPracticeMode(m);
+                setScreen('home');    // go to set list with chosen mode pending
+              }}
+              onBack={() => setScreen('platform')}/>
+          )}
           {screen === 'home' && (
             <HomeScreen sets={SETS} progress={progress} stats={stats}
               onSelectSet={s=>{ setSet(s); setCharIdx(0); setScreen('set'); }}
@@ -316,6 +326,7 @@ function UserApp() {
           {screen === 'practice' && currentChar && (
             <PracticeScreen
               char={currentChar} set={activeSet}
+              initialMode={practiceMode}
               onBack={()=>setScreen(prevScreen==='practice'?'home':(prevScreen||'home'))}
               onNext={(nextCharObj) => {
                 // Adaptive: PracticeScreen may pass the next char chosen by
