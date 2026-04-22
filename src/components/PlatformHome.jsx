@@ -27,7 +27,11 @@ const PATH_STORAGE_KEY = 'clf_current_path';
 const MODULES = [
   {
     id:       'lianzi',
-    emoji:    '🐢',
+    emoji:    '🐼',
+    // If you later want to use a custom panda illustration asset, set
+    // iconImage to a URL/path (e.g. '/panda-lianzi.png' in /public) and it
+    // will override the emoji in ModuleCard.
+    iconImage: null,
     name:     { zh:'练字', en:'Character Writing', it:'Scrittura' },
     desc:     { zh:'笔顺 · 软笔 · 声调练习',
                 en:'Stroke order · brush · tones',
@@ -46,6 +50,7 @@ const MODULES = [
   {
     id:       'pinyin',
     emoji:    '🔤',
+    iconImage: null,
     name:     { zh:'拼音', en:'Pinyin', it:'Pinyin' },
     desc:     { zh:'声母 · 韵母 · 四声 · 发音',
                 en:'Initials · finals · tones · speech',
@@ -91,7 +96,7 @@ const MODULES = [
 // ────────────────────────────────────────────────────────────────────
 // Main component
 // ────────────────────────────────────────────────────────────────────
-export default function PlatformHome({ onSelect, allowedModules, userLabel, onSettings, onLogout }) {
+export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout }) {
   const { lang } = useLang();
   const t = (zh, en, it) => lang === 'zh' ? zh : lang === 'it' ? (it || en) : en;
 
@@ -106,10 +111,9 @@ export default function PlatformHome({ onSelect, allowedModules, userLabel, onSe
     try { localStorage.setItem(PATH_STORAGE_KEY, currentPath); } catch {}
   }, [currentPath]);
 
-  // Respect allowedModules from App if provided (e.g. device auth limits)
-  const visibleModules = allowedModules && allowedModules.length > 0
-    ? MODULES.filter(m => allowedModules.includes(m.id))
-    : MODULES;
+  // All registered modules are shown. If per-user permissions become a
+  // requirement later, re-introduce an allowedModules filter here.
+  const visibleModules = MODULES;
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 40 }}>
@@ -207,8 +211,12 @@ function ModuleCard({ mod, lang, onClick }) {
         <div style={{ width: 56, height: 56, borderRadius: 16,
           background: mod.border, color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 28, flexShrink: 0 }}>
-          {mod.emoji}
+          fontSize: 28, flexShrink: 0, overflow: 'hidden' }}>
+          {mod.iconImage
+            ? <img src={mod.iconImage} alt={name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={e => { e.currentTarget.style.display = 'none'; }}/>
+            : <span>{mod.emoji}</span>}
         </div>
         <div>
           <div style={{ fontSize: 22, fontWeight: 500, color: mod.text,
