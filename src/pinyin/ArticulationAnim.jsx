@@ -2,29 +2,45 @@
 // Animated cross-section articulation diagram with synchronized audio
 import { useEffect, useRef } from 'react';
 
-// Youdao audio codes for each sound
-const AUDIO_CODES = {
-  b:'bo1',p:'po1',m:'mo1',f:'fo2',d:'da1',t:'ta1',n:'na2',l:'la1',
-  g:'ge1',k:'ke1',h:'he1',j:'ji1',q:'qi1',x:'xi1',
-  zh:'zhi1',ch:'chi1',sh:'shi1',r:'ri4',z:'zi4',c:'ci4',s:'si4',
-  a:'a1',o:'o1',e:'e4',i:'yi1',u:'wu1',ü:'yu2',
-  ai:'ai4',ei:'ei1',ao:'ao4',ou:'ou1',
-  an:'an1',en:'en1',in:'yin1',un:'wen1',ün:'yun1',
-  ang:'ang1',eng:'eng1',ing:'ying1',ong:'weng1',
-  ie:'ye1',üe:'yue4',er:'er2',ui:'wei4',iu:'you3',
+// Tone-marked teaching syllables for isolated pronunciation.
+// Follows standard pinyin pedagogy: each initial is taught with its
+// canonical demonstration vowel. Sent to Azure TTS as SSML.
+const TEACHING_SYLLABLE = {
+  // Labials (+ -o)
+  b:'bō',  p:'pō',  m:'mō',  f:'fó',
+  // Alveolars (+ -e) — teaching convention, not -a
+  d:'dē',  t:'tē',  n:'nē',  l:'lē',
+  // Velars (+ -e)
+  g:'gē',  k:'kē',  h:'hē',
+  // Palatals (+ -i)
+  j:'jī',  q:'qī',  x:'xī',
+  // Retroflex (+ -i)
+  zh:'zhī', ch:'chī', sh:'shī', r:'rī',
+  // Dental sibilants (+ -i)
+  z:'zī',  c:'cī',  s:'sī',
+  // Finals — read in full
+  a:'ā',   o:'ō',   e:'ē',   i:'yī',  u:'wū',  ü:'yū',
+  ai:'āi', ei:'ēi', ao:'āo', ou:'ōu',
+  an:'ān', en:'ēn', in:'yīn', un:'wēn', ün:'yūn',
+  ang:'āng', eng:'ēng', ing:'yīng', ong:'wēng',
+  ie:'yē', üe:'yuē', er:'ér', ui:'wēi', iu:'yōu',
 };
 
-// Fallback Chinese chars for Web Speech
+// Fallback Chinese chars for Web Speech (used when Azure unavailable)
 const FALLBACK = {
-  b:'波',p:'坡',m:'摸',f:'佛',d:'打',t:'他',n:'拿',l:'拉',
+  b:'波',p:'坡',m:'摸',f:'佛',d:'的',t:'特',n:'呢',l:'了',
   g:'哥',k:'可',h:'喝',j:'鸡',q:'七',x:'西',
-  zh:'知',ch:'吃',sh:'师',r:'日',z:'字',c:'次',s:'四',
+  zh:'知',ch:'吃',sh:'师',r:'日',z:'资',c:'雌',s:'思',
   a:'啊',o:'哦',e:'呃',i:'衣',u:'屋',ü:'鱼',
   ai:'爱',ei:'诶',ao:'凹',ou:'欧',
   an:'安',en:'恩',in:'因',un:'温',ün:'晕',
   ang:'昂',eng:'鹰',ing:'英',ong:'翁',
   ie:'耶',üe:'约',er:'儿',ui:'威',iu:'优',
 };
+
+// In-memory cache for Azure TTS blob URLs — avoids refetching within a session.
+// Keyed by sound symbol ("b", "zh", "an", …).
+const audioCache = new Map();
 
 // Per-sound articulation parameters
 const ANIM_PARAMS = {
@@ -103,19 +119,66 @@ export default function ArticulationAnim({ sound, color='#1565C0', artDiagrams={
     tick();
   }
 
-  function playSound() {
-    const code = AUDIO_CODES[sound];
-    if (!code) return;
+  async function playSound() {
+    const text = TEACHING_SYLLABLE[sound];
+    if (!text) { playWebSpeechFallback(); return; }
+
+    // Tier 1 — in-memory cache (session-local)
+    const cached = audioCache.get(sound);
+    if (cached) { playUrl(cached); return; }
+
+    // Tier 2 — Azure TTS
+    try {
+      const tokenRes = await fetch('/.netlify/functions/azure-speech-token');
+      if (!tokenRes.ok) throw new Error('azure-token-unavailable');
+      const { token, region } = await tokenRes.json();
+
+      // Using XiaohanNeural: better prosodic control for isolated syllables
+      // than XiaoxiaoNeural. Rate x-slow so learners hear each segment.
+      const ssml = `<speak version='1.0' xml:lang='zh-CN'>
+        <voice name='zh-CN-XiaohanNeural'>
+          <prosody rate='x-slow' pitch='default'>${text}</prosody>
+        </voice>
+      </speak>`;
+
+      const ttsRes = await fetch(
+        `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/ssml+xml',
+            'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+          },
+          body: ssml,
+        },
+      );
+      if (!ttsRes.ok) throw new Error('azure-tts-failed');
+
+      const blob = await ttsRes.blob();
+      const url  = URL.createObjectURL(blob);
+      audioCache.set(sound, url);
+      playUrl(url);
+    } catch (err) {
+      // Tier 3 — Web Speech API using FALLBACK Chinese characters
+      playWebSpeechFallback();
+    }
+  }
+
+  function playUrl(url) {
     if (!audioRef.current) audioRef.current = new Audio();
-    audioRef.current.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(code)}&type=1`;
-    audioRef.current.play().catch(() => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(FALLBACK[sound] || sound);
-        u.lang = 'zh-CN'; u.rate = 0.8;
-        window.speechSynthesis.speak(u);
-      }
-    });
+    audioRef.current.src = url;
+    audioRef.current.playbackRate = 0.85;  // slight slow-down for clarity
+    audioRef.current.play().catch(() => playWebSpeechFallback());
+  }
+
+  function playWebSpeechFallback() {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(FALLBACK[sound] || sound);
+    u.lang = 'zh-CN';
+    u.rate = 0.7;
+    window.speechSynthesis.speak(u);
   }
 
   function tick() {
@@ -264,9 +327,55 @@ export default function ArticulationAnim({ sound, color='#1565C0', artDiagrams={
               <line x1="50" y1="127" x2="73" y2="127" stroke="#D85A30" strokeWidth="1.2" markerEnd={`url(#arr-r-${sound})`}/>
             </g>
             <g id="g-nasal" opacity="0">
-              <line x1="110" y1="46" x2="110" y2="22" stroke="#7B4EA0" strokeWidth="1.5" markerEnd={`url(#arr-p-${sound})`}/>
-              <line x1="140" y1="46" x2="140" y2="22" stroke="#7B4EA0" strokeWidth="1.5" markerEnd={`url(#arr-p-${sound})`}/>
-              <text x="166" y="18" fontSize="8" fill="#7B4EA0">鼻音</text>
+              {/* Nasal cavity highlight — purple tint + dashed outline */}
+              <path d="M85,18 Q140,8 195,18 Q195,52 140,58 Q85,52 85,18Z"
+                fill="#7B4EA0" fillOpacity="0.18"
+                stroke="#7B4EA0" strokeWidth="1.2"
+                strokeDasharray="3,2"/>
+
+              {/* Three upward airflow arrows through nasal cavity with staggered pulse */}
+              <line x1="115" y1="60" x2="115" y2="24"
+                stroke="#7B4EA0" strokeWidth="1.8"
+                markerEnd={`url(#arr-p-${sound})`}>
+                <animate attributeName="opacity" values="0.35;1;0.35"
+                  dur="1.2s" repeatCount="indefinite"/>
+              </line>
+              <line x1="140" y1="60" x2="140" y2="20"
+                stroke="#7B4EA0" strokeWidth="2"
+                markerEnd={`url(#arr-p-${sound})`}>
+                <animate attributeName="opacity" values="0.35;1;0.35"
+                  dur="1.2s" begin="0.4s" repeatCount="indefinite"/>
+              </line>
+              <line x1="165" y1="60" x2="165" y2="24"
+                stroke="#7B4EA0" strokeWidth="1.8"
+                markerEnd={`url(#arr-p-${sound})`}>
+                <animate attributeName="opacity" values="0.35;1;0.35"
+                  dur="1.2s" begin="0.8s" repeatCount="indefinite"/>
+              </line>
+
+              {/* Exit flows out of nostrils */}
+              <path d="M123,15 Q119,7 113,3" fill="none"
+                stroke="#7B4EA0" strokeWidth="1.3" opacity="0.8"
+                markerEnd={`url(#arr-p-${sound})`}/>
+              <path d="M157,15 Q161,7 167,3" fill="none"
+                stroke="#7B4EA0" strokeWidth="1.3" opacity="0.8"
+                markerEnd={`url(#arr-p-${sound})`}/>
+
+              {/* Mouth-blocked indicator (only shown for nasal stops m/n/ng:
+                   oral airflow is blocked) */}
+              <g id="g-oral-block" opacity="0.85">
+                <circle cx="240" cy="121" r="10" fill="#D32F2F" opacity="0.12"/>
+                <line x1="233" y1="114" x2="247" y2="128"
+                  stroke="#D32F2F" strokeWidth="2.5" strokeLinecap="round"/>
+                <line x1="247" y1="114" x2="233" y2="128"
+                  stroke="#D32F2F" strokeWidth="2.5" strokeLinecap="round"/>
+              </g>
+
+              {/* Label — made more prominent */}
+              <text x="140" y="14" fontSize="8" fill="#7B4EA0"
+                textAnchor="middle" fontWeight="700" letterSpacing="0.5">
+                鼻腔气流
+              </text>
             </g>
           </svg>
           <div onTouchStart={triggerAnim} onClick={triggerAnim}
