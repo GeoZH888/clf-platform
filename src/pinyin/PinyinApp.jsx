@@ -1,6 +1,6 @@
 // src/pinyin/PinyinApp.jsx
 // 拼音 module hub — uses unified ModuleTemplate
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ModuleTemplate from '../components/ModuleTemplate.jsx';
 import AdaptiveCard from '../components/AdaptiveCard.jsx';
 import PinyinTable    from './PinyinTable.jsx';
@@ -9,11 +9,24 @@ import ListenIdentify from './ListenIdentify.jsx';
 import TypePinyin     from './TypePinyin.jsx';
 import PinyinSpeak    from './PinyinSpeak.jsx';
 
-export default function PinyinApp({ onBack }) {
-  const [screen, setScreen] = useState('home');
+// Valid sub-screens that can be deep-linked via the initialScreen prop
+const VALID_SCREENS = new Set(['home','table','tones','listen','type','speak']);
+
+export default function PinyinApp({ onBack, initialScreen }) {
+  const start = VALID_SCREENS.has(initialScreen) ? initialScreen : 'home';
+  const [screen, setScreen] = useState(start);
   const [lang,   setLang]   = useState(
     () => document.documentElement.lang?.slice(0, 2) || 'zh'
   );
+
+  // If App passes a new initialScreen after mount (e.g. user goes to
+  // PracticeModeScreen → pinyin → different mode), sync internal state.
+  useEffect(() => {
+    if (VALID_SCREENS.has(initialScreen) && initialScreen !== screen) {
+      setScreen(initialScreen);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialScreen]);
 
   // Try to read lang from context if available
   let langCtx;

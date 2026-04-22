@@ -215,6 +215,8 @@ function UserApp() {
   const [charIdx,    setCharIdx] = useState(0);
   const [prevScreen, setPrev]    = useState('platform');
   const [practiceMode, setPracticeMode] = useState('free');  // 'free' | 'dictation' | 'completion' | 'speak'
+  const [practiceModule,     setPracticeModule]     = useState(null);  // null | 'lianzi' | 'pinyin' — for 2-layer picker
+  const [pinyinInitialScreen, setPinyinInitialScreen] = useState(null); // 'home' | 'table' | 'tones' | 'listen' | 'type' | 'speak'
   const { progress, stats, recordPractice, recordQuiz, resetProgress } = useProgress();
   const { sets: SETS, loading: setsLoading } = useCharacters();
 
@@ -268,7 +270,7 @@ function UserApp() {
 
   function handleNav(id) {
     if (id === 'home')     setScreen('platform');
-    if (id === 'practice') setScreen('practice-modes');   // ← picker, not set list
+    if (id === 'practice') { setPracticeModule(null); setScreen('practice-modes'); }
     if (id === 'progress') setScreen('progress');
     if (id === 'settings') setScreen('settings');
   }
@@ -306,9 +308,17 @@ function UserApp() {
           )}
           {screen === 'practice-modes' && (
             <PracticeModeScreen
-              onSelectMode={(m) => {
-                setPracticeMode(m);
-                setScreen('home');    // go to set list with chosen mode pending
+              module={practiceModule}
+              onSelectModule={setPracticeModule}
+              onSelectMode={(mod, modeId) => {
+                if (mod === 'lianzi') {
+                  // list = browse sets; dictation/completion = start in that mode
+                  setPracticeMode(modeId === 'list' ? 'free' : modeId);
+                  setScreen('home');
+                } else if (mod === 'pinyin') {
+                  setPinyinInitialScreen(modeId);
+                  setScreen('pinyin');
+                }
               }}
               onBack={() => setScreen('platform')}/>
           )}
@@ -359,7 +369,9 @@ function UserApp() {
               onBack={()=>setScreen('platform')}/>
           )}
           {screen === 'pinyin' && (
-            <PinyinApp onBack={()=>setScreen('platform')}/>
+            <PinyinApp
+              initialScreen={pinyinInitialScreen}
+              onBack={()=>{ setPinyinInitialScreen(null); setScreen('platform'); }}/>
           )}
           {screen === 'words' && (
             <WordsApp onBack={()=>setScreen('platform')}/>
