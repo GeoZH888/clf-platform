@@ -663,7 +663,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
             </div>
             <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
               <DifficultyDots level={char?.difficulty || 1}/>
-              {char?.compound && (
+              {char?.compound && mode !== 'dictation' && mode !== 'completion' && (
                 <div style={{ fontSize:10, color:'var(--text-3)', background:'rgba(0,0,0,0.06)', padding:'2px 7px', borderRadius:10 }}>
                   {label.compound}: {char.compound}
                 </div>
@@ -674,31 +674,45 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
       )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
+      {/* In dictation/completion modes, replace 大字 with ？ and suppress  */}
+      {/* the TTS button (which would speak the answer). Dictation further */}
+      {/* hides pinyin/meaning because DictationMode has its own hint banner */}
+      {/* driven by the user's hintMode setting. */}
+      {(() => {
+        const hideAnswer = mode === 'dictation' || mode === 'completion';
+        const hideSideHints = mode === 'dictation';
+        return (
       <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
         <button className="back-btn" onClick={onBack}>‹</button>
         <div style={{display:'flex',alignItems:'center',gap:12,flex:1}}>
-          <div className="char-big" style={{fontFamily:selScript?.css}}>{char?.c}</div>
+          <div className="char-big" style={{fontFamily:selScript?.css, color: hideAnswer ? '#C8A050' : undefined}}>
+            {hideAnswer ? '？' : char?.c}
+          </div>
           <div className="char-meta">
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div className="char-py">{pinyin}</div>
-              {expectedTone > 0 && tmpl && (
+              {!hideSideHints && <div className="char-py">{pinyin}</div>}
+              {!hideSideHints && expectedTone > 0 && tmpl && (
                 <span style={{fontSize:11,padding:'1px 7px',borderRadius:20,background:tmpl.color+'22',color:tmpl.color,fontWeight:500}}>
                   {expectedTone}声 {tmpl.symbol}
                 </span>
               )}
-              <button onClick={()=>speak(`${char?.c}，${pinyin}，${meaning}`)}
-                style={{width:32,height:32,borderRadius:'50%',border:`1px solid ${V.border}`,
-                  background:speaking?'#e3f2fd':V.parchment,cursor:'pointer',fontSize:14,
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  WebkitTapHighlightColor:'transparent'}}>
-                {speaking?'🔊':'🔈'}
-              </button>
+              {!hideAnswer && (
+                <button onClick={()=>speak(`${char?.c}，${pinyin}，${meaning}`)}
+                  style={{width:32,height:32,borderRadius:'50%',border:`1px solid ${V.border}`,
+                    background:speaking?'#e3f2fd':V.parchment,cursor:'pointer',fontSize:14,
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    WebkitTapHighlightColor:'transparent'}}>
+                  {speaking?'🔊':'🔈'}
+                </button>
+              )}
             </div>
-            <div className="char-mn">{meaning}</div>
+            {!hideSideHints && <div className="char-mn">{meaning}</div>}
           </div>
         </div>
 
       </div>
+        );
+      })()}
 
       {/* ── Dictation mode (6A) ─────────────────────────────────────── */}
       {mode === 'dictation' && (
@@ -1002,7 +1016,9 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
         </div>
       )}
 
-      <MnemonicCard character={charObj} lang={lang}/>
+      {mode !== 'dictation' && mode !== 'completion' && (
+        <MnemonicCard character={charObj} lang={lang}/>
+      )}
     </div>
   );
 }
