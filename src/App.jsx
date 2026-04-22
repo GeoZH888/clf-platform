@@ -8,6 +8,7 @@ import PracticeScreen from './components/PracticeScreen.jsx';
 import ProgressScreen from './components/ProgressScreen.jsx';
 import MyStatsScreen  from './components/MyStatsScreen.jsx';
 import PracticeModeScreen from './components/PracticeModeScreen.jsx';
+import PracticeSession    from './components/PracticeSession.jsx';
 import PinyinApp      from './pinyin/PinyinApp.jsx';
 import WordsApp       from './words/WordsApp.jsx';
 import GrammarApp     from './grammar/GrammarApp.jsx';
@@ -266,11 +267,12 @@ function UserApp() {
   const navActive = screen === 'progress' || screen === 'mystats' ? 'progress'
     : screen === 'settings' ? 'settings'
     : screen === 'platform' ? 'home'
+    : screen === 'practice-session' || screen === 'practice-modes' ? 'practice'
     : 'practice';
 
   function handleNav(id) {
     if (id === 'home')     setScreen('platform');
-    if (id === 'practice') { setPracticeModule(null); setScreen('practice-modes'); }
+    if (id === 'practice') setScreen('practice-session');   // reinforcement session
     if (id === 'progress') setScreen('progress');
     if (id === 'settings') setScreen('settings');
   }
@@ -306,13 +308,15 @@ function UserApp() {
               onLogout={logout}
               userLabel={label}/>
           )}
+          {screen === 'practice-session' && (
+            <PracticeSession onExit={() => setScreen('platform')}/>
+          )}
           {screen === 'practice-modes' && (
             <PracticeModeScreen
               module={practiceModule}
               onSelectModule={setPracticeModule}
               onSelectMode={(mod, modeId) => {
                 if (mod === 'lianzi') {
-                  // list = browse sets; dictation/completion = start in that mode
                   setPracticeMode(modeId === 'list' ? 'free' : modeId);
                   setScreen('home');
                 } else if (mod === 'pinyin') {
