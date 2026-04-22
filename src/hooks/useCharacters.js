@@ -165,13 +165,27 @@ function buildSets(rows) {
     grouped[sid].push(rowToChar(row));
   }
 
+  // Surface any set_ids that the app doesn't have metadata for — so Geo
+  // sees exactly which new IDs need a SET_META entry.
+  const missing = Object.keys(grouped).filter(sid => !SET_META[sid]);
+  if (missing.length > 0) {
+    console.warn(
+      '[useCharacters] set_ids missing from SET_META (add entries for these):',
+      missing.map(sid => `${sid} (${grouped[sid].length} chars: ${grouped[sid].slice(0,6).map(c=>c.c).join('')})`)
+    );
+  }
+
   return Object.entries(grouped)
     .map(([sid, chars]) => {
       const meta = SET_META[sid] || {
         level: 99,
-        name: sid, nameEn: sid, nameIt: sid,
+        // Nicer display for uncategorized — don't dump the raw set_id as a label
+        name:   sid === 'unknown' ? '未分类' : sid,
+        nameEn: sid === 'unknown' ? 'Uncategorized' : sid,
+        nameIt: sid === 'unknown' ? 'Non categorizzato' : sid,
         emoji: '📖', color: '#F5F5F5', borderColor: '#9E9E9E',
-        description: sid, descriptionIt: sid,
+        description:   `待分类字符 · ${chars.length} 字`,
+        descriptionIt: `Caratteri da categorizzare · ${chars.length}`,
       };
       return {
         id: sid,
