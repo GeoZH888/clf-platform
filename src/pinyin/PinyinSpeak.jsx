@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
+import { usePinyinProgress } from '../hooks/usePinyinProgress.js';
 
 const TOKEN_KEY = 'jgw_device_token';
 
@@ -64,8 +65,11 @@ function ScoreRing({ score }) {
 export default function PinyinSpeak({ onBack }) {
   const { lang } = useLang();
   const t = (zh, en) => lang === 'zh' ? zh : en;
+  const { recordPractice, sortAdaptively, getEntry } = usePinyinProgress();
 
-  const [items]       = useState(() => [...SYLLABLES].sort(() => Math.random() - 0.5));
+  // Adaptive session ordering: weak-first, then unpracticed, then remaining
+  // (stable for ties). Key by pinyin syllable so 'māo' and 'mǎo' are tracked separately.
+  const [items] = useState(() => sortAdaptively('speak', SYLLABLES, s => s.pinyin));
   const [idx,          setIdx]         = useState(0);
   const [phase,        setPhase]       = useState('listen'); // listen | record | result
   const [recording,    setRecording]   = useState(false);
@@ -180,6 +184,8 @@ export default function PinyinSpeak({ onBack }) {
     setScore(s);
     setSessionScores(prev => [...prev, { item, score:s, spoken }]);
     setPhase('result');
+    // ── Adaptive progress: key by pinyin syllable ──
+    recordPractice('speak', item.pinyin, s);
     // Award points
     const token = localStorage.getItem(TOKEN_KEY);
     if (token && s >= 60) {
@@ -262,6 +268,24 @@ export default function PinyinSpeak({ onBack }) {
               <span key={i} style={{ fontSize:10, color:'#E0E0E0' }}>★</span>
             ))}
           </div>
+
+          {/* ── Adaptive status: user's past performance on THIS syllable ── */}
+          {(() => {
+            const past = getEntry('speak', item.pinyin);
+            return (
+              <div style={{ fontSize:10, color:'#a07850', marginTop:8,
+                display:'flex', gap:6, justifyContent:'center', alignItems:'center' }}>
+                <span>✨</span>
+                <span>
+                  {past
+                    ? (lang === 'zh' ? `已练 ${past.practiced} 次 · 最高 ${past.maxScore}分`
+                     :                  `Practiced ${past.practiced}× · max ${past.maxScore}`)
+                    : (lang === 'zh' ? '初次练习 · 薄弱词优先'
+                     :                  'First time · weak-first order')}
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Score ring (in result phase) */}

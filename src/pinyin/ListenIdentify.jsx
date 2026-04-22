@@ -3,13 +3,20 @@ import { useState, useEffect } from 'react';
 import { LISTEN_EXERCISES, TONES } from '../data/pinyinData';
 import TtsButton from '../components/TtsButton';
 import { supabase } from '../lib/supabase';
+import { usePinyinProgress } from '../hooks/usePinyinProgress.js';
 
 const TOKEN_KEY = 'jgw_device_token';
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
 export default function ListenIdentify({ onBack, lang='zh' }) {
-  const [exercises, setExercises] = useState(() => shuffle(LISTEN_EXERCISES));
+  const { recordPractice, sortAdaptively, getEntry } = usePinyinProgress();
+
+  // Initial exercises: fall back to static LISTEN_EXERCISES; replaced async from DB below.
+  // Ordering: adaptive (weak-first) — falls back to shuffle on tie-break for variety.
+  const [exercises, setExercises] = useState(() =>
+    sortAdaptively('listen', shuffle(LISTEN_EXERCISES), ex => ex.char)
+  );
   const [idx,      setIdx]      = useState(0);
   const [chosen,   setChosen]   = useState(null);
 
@@ -18,8 +25,11 @@ export default function ListenIdentify({ onBack, lang='zh' }) {
     supabase.from('jgw_pinyin_exercises').select('listen_exercises').maybeSingle()
       .then(({ data }) => {
         if (data?.listen_exercises?.length > 0)
-          setExercises(shuffle(data.listen_exercises));
+          setExercises(sortAdaptively('listen', shuffle(data.listen_exercises), ex => ex.char));
       });
+    // sortAdaptively is not in deps deliberately — we only want to sort once at session start.
+    // Re-sorting on every progress change would yank the user to a new item mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [score,    setScore]    = useState(0);
   const [total,    setTotal]    = useState(0);
@@ -56,6 +66,8 @@ export default function ListenIdentify({ onBack, lang='zh' }) {
     setScore(newScore);
     setTotal(t => t + 1);
     setStreak(s => s + 1);
+    // ── Adaptive progress: record this item's score for next-session ordering ──
+    recordPractice('listen', ex.char, pts);
 
     setTimeout(() => {
       if (idx + 1 >= exercises.length) {
@@ -148,6 +160,26 @@ export default function ListenIdentify({ onBack, lang='zh' }) {
             onAfterPlay={() => setPlayed(true)}
             style={{ background: played ? '#888' : '#E65100' }}/>
         </div>
+
+        {/* ── Adaptive status: user's past performance on THIS char ── */}
+        {(() => {
+          const past = getEntry('listen', ex.char);
+          return (
+            <div style={{ fontSize:10, color:'#a07850', marginBottom:4,
+              display:'flex', gap:6, justifyContent:'center', alignItems:'center' }}>
+              <span>✨</span>
+              <span>
+                {past
+                  ? (lang === 'zh' ? `已练 ${past.practiced} 次 · 最高 ${past.maxScore}分`
+                   : lang === 'it' ? `Praticato ${past.practiced}× · max ${past.maxScore}`
+                   :                 `Practiced ${past.practiced}× · max ${past.maxScore}`)
+                  : (lang === 'zh' ? '初次练习 · 薄弱字优先'
+                   : lang === 'it' ? 'Prima volta · deboli per primi'
+                   :                 'First time · weak-first order')}
+              </span>
+            </div>
+          );
+        })()}
 
         <div style={{ fontSize:12, color:'#999', marginBottom:4 }}>
           {!played

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { playTTS } from '../utils/ttsHelper';
+import { usePinyinProgress } from '../hooks/usePinyinProgress.js';
 
 const TOKEN_KEY = 'jgw_device_token';
 
@@ -32,7 +33,12 @@ const TONE_BG     = ['#E3F2FD','#E8F5E9','#FFF3E0','#FFEBEE','#f5f5f5'];
 const TONE_NAMES  = ['一声','二声','三声','四声','轻声'];
 
 export default function TypePinyin({ onBack, lang='zh' }) {
-  const [exercises, setExercises] = useState(DEFAULT);
+  const { recordPractice, sortAdaptively, getEntry } = usePinyinProgress();
+
+  // DEFAULT exercises, sorted adaptively at session start (weak-first).
+  const [exercises, setExercises] = useState(() =>
+    sortAdaptively('type', DEFAULT, ex => ex.char)
+  );
   const [idx,       setIdx]       = useState(0);
   const [input,     setInput]     = useState('');
   const [base,      setBase]      = useState('a');
@@ -45,11 +51,14 @@ export default function TypePinyin({ onBack, lang='zh' }) {
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it : en;
 
   useEffect(() => {
-    // Load exercises from DB
+    // Load exercises from DB, re-sort adaptively when they arrive
     supabase.from('jgw_pinyin_exercises').select('type_exercises').maybeSingle()
       .then(({ data }) => {
-        if (data?.type_exercises?.length > 0) setExercises(data.type_exercises);
+        if (data?.type_exercises?.length > 0)
+          setExercises(sortAdaptively('type', data.type_exercises, ex => ex.char));
       });
+    // Only sort once at mount — don't re-sort on every progress tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const ex = exercises[idx];
@@ -67,6 +76,9 @@ export default function TypePinyin({ onBack, lang='zh' }) {
     const correct = input.trim().toLowerCase() === ex.py.toLowerCase();
     setResult(correct ? 'correct' : 'wrong');
     setScore(s => ({ correct: s.correct+(correct?1:0), total: s.total+1 }));
+
+    // ── Adaptive progress: binary 100/0 for this item's history ──
+    if (ex?.char) recordPractice('type', ex.char, correct ? 100 : 0);
 
     // Log
     const token = localStorage.getItem(TOKEN_KEY);
@@ -162,6 +174,27 @@ export default function TypePinyin({ onBack, lang='zh' }) {
             color:'var(--text)', lineHeight:1, marginBottom:12 }}>
             {ex?.char}
           </div>
+
+          {/* ── Adaptive status: user's past performance on THIS char ── */}
+          {(() => {
+            const past = ex?.char ? getEntry('type', ex.char) : null;
+            return (
+              <div style={{ fontSize:10, color:'#a07850', marginBottom:8,
+                display:'flex', gap:6, justifyContent:'center', alignItems:'center' }}>
+                <span>✨</span>
+                <span>
+                  {past
+                    ? (lang === 'zh' ? `已练 ${past.practiced} 次 · 最高 ${past.maxScore}分`
+                     : lang === 'it' ? `Praticato ${past.practiced}× · max ${past.maxScore}`
+                     :                 `Practiced ${past.practiced}× · max ${past.maxScore}`)
+                    : (lang === 'zh' ? '初次练习 · 薄弱字优先'
+                     : lang === 'it' ? 'Prima volta · deboli per primi'
+                     :                 'First time · weak-first order')}
+                </span>
+              </div>
+            );
+          })()}
+
           {showHint && (
             <div style={{ fontSize:13, color:'var(--text-2)', lineHeight:1.8 }}>
               <div>{ex?.hint_zh}</div>
