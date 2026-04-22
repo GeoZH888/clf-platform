@@ -27,9 +27,52 @@ function calcDuration(strokes) {
   return Math.max(8, (strokes || 5) * 2.5);  // min 8s, +2.5s per stroke
 }
 
-// IoU scoring — compare user ink to target character raster
+// Analyze alpha channel: bbox, centroid, count — in a single pass.
+function _analyze(data, thresh) {
+  let minX = S, maxX = -1, minY = S, maxY = -1;
+  let sumX = 0, sumY = 0, count = 0;
+  for (let i = 3, idx = 0; i < data.length; i += 4, idx++) {
+    if (data[i] > thresh) {
+      const x = idx % S, y = (idx / S) | 0;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      sumX += x; sumY += y; count++;
+    }
+  }
+  if (count === 0) return { count: 0 };
+  return { count, bbox: { x: minX, y: minY, w: maxX-minX+1, h: maxY-minY+1 },
+           centroid: { x: sumX / count, y: sumY / count } };
+}
+
+// Dilate guide alpha channel by R — returns Uint8Array bitmap
+// marking every pixel within R of any guide-pixel as 1.
+function _dilate(data, thresh, R) {
+  const dilated = new Uint8Array(S * S);
+  const R2 = R * R;
+  for (let i = 3, idx = 0; i < data.length; i += 4, idx++) {
+    if (data[i] <= thresh) continue;
+    const cx = idx % S, cy = (idx / S) | 0;
+    const x0 = Math.max(0, cx - R), x1 = Math.min(S - 1, cx + R);
+    const y0 = Math.max(0, cy - R), y1 = Math.min(S - 1, cy + R);
+    for (let y = y0; y <= y1; y++) {
+      const dy = y - cy;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x - cx;
+        if (dx*dx + dy*dy <= R2) dilated[y * S + x] = 1;
+      }
+    }
+  }
+  return dilated;
+}
+
+// Tolerant, position-invariant scoring:
+//   1. Centroid-align user ink to guide (handles position offset)
+//   2. Score user pixels landing on a *dilated* guide (handles ~5px tolerance)
+//   3. Weight precision (0.6) > coverage (0.4) since narrow brushes cannot
+//      fully fill a wide rasterized glyph
 function scoreDrawing(userCanvas, char, fontCss) {
   if (!char) return null;
+  const DILATE_R = 6;
   const off = document.createElement('canvas');
   off.width = S; off.height = S;
   const ctx = off.getContext('2d');
@@ -40,15 +83,29 @@ function scoreDrawing(userCanvas, char, fontCss) {
   const guide = ctx.getImageData(0,0,S,S).data;
   const user = userCanvas.getContext('2d').getImageData(0,0,S,S).data;
 
-  let up = 0, gp = 0, ov = 0;
-  for (let i = 3; i < user.length; i += 4) {
-    const u = user[i] > 40, g = guide[i] > 128;
-    if (u) up++; if (g) gp++; if (u && g) ov++;
+  const gInfo = _analyze(guide, 128);
+  const uInfo = _analyze(user, 40);
+  if (gInfo.count < 100) return { score: 0, coverage: 0, precision: 0 };
+  if (uInfo.count < 30)  return { score: 0, coverage: 0, precision: 0 };
+
+  const dilated = _dilate(guide, 128, DILATE_R);
+
+  // Translation: shift user so centroid aligns with guide's centroid
+  const dx = Math.round(gInfo.centroid.x - uInfo.centroid.x);
+  const dy = Math.round(gInfo.centroid.y - uInfo.centroid.y);
+
+  let overlap = 0;
+  for (let i = 3, idx = 0; i < user.length; i += 4, idx++) {
+    if (user[i] <= 40) continue;
+    const ux = idx % S, uy = (idx / S) | 0;
+    const gx = ux + dx, gy = uy + dy;
+    if (gx < 0 || gx >= S || gy < 0 || gy >= S) continue;
+    if (dilated[gy * S + gx]) overlap++;
   }
-  if (gp < 100) return { score: 0, coverage: 0, precision: 0 };
-  const coverage  = Math.min(1, ov / gp);
-  const precision = up > 0 ? ov / up : 0;
-  const score = Math.round(100 * (coverage * 0.7 + precision * 0.3));
+
+  const precision = overlap / uInfo.count;
+  const coverage  = Math.min(1, overlap / gInfo.count);
+  const score = Math.round(100 * (coverage * 0.4 + precision * 0.6));
   return { score, coverage, precision };
 }
 
@@ -95,10 +152,8 @@ export default function DictationMode({
     return () => clearInterval(id);
   }, [phase]);
 
-  // Time up → reveal and score
-  useEffect(() => {
-    if (phase !== 'drawing' || timeLeft > 0) return;
-    // Score now
+  // Score now, transition to reveal. Called by both the timer and the manual "submit" button.
+  const handleSubmit = useCallback(() => {
     const canvas = canvasRef.current;
     if (canvas && char?.c) {
       const info = scoreDrawing(canvas, char.c, selScript?.css);
@@ -108,7 +163,12 @@ export default function DictationMode({
       }
     }
     setPhase('reveal');
-  }, [phase, timeLeft, char, selScript, onScore]);
+  }, [char, selScript, onScore]);
+
+  // Time up → auto-submit (drawing phase only; guarded so it doesn't fire twice)
+  useEffect(() => {
+    if (phase === 'drawing' && timeLeft <= 0) handleSubmit();
+  }, [phase, timeLeft, handleSubmit]);
 
   // Canvas pointer events (only when drawing)
   useEffect(() => {
@@ -266,6 +326,11 @@ export default function DictationMode({
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'center' }}>
+        {phase === 'drawing' && (
+          <button onClick={handleSubmit} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: '#8B4513', color: '#fdf6e3', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+            {lang === 'zh' ? '提交 ✓' : lang === 'it' ? 'Invia ✓' : 'Submit ✓'}
+          </button>
+        )}
         {phase === 'reveal' && (
           <button onClick={() => nextChar?.()} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: '#8B4513', color: '#fdf6e3', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
             {lang === 'zh' ? '下一个 →' : lang === 'it' ? 'Prossimo →' : 'Next →'}

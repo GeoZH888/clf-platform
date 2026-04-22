@@ -62,13 +62,15 @@ export default function CompletionMode({
   const [phase, setPhase] = useState('loading');  // 'loading' | 'drawing' | 'done'
   const [scoreInfo, setScoreInfo] = useState(null);
 
-  // Timer: adaptive duration based on past performance.
-  // Fresh char: 12s per hidden stroke (generous learning window).
-  // Max score ≥ 80: 5s per stroke (challenge mode — mastered, add pressure).
-  // Linear interpolation in between. Floor at 8s total.
+  // Timer: adaptive duration based on past performance + stroke count.
+  // Full-character completion (hiding all strokes), so we budget per stroke:
+  //   Fresh char (no past score):   5s per stroke
+  //   Mastered (maxScore ≥ 80):     3s per stroke
+  // Linear interpolation between. Floor at 10s total.
   const pastMax = char?.c ? (readCharacterProgress()[char.c]?.maxScore || 0) : 0;
-  const secondsPerStroke = pastMax >= 80 ? 5 : pastMax <= 0 ? 12 : (12 - (pastMax / 80) * 7);
-  const totalTime = Math.max(8, Math.round(hideCount * secondsPerStroke));
+  const strokeCount = char?.strokes || char?.stroke_count || hideCount || 5;
+  const secondsPerStroke = pastMax >= 80 ? 3 : pastMax <= 0 ? 5 : (5 - (pastMax / 80) * 2);
+  const totalTime = Math.max(10, Math.round(strokeCount * secondsPerStroke));
   const [timeLeft, setTimeLeft] = useState(totalTime);
 
   const painting = useRef(false);
@@ -91,8 +93,11 @@ export default function CompletionMode({
         setPhase('done');
         return;
       }
+      // Full-character completion: hide ALL strokes. User draws every one.
+      // hideCount prop is ignored — the adaptive difficulty lives in the
+      // timer duration, not in how many strokes are hidden.
       const total = data.strokes.length;
-      const hide = pickHiddenIndices(total, Math.min(hideCount, total));
+      const hide = Array.from({ length: total }, (_, i) => i);
       setStrokes(data.strokes);
       setHidden(hide);
 
@@ -229,31 +234,38 @@ export default function CompletionMode({
     if (phase === 'drawing' && timeLeft <= 0) onComplete();
   }, [phase, timeLeft, onComplete]);
 
-  // Read past progress to explain WHY this many strokes are hidden
+  // Read past progress to explain adaptive difficulty. Now full-character mode,
+  // so adaptation happens in timer duration, not in how many strokes are hidden.
   const pastProgress = char?.c ? readCharacterProgress()[char.c] : null;
   const adaptiveReason = (() => {
-    if (!pastProgress) return lang === 'zh' ? '初次练习，先来 1 笔' :
-                               lang === 'it' ? 'Prima volta — inizia con 1' :
-                               'First time — starting gentle';
+    if (!pastProgress) return lang === 'zh' ? `初次练习 · ${strokeCount}笔全字` :
+                               lang === 'it' ? `Prima volta · ${strokeCount} tratti` :
+                               `First time · ${strokeCount} strokes`;
     const m = pastProgress.maxScore || 0;
-    const zh = `最高 ${m}分 → 隐藏 ${hideCount} 笔`;
-    const it = `Max ${m} → nasconde ${hideCount}`;
-    const en = `Max ${m} → hiding ${hideCount}`;
+    const zh = `最高 ${m}分 → ${strokeCount}笔 · ${totalTime}秒`;
+    const it = `Max ${m} → ${strokeCount} tratti · ${totalTime}s`;
+    const en = `Max ${m} → ${strokeCount} strokes · ${totalTime}s`;
     return lang === 'zh' ? zh : lang === 'it' ? it : en;
   })();
+
+  // Actual hidden count (becomes known after HanziWriter loads).
+  // Defaults to the metadata stroke count while loading.
+  const shownStrokeCount = hiddenIndices.length || strokeCount;
 
   return (
     <div style={{ width: '100%', maxWidth: 320, margin: '0 auto' }}>
 
       <div style={{ padding: '8px 12px', margin: '0 0 8px', background: 'rgba(106,27,154,0.08)', border: '1.5px solid #6A1B9A', borderRadius: 10, textAlign: 'center' }}>
         <div style={{ fontSize: 12, color: '#6A1B9A' }}>
-          {lang === 'zh' ? `请补齐 ${hideCount} 笔` : lang === 'it' ? `Completa ${hideCount} tratti` : `Fill in ${hideCount} stroke${hideCount>1?'s':''}`}
+          {lang === 'zh' ? `补齐全字 (${shownStrokeCount} 笔)` :
+           lang === 'it' ? `Completa il carattere (${shownStrokeCount} tratti)` :
+           `Complete the character (${shownStrokeCount} strokes)`}
           {phase === 'drawing' && (
             <span style={{ marginLeft: 8, fontWeight: 600 }}>· {Math.ceil(timeLeft)}s</span>
           )}
         </div>
         <div style={{ fontSize: 10, color: '#6A1B9A', opacity: 0.75, marginTop: 2, display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
-          <span>✨</span><span>{adaptiveReason} · {totalTime}s</span>
+          <span>✨</span><span>{adaptiveReason}</span>
         </div>
       </div>
 

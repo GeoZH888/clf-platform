@@ -32,9 +32,32 @@ const V = {
 // Strategy: rasterize the target char into a hidden offscreen canvas
 // (no grid lines, just black pixels) and compare with the user canvas.
 // ─────────────────────────────────────────────────────────────────────
-// Cache guide rasterization AND its precomputed bbox + centroid + pixel list.
-// Adding those here means we don't recompute them every score.
-let _guideCache = { char: null, css: null, data: null, bbox: null, centroid: null, count: 0 };
+// Cache guide rasterization AND its precomputed bbox + centroid + pixel list
+// AND a dilated version — so we don't redo the ~1ms dilation pass per score.
+let _guideCache = { char: null, css: null, data: null, bbox: null, centroid: null, count: 0, dilated: null };
+
+// Dilate an alpha-channel image by radius R: returns a Uint8Array bitmap
+// where every pixel within R of an "on" pixel (alpha > thresh) is 1.
+// Used to give the guide glyph a tolerance band so user strokes within ~R
+// pixels count as "on-target" even if not pixel-perfect.
+function _dilateAlpha(data, size, thresh, R) {
+  const dilated = new Uint8Array(size * size);
+  const R2 = R * R;
+  for (let i = 3, idx = 0; i < data.length; i += 4, idx++) {
+    if (data[i] <= thresh) continue;
+    const cx = idx % size, cy = (idx / size) | 0;
+    const x0 = Math.max(0, cx - R), x1 = Math.min(size - 1, cx + R);
+    const y0 = Math.max(0, cy - R), y1 = Math.min(size - 1, cy + R);
+    for (let y = y0; y <= y1; y++) {
+      const dy = y - cy;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x - cx;
+        if (dx * dx + dy * dy <= R2) dilated[y * size + x] = 1;
+      }
+    }
+  }
+  return dilated;
+}
 
 function _analyzeInkAlpha(data, size, thresh) {
   // Single pass: bbox + centroid + pixel count for pixels whose alpha > thresh
@@ -65,7 +88,8 @@ function computeScore(userCanvas, char, fontCss) {
   if (!char) return null;
   const size = S;
 
-  // ── Rasterize target glyph (cached) ──────────────────────────────
+  // ── Rasterize target glyph + compute dilated tolerance band (cached) ──
+  const DILATE_R = 6;   // ~5-7px tolerance band around each guide stroke
   let guide;
   if (_guideCache.char === char && _guideCache.css === fontCss && _guideCache.data) {
     guide = _guideCache;
@@ -80,7 +104,8 @@ function computeScore(userCanvas, char, fontCss) {
     ctx.fillText(char, size / 2, size / 2 + 6);
     const data = ctx.getImageData(0, 0, size, size).data;
     const analysis = _analyzeInkAlpha(data, size, 128);
-    guide = { char, css: fontCss, data, ...analysis };
+    const dilated = _dilateAlpha(data, size, 128, DILATE_R);
+    guide = { char, css: fontCss, data, dilated, ...analysis };
     _guideCache = guide;
   }
 
@@ -100,24 +125,25 @@ function computeScore(userCanvas, char, fontCss) {
   const dx = Math.round(guide.centroid.x - user.centroid.x);
   const dy = Math.round(guide.centroid.y - user.centroid.y);
 
-  // Walk the guide's pixels; for each, check user at the shifted location.
-  // Iterating the guide instead of every pixel is an optimisation —
-  // we only care about overlap on guide pixels for coverage.
+  // Count user pixels (shifted) that fall on the *dilated* guide. This is
+  // "user ink within R of the target" — the key tolerance. A stroke drawn
+  // a few pixels off but shaped right now counts as on-target.
   let overlap = 0;
-  for (let i = 3, idx = 0; i < guide.data.length; i += 4, idx++) {
-    if (guide.data[i] <= 128) continue;
-    const gx = idx % size, gy = (idx / size) | 0;
-    const ux = gx - dx, uy = gy - dy;
-    if (ux < 0 || ux >= size || uy < 0 || uy >= size) continue;
-    const uAlpha = userData[(uy * size + ux) * 4 + 3];
-    if (uAlpha > 40) overlap++;
+  for (let i = 3, idx = 0; i < userData.length; i += 4, idx++) {
+    if (userData[i] <= 40) continue;
+    const ux = idx % size, uy = (idx / size) | 0;
+    const gx = ux + dx, gy = uy + dy;
+    if (gx < 0 || gx >= size || gy < 0 || gy >= size) continue;
+    if (guide.dilated[gy * size + gx]) overlap++;
   }
 
+  // precision = fraction of user ink landing on-target (easy with dilation)
+  // coverage = overlap size vs guide size (harder — narrow brushes can't fill wide glyph strokes)
+  // Formula weights precision higher (0.6) because narrow brushes are common and
+  // coverage is bounded by stroke-width ratio. Per Geo: "不强求完全覆盖".
+  const precision = overlap / user.count;
   const coverage  = Math.min(1, overlap / guide.count);
-  const precision = user.count > 0 ? overlap / user.count : 0;
-
-  // Keep same weighting as before: coverage 70%, precision 30%
-  const raw = coverage * 0.7 + precision * 0.3;
+  const raw = coverage * 0.4 + precision * 0.6;
   const score = Math.round(100 * raw);
 
   const level = score >= 80 ? 'great'
@@ -739,15 +765,18 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
                   {expectedTone}声 {tmpl.symbol}
                 </span>
               )}
-              {!hideAnswer && (
-                <button onClick={()=>speak(`${char?.c}，${pinyin}，${meaning}`)}
-                  style={{width:32,height:32,borderRadius:'50%',border:`1px solid ${V.border}`,
-                    background:speaking?'#e3f2fd':V.parchment,cursor:'pointer',fontSize:14,
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    WebkitTapHighlightColor:'transparent'}}>
-                  {speaking?'🔊':'🔈'}
-                </button>
-              )}
+              {/* Speaker: always available, but in dict/comp only speaks
+                  the character's pronunciation (not pinyin+meaning which would
+                  be a bigger spoiler). User can tap to request a pronunciation
+                  hint at any time. */}
+              <button onClick={() => speak(hideAnswer ? (char?.c || '') : `${char?.c}，${pinyin}，${meaning}`)}
+                title={hideAnswer ? (lang === 'zh' ? '听发音' : 'Hear pronunciation') : ''}
+                style={{width:32,height:32,borderRadius:'50%',border:`1px solid ${V.border}`,
+                  background:speaking?'#e3f2fd':V.parchment,cursor:'pointer',fontSize:14,
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  WebkitTapHighlightColor:'transparent'}}>
+                {speaking?'🔊':'🔈'}
+              </button>
             </div>
             {!hideSideHints && <div className="char-mn">{meaning}</div>}
           </div>
