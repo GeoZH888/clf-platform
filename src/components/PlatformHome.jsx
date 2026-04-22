@@ -49,8 +49,8 @@ const MODULES = [
   },
   {
     id:       'pinyin',
-    emoji:    '🔤',
-    iconImage: null,
+    emoji:    '🐼',
+    iconImage: null,  // set to e.g. '/panda-pinyin.png' to use a custom illustration
     name:     { zh:'拼音', en:'Pinyin', it:'Pinyin' },
     desc:     { zh:'声母 · 韵母 · 四声 · 发音',
                 en:'Initials · finals · tones · speech',
