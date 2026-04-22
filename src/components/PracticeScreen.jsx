@@ -451,7 +451,7 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
   const { tracingScore, pronounScore, combined, tracingAdvice, toneAdvice, recordTracing, recordPronunciation, reset: resetScore } = useScoring();
   const { data: charData } = useCharacter(char?.c);
 
-  const charObj      = charData?.character || char;
+  const charObj      = { ...(charData?.character || {}), ...char };
   const pinyin       = charObj?.pinyin || char?.p || '';
   const meaningEn    = charObj?.meaning_en || char?.m || '';
   const meaningZh    = charObj?.meaning_zh || char?.mz || '';
