@@ -19,7 +19,7 @@ import GameHub        from './components/game/GameHub.jsx';
 import SearchScreen   from './components/SearchScreen.jsx';
 import CameraScreen   from './components/CameraScreen.jsx';
 import FindCharScreen from './components/FindCharScreen.jsx';
-import { LanguageProvider } from './context/LanguageContext.jsx';
+import { LanguageProvider, useLang } from './context/LanguageContext.jsx';
 import { useProgress } from './hooks/useProgress.js';
 import { useCharacters } from './hooks/useCharacters.js';
 import { useDeviceAuth } from './hooks/useDeviceAuth.js';
@@ -27,11 +27,6 @@ import QRGate from './components/QRGate.jsx';
 import { SETS } from './data/characters.js';
 import CLFApp from './clf/CLFApp.jsx';
 
-// Inside your router, add:
-{screen === 'clf' && <CLFApp/>}
-
-// And a button somewhere to launch it:
-<button onClick={() => setScreen('clf')}>新平台 New Platform</button>
 // ── Fix title + random panda favicon ─────────────────────────────
 document.title = '大卫学中文';
 
@@ -78,6 +73,77 @@ const IS_ADMIN = window.location.pathname.startsWith('/admin');
 
 import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
+
+// ── Minimal Settings screen ───────────────────────────────────────
+// Language switcher + user info + logout. Split into own file when it grows.
+function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
+  const { lang, setLang } = useLang();
+  const t = (zh, en, it) => lang === 'zh' ? zh : lang === 'it' ? (it||en) : en;
+
+  const LANGS = [
+    { id:'zh', label:'中文' },
+    { id:'en', label:'English' },
+    { id:'it', label:'Italiano' },
+  ];
+
+  return (
+    <div style={{ padding:'16px', maxWidth:430, margin:'0 auto' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+        <button onClick={onBack} style={{
+          padding:'6px 12px', fontSize:13, cursor:'pointer', borderRadius:8,
+          border:'1px solid #e8d5b0', background:'#fff', color:'#8B4513',
+        }}>← {t('返回','Back','Indietro')}</button>
+        <h2 style={{ margin:0, fontSize:20, color:'#8B4513' }}>
+          ⚙️ {t('设置','Settings','Impostazioni')}
+        </h2>
+      </div>
+
+      {/* Language */}
+      <div style={{ background:'#fff', borderRadius:12, padding:'14px', marginBottom:14,
+        border:'1px solid #e8d5b0' }}>
+        <div style={{ fontSize:12, color:'#a07850', marginBottom:8 }}>
+          🌐 {t('语言','Language','Lingua')}
+        </div>
+        <div style={{ display:'flex', gap:6 }}>
+          {LANGS.map(L => (
+            <button key={L.id} onClick={()=>setLang(L.id)} style={{
+              flex:1, padding:'8px', fontSize:13, cursor:'pointer', borderRadius:8,
+              border:'none', fontFamily:'inherit',
+              background: lang===L.id ? '#8B4513' : '#f5ede0',
+              color:    lang===L.id ? '#fdf6e3' : '#8B4513',
+            }}>{L.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Account */}
+      <div style={{ background:'#fff', borderRadius:12, padding:'14px', marginBottom:14,
+        border:'1px solid #e8d5b0' }}>
+        <div style={{ fontSize:12, color:'#a07850', marginBottom:8 }}>
+          👤 {t('账户','Account','Account')}
+        </div>
+        <div style={{ fontSize:14, color:'#5D2E0C', marginBottom:4 }}>
+          {userLabel || t('访客','Guest','Ospite')}
+        </div>
+        {expiresAt && (
+          <div style={{ fontSize:11, color:'#a07850' }}>
+            {t('有效期','Expires','Scade')}: {new Date(expiresAt).toLocaleDateString()}
+            {typeof daysLeft === 'number' && ` · ${daysLeft} ${t('天','days','giorni')}`}
+          </div>
+        )}
+        <button onClick={onLogout} style={{
+          marginTop:10, padding:'8px 16px', fontSize:13, cursor:'pointer',
+          borderRadius:8, border:'1px solid #c0392b', background:'#fff',
+          color:'#c0392b',
+        }}>{t('退出登录','Log out','Esci')}</button>
+      </div>
+
+      <div style={{ fontSize:10, color:'#a07850', textAlign:'center', marginTop:20 }}>
+        大卫学中文 · Miaohong
+      </div>
+    </div>
+  );
+}
 
 // ── PWA Install Banner ────────────────────────────────────────────
 function PWAInstallBanner() {
@@ -200,7 +266,7 @@ function UserApp() {
 
   function handleNav(id) {
     if (id === 'home')     setScreen('platform');
-    if (id === 'practice') setScreen(screen === 'platform' ? 'home' : screen);
+    if (id === 'practice') setScreen('home');      // always land on set list
     if (id === 'progress') setScreen('progress');
     if (id === 'settings') setScreen('settings');
   }
@@ -261,6 +327,14 @@ function UserApp() {
           )}
           {screen === 'mystats' && (
             <MyStatsScreen onBack={()=>setScreen('progress')}/>
+          )}
+          {screen === 'settings' && (
+            <SettingsScreen
+              userLabel={label}
+              expiresAt={expiresAt}
+              daysLeft={daysLeft}
+              onLogout={logout}
+              onBack={()=>setScreen('platform')}/>
           )}
           {screen === 'pinyin' && (
             <PinyinApp onBack={()=>setScreen('platform')}/>
