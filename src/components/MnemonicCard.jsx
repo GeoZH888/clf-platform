@@ -109,12 +109,15 @@ export default function MnemonicCard({ character, lang: propLang }) {
                 : lang === 'it' ? (character.meaning_it || character.meaning_en || character.meaning_zh)
                 :                 (character.meaning_en || character.meaning_zh || character.meaning_it);
 
-  // ── Story in current language with etymology fallback ──
+  // ── Story in current language with fallback chain ──
+  // 1. Long narrative (mnemonic_story_*) if DB has it
+  // 2. Short DB mnemonic (mnemonic_zh/en/it) — 28 chars have these populated
+  // 3. Built-in KNOWN_ETYMOLOGY tip for the ~15 seed characters
   const story = lang === 'zh'
-    ? (character.mnemonic_story_zh || etymology?.tip_zh)
+    ? (character.mnemonic_story_zh || character.mnemonic_zh || etymology?.tip_zh)
     : lang === 'it'
-      ? (character.mnemonic_story_it || etymology?.tip_it)
-      : (character.mnemonic_story_en || etymology?.tip_en);
+      ? (character.mnemonic_story_it || character.mnemonic_it || etymology?.tip_it)
+      : (character.mnemonic_story_en || character.mnemonic_en || etymology?.tip_en);
 
   const visualLabel = lang === 'zh' ? etymology?.zh
                     : lang === 'it' ? etymology?.it

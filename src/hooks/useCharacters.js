@@ -136,9 +136,17 @@ const SET_META = {
   // 第 5-12 册在需要时再加
 };
 
-// Map a DB row → char object the app expects
+// Map a DB row → char object the app expects.
+// Strategy: spread the full row first so consumers (MnemonicCard, HomeScreen,
+// future components) can access any column by its real name (image_url,
+// svg_jiaguwen, evolution, mnemonic_story_zh, etc.). Then layer the short
+// legacy aliases (.c, .p, .m) on top for backward compatibility with existing
+// PracticeScreen / SetScreen code.
 function rowToChar(row) {
   return {
+    ...row,
+    // Legacy short aliases — kept because existing code all over the app
+    // reads these (char.c, char.p, char.mz, etc.).
     c:        row.glyph_modern,
     p:        row.pinyin       || '',
     m:        row.meaning_en   || '',
