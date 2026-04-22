@@ -9,6 +9,9 @@ import { useScoring, scoreLabel } from '../hooks/useScoring.js';
 import { useCharacter } from '../hooks/useJiaguwen.js';
 import { logPractice } from '../hooks/usePracticeLog.js';
 import { recordCharacterProgress } from '../hooks/useCharacterProgress.js';
+import { useCharacterProgress } from '../hooks/useCharacterProgress.js';
+import DictationMode from './modes/DictationMode.jsx';
+import CompletionMode from './modes/CompletionMode.jsx';
 import { FONTS, SETS } from '../data/characters.js';
 
 const S = 300;
@@ -91,7 +94,7 @@ function computeScore(userCanvas, char, fontCss) {
 
 // ── Compact settings drawer ───────────────────────────────────────
 function SettingsDrawer({ penMode, onPenMode, selBrush, onBrush, inkColor, onInkColor,
-  selScript, onScript, sizeScale, onSize, lang }) {
+  selScript, onScript, sizeScale, onSize, lang, hintMode, onHintMode }) {
   const [open, setOpen] = React.useState(false);
   const { SOFT_BRUSHES: SB, HARD_BRUSHES: HB } = React.useMemo(() => ({
     SOFT_BRUSHES: [
@@ -144,6 +147,22 @@ function SettingsDrawer({ penMode, onPenMode, selBrush, onBrush, inkColor, onInk
             background:'var(--card)',borderRadius:16,padding:'14px',
             border:'1px solid var(--border)',boxShadow:'0 8px 32px rgba(0,0,0,0.15)'}}
             onClick={e=>e.stopPropagation()}>
+
+            {/* Dictation hint mode */}
+            <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>
+              {lang==='zh'?'默写提示':lang==='it'?'Hint dettato':'Dictation hint'}
+            </div>
+            <div style={{display:'flex',gap:4,marginBottom:12}}>
+              {[['both','拼音+意思'],['pinyin','拼音'],['meaning','意思']].map(([v,l]) => (
+                <button key={v} onClick={()=>onHintMode?.(v)}
+                  style={{flex:1,padding:'5px',fontSize:10,borderRadius:6,
+                    background:hintMode===v?'#8B4513':'#f5ede0',
+                    color:hintMode===v?'#fdf6e3':'var(--text-2)',
+                    border:'none',cursor:'pointer'}}>
+                  {l}
+                </button>
+              ))}
+            </div>
 
             {/* 软笔/硬笔 */}
             <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>
@@ -354,7 +373,10 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
   const [qFb,       setQFb]       = useState({ msg:'准备好了请开始描画第 1 笔', cls:'' });
   const [freeFb,    setFreeFb]    = useState('');
   const [scoreInfo, setScoreInfo] = useState(null);  // { score, coverage, precision, level } | null
+  const [hintMode, setHintMode] = useState(() => localStorage.getItem('dictationHintMode') || 'both');
+  useEffect(() => { localStorage.setItem('dictationHintMode', hintMode); }, [hintMode]);
 
+  const { getHideStrokeCount, pickNextChar } = useCharacterProgress();
   const gridRef = useRef(null), drawRef = useRef(null), hzRef = useRef(null);
   const writer  = useRef(null), dataCache = useRef({});
   const painting = useRef(false), last = useRef({ x:0, y:0, t:0, w:0, pressure:0.5 }), recorded = useRef(false);
@@ -678,7 +700,44 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
 
       </div>
 
+      {/* ── Dictation mode (6A) ─────────────────────────────────────── */}
+      {mode === 'dictation' && (
+        <DictationMode
+          char={char}
+          nextChar={() => { clearDraw(); onNext?.(char); }}
+          hintMode={hintMode}
+          lang={lang}
+          onScore={(c, s) => recordCharacterProgress(c, s)}
+          onClose={() => setMode('free')}
+          selBrush={selBrush}
+          selScript={selScript}
+          sizeScale={sizeScale}
+          inkColor={inkColor}
+          penMode={penMode}
+          forceUniform={forceUniform}
+        />
+      )}
+
+      {/* ── Completion mode (6B) ────────────────────────────────────── */}
+      {mode === 'completion' && (
+        <CompletionMode
+          char={char}
+          nextChar={() => { clearDraw(); onNext?.(char); }}
+          hideCount={getHideStrokeCount?.(char?.c) || 1}
+          lang={lang}
+          onScore={(c, s) => recordCharacterProgress(c, s)}
+          onClose={() => setMode('free')}
+          selBrush={selBrush}
+          selScript={selScript}
+          sizeScale={sizeScale}
+          inkColor={inkColor}
+          penMode={penMode}
+          forceUniform={forceUniform}
+        />
+      )}
+
       {/* ── Canvas + overlay controls ─────────────────────────────── */}
+      {mode !== 'dictation' && mode !== 'completion' && (
       <div style={{position:'relative',width:'100%',maxWidth:320,margin:'0 auto'}}>
         {/* Grid canvas */}
         <div className="canvas-wrap">
@@ -800,11 +859,12 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
           </div>
         )}
       </div>
+      )}
 
       {/* ── Mode toggle + stroke buttons + settings ─────────────────── */}
       <div style={{width:'100%',maxWidth:320,margin:'0 auto',display:'flex',gap:6,alignItems:'center'}}>
         <div style={{display:'flex',border:'0.5px solid var(--border)',borderRadius:20,overflow:'hidden',flex:1}}>
-          {[['free','✏'],['speak','🎤']].map(([m,icon])=>(
+          {[['free','✏'],['dictation','⏱'],['completion','◧'],['speak','🎤']].map(([m,icon])=>(
             <button key={m} onClick={()=>switchMode(m)}
               style={{flex:1,padding:'7px 4px',fontSize:12,cursor:'pointer',border:'none',
                 fontFamily:'inherit',background:mode===m?'#8B4513':'var(--card)',
@@ -833,6 +893,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
           selScript={selScript} onScript={setSelScript}
           sizeScale={sizeScale} onSize={setSizeScale}
           lang={lang}
+          hintMode={hintMode} onHintMode={setHintMode}
         />
       </div>
 
