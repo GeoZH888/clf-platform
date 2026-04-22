@@ -376,7 +376,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
   const [hintMode, setHintMode] = useState(() => localStorage.getItem('dictationHintMode') || 'both');
   useEffect(() => { localStorage.setItem('dictationHintMode', hintMode); }, [hintMode]);
 
-  const { getHideStrokeCount, pickNextChar } = useCharacterProgress();
+  const { getHideStrokeCount, pickNextChar, getNextLearningChar } = useCharacterProgress();
   const gridRef = useRef(null), drawRef = useRef(null), hzRef = useRef(null);
   const writer  = useRef(null), dataCache = useRef({});
   const painting = useRef(false), last = useRef({ x:0, y:0, t:0, w:0, pressure:0.5 }), recorded = useRef(false);
@@ -718,7 +718,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
       {mode === 'dictation' && (
         <DictationMode
           char={char}
-          nextChar={() => { clearDraw(); onNext?.(char); }}
+          nextChar={() => { clearDraw(); const pick = getNextLearningChar?.(char?.c, setData?.chars || []); onNext?.(pick?.char || char); }}
           hintMode={hintMode}
           lang={lang}
           onScore={(c, s) => recordCharacterProgress(c, s)}
@@ -736,7 +736,7 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
       {mode === 'completion' && (
         <CompletionMode
           char={char}
-          nextChar={() => { clearDraw(); onNext?.(char); }}
+          nextChar={() => { clearDraw(); const pick = getNextLearningChar?.(char?.c, setData?.chars || []); onNext?.(pick?.char || char); }}
           hideCount={getHideStrokeCount?.(char?.c) || 1}
           lang={lang}
           onScore={(c, s) => recordCharacterProgress(c, s)}
@@ -782,13 +782,33 @@ export default function PracticeScreen({ char, set, onBack, onNext, onPracticed,
           </button>
         )}
 
-        {/* → next — bottom right corner */}
-        <button onClick={()=>{clearDraw();onNext?.(char);}}
+        {/* → next — adaptive picker (weak chars first, then unpracticed, then sequence) */}
+        <button
+          onClick={() => {
+            clearDraw();
+            const pool = setData?.chars || [];
+            const pick = getNextLearningChar?.(char?.c, pool);
+            // Pass the char object if we got one; fall back to current for App.jsx's
+            // legacy sequential handler.
+            onNext?.(pick?.char || char);
+          }}
+          title={(() => {
+            const pool = setData?.chars || [];
+            const pick = getNextLearningChar?.(char?.c, pool);
+            const reason = pick?.reason;
+            const next = pick?.char?.c;
+            if (!reason || !next) return '→';
+            const label = lang === 'zh'
+              ? ({ weak:`薄弱字 ${next}`, new:`新字 ${next}`, sequence:`下一个 ${next}`, wrap:`从头 ${next}` })[reason]
+              : ({ weak:`Weak: ${next}`, new:`New: ${next}`, sequence:`Next: ${next}`, wrap:`Wrap: ${next}` })[reason];
+            return `✨ ${label}`;
+          })()}
           style={{position:'absolute',bottom:8,right:8,width:34,height:34,borderRadius:'50%',
             border:'1px solid rgba(139,69,19,0.3)',background:'rgba(253,246,227,0.9)',
             cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',
             color:'#8B4513',zIndex:10,backdropFilter:'blur(4px)'}}>
           →
+          <span style={{position:'absolute',top:-2,right:-2,fontSize:9,lineHeight:1}}>✨</span>
         </button>
 
         {/* Guide toggle — top right */}

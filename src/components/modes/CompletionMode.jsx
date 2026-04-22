@@ -62,6 +62,15 @@ export default function CompletionMode({
   const [phase, setPhase] = useState('loading');  // 'loading' | 'drawing' | 'done'
   const [scoreInfo, setScoreInfo] = useState(null);
 
+  // Timer: adaptive duration based on past performance.
+  // Fresh char: 12s per hidden stroke (generous learning window).
+  // Max score ≥ 80: 5s per stroke (challenge mode — mastered, add pressure).
+  // Linear interpolation in between. Floor at 8s total.
+  const pastMax = char?.c ? (readCharacterProgress()[char.c]?.maxScore || 0) : 0;
+  const secondsPerStroke = pastMax >= 80 ? 5 : pastMax <= 0 ? 12 : (12 - (pastMax / 80) * 7);
+  const totalTime = Math.max(8, Math.round(hideCount * secondsPerStroke));
+  const [timeLeft, setTimeLeft] = useState(totalTime);
+
   const painting = useRef(false);
   const last = useRef({ x:0, y:0, t:0 });
 
@@ -71,6 +80,7 @@ export default function CompletionMode({
     hzRef.current.innerHTML = '';
     setPhase('loading');
     setScoreInfo(null);
+    setTimeLeft(totalTime);     // reset countdown for new char
 
     // Clear draw canvas
     const dc = drawRef.current;
@@ -201,6 +211,24 @@ export default function CompletionMode({
     setPhase('done');
   }, [hintBoxes, char, onScore]);
 
+  // Countdown tick (only while in drawing phase)
+  useEffect(() => {
+    if (phase !== 'drawing') return;
+    const id = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 0.1) { clearInterval(id); return 0; }
+        return t - 0.1;
+      });
+    }, 100);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // Auto-submit when timer hits zero (fires onComplete with whatever the user
+  // has drawn — that's the "fixed time to fill in" model)
+  useEffect(() => {
+    if (phase === 'drawing' && timeLeft <= 0) onComplete();
+  }, [phase, timeLeft, onComplete]);
+
   // Read past progress to explain WHY this many strokes are hidden
   const pastProgress = char?.c ? readCharacterProgress()[char.c] : null;
   const adaptiveReason = (() => {
@@ -220,11 +248,25 @@ export default function CompletionMode({
       <div style={{ padding: '8px 12px', margin: '0 0 8px', background: 'rgba(106,27,154,0.08)', border: '1.5px solid #6A1B9A', borderRadius: 10, textAlign: 'center' }}>
         <div style={{ fontSize: 12, color: '#6A1B9A' }}>
           {lang === 'zh' ? `请补齐 ${hideCount} 笔` : lang === 'it' ? `Completa ${hideCount} tratti` : `Fill in ${hideCount} stroke${hideCount>1?'s':''}`}
+          {phase === 'drawing' && (
+            <span style={{ marginLeft: 8, fontWeight: 600 }}>· {Math.ceil(timeLeft)}s</span>
+          )}
         </div>
         <div style={{ fontSize: 10, color: '#6A1B9A', opacity: 0.75, marginTop: 2, display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
-          <span>✨</span><span>{adaptiveReason}</span>
+          <span>✨</span><span>{adaptiveReason} · {totalTime}s</span>
         </div>
       </div>
+
+      {/* Timer bar */}
+      {phase === 'drawing' && (() => {
+        const pct = totalTime > 0 ? (timeLeft / totalTime) * 100 : 0;
+        const c = pct > 50 ? '#6A1B9A' : pct > 25 ? '#F9A825' : '#C62828';
+        return (
+          <div style={{ height: 5, background: '#ece0f2', borderRadius: 3, margin: '0 0 6px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: c, transition: 'width 100ms linear, background 200ms' }}/>
+          </div>
+        );
+      })()}
 
       <div style={{ position: 'relative', width: '100%', aspectRatio: '1', background: '#fdf6e3', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(139,69,19,0.2)' }}>
         {/* HanziWriter layer (visible strokes) */}

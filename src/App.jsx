@@ -317,7 +317,18 @@ function UserApp() {
             <PracticeScreen
               char={currentChar} set={activeSet}
               onBack={()=>setScreen(prevScreen==='practice'?'home':(prevScreen||'home'))}
-              onNext={()=>{ const n=charIdx+1; n<(activeSet?.chars?.length??0)?setCharIdx(n):setScreen('set'); }}
+              onNext={(nextCharObj) => {
+                // Adaptive: PracticeScreen may pass the next char chosen by
+                // getNextLearningChar. Look up its index in the current set.
+                const pool = activeSet?.chars || [];
+                if (nextCharObj?.c) {
+                  const idx = pool.findIndex(c => c.c === nextCharObj.c);
+                  if (idx >= 0) { setCharIdx(idx); return; }
+                }
+                // Fallback: sequential (preserves old behavior if picker returns nothing)
+                const n = charIdx + 1;
+                n < pool.length ? setCharIdx(n) : setScreen('set');
+              }}
               onPracticed={c=>recordPractice(c)}
               onQuizComplete={(c,m)=>recordQuiz(c,m)}/>
           )}
