@@ -161,7 +161,7 @@ export default function PlatformHome({ onSelect, allowedModules, userLabel, onSe
       <div style={{ textAlign: 'center', padding: '24px 16px 0',
         fontSize: 11, color: 'var(--text-3)' }}>
         {userLabel && <div style={{ marginBottom: 6 }}>{userLabel}</div>}
-        miaohong.netlify.app · {t('汉字学习平台', 'Hanzi learning platform', 'Piattaforma Hanzi')}
+        zhongwen-world.netlify.app · {t('汉字学习平台', 'Hanzi learning platform', 'Piattaforma Hanzi')}
       </div>
     </div>
   );
