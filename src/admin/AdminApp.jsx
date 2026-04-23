@@ -80,35 +80,47 @@ async function speakChinese(text) {
 
 // ── Auth ──────────────────────────────────────────────────────────
 function useAdminAuth() {
-  const [session, setSession] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession]     = useState(null);
+  const [isAdmin, setIsAdmin]     = useState(false);
+  const [isContributor, setIsContributor] = useState(false);
+  const [contributorName, setContributorName] = useState(null);
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
-      if (s) checkAdmin(s.user.id);
+      if (s) checkRoles(s.user.id);
       else setLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
       setSession(s);
-      if (s) checkAdmin(s.user.id);
-      else { setIsAdmin(false); setLoading(false); }
+      if (s) checkRoles(s.user.id);
+      else {
+        setIsAdmin(false); setIsContributor(false); setContributorName(null);
+        setLoading(false);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  async function checkAdmin(userId) {
-    // Check jgw_admins table OR user metadata
-    const { data } = await supabase.from('jgw_admins').select('id').eq('user_id', userId).maybeSingle();
-    const { data: { user } } = await supabase.auth.getUser();
+  async function checkRoles(userId) {
+    // Check admin first — admins take precedence over contributors.
+    const [{ data: adminRow }, { data: contribRow }, { data: { user } }] = await Promise.all([
+      supabase.from('jgw_admins').select('id').eq('user_id', userId).maybeSingle(),
+      supabase.from('jgw_contributors').select('display_name').eq('user_id', userId).maybeSingle(),
+      supabase.auth.getUser(),
+    ]);
     const isMeta = user?.user_metadata?.role === 'superadmin';
-    setIsAdmin(!!data || isMeta);
+    const admin  = !!adminRow || isMeta;
+    setIsAdmin(admin);
+    // Only flag contributor if NOT already admin
+    setIsContributor(!admin && !!contribRow);
+    setContributorName(contribRow?.display_name || null);
     setLoading(false);
   }
 
   return {
-    session, isAdmin, loading,
+    session, isAdmin, isContributor, contributorName, loading,
     signIn:  (email, pw) => supabase.auth.signInWithPassword({ email, password: pw }),
     signOut: () => supabase.auth.signOut(),
   };
@@ -165,6 +177,224 @@ function LoginScreen({ onSignIn }) {
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ── Contributor Panel ─────────────────────────────────────────────
+// Simplified UI for users in jgw_contributors who aren't admins.
+// Two views:
+//   1. 'record'    — the full AdminPinyinAudio (record + IPA overrides)
+//   2. 'dashboard' — "my contributions" summary with coverage stats
+function ContributorPanel({ displayName, onSignOut }) {
+  const [view, setView] = useState('record');
+  const [stats, setStats] = useState({ total:0, recorded:0, overrides:0 });
+  const [recentRecordings, setRecentRecordings] = useState([]);
+  const [pandaUrl, setPandaUrl] = useState(null);
+
+  useEffect(() => {
+    loadStats();
+    supabase.from('jgw_panda_assets').select('image_url')
+      .then(({ data }) => {
+        if (data?.length) {
+          const r = data[Math.floor(Math.random() * data.length)];
+          setPandaUrl(r.image_url);
+        }
+      }).catch(() => {});
+  }, [view]);   // reload stats when returning to dashboard
+
+  async function loadStats() {
+    try {
+      const [audioRes, overrideRes] = await Promise.all([
+        supabase.from('pinyin_audio')
+          .select('sound, uploaded_at, duration_ms')
+          .order('uploaded_at', { ascending: false }),
+        supabase.from('pinyin_sound_overrides').select('sound'),
+      ]);
+      // Total sounds = initials (23) + finals (24)
+      const total = 23 + 24;
+      setStats({
+        total,
+        recorded:  audioRes.data?.length || 0,
+        overrides: overrideRes.data?.length || 0,
+      });
+      setRecentRecordings(audioRes.data?.slice(0, 8) || []);
+    } catch (err) {
+      console.warn('[ContributorPanel] load stats failed:', err?.message);
+    }
+  }
+
+  const pct = stats.total ? Math.round(100 * stats.recorded / stats.total) : 0;
+
+  return (
+    <div style={{ minHeight:'100dvh', background:V.bg }}>
+
+      {/* Top bar */}
+      <div style={{ background:V.vermillion, color:'#fdf6e3',
+        padding:'10px 16px', display:'flex', alignItems:'center', gap:12,
+        position:'sticky', top:0, zIndex:10 }}>
+        {pandaUrl
+          ? <img src={pandaUrl} alt="panda" style={{ width:32, height:32,
+              borderRadius:8, objectFit:'contain', background:'#fff' }}/>
+          : <span style={{ fontSize:22 }}>🐼</span>}
+        <div>
+          <div style={{ fontSize:14, fontWeight:600 }}>
+            大卫学中文 · 录音贡献
+          </div>
+          <div style={{ fontSize:10, opacity:0.85 }}>
+            Welcome, <b>{displayName}</b> · Grazie per contribuire
+          </div>
+        </div>
+        <button onClick={onSignOut} style={{ marginLeft:'auto',
+          padding:'5px 12px', borderRadius:16, border:'none',
+          background:'#fdf6e322', color:'#fdf6e3', fontSize:11, cursor:'pointer' }}>
+          退出
+        </button>
+      </div>
+
+      {/* View switcher */}
+      <div style={{ display:'flex', gap:4, padding:'10px 14px 0',
+        background:V.bg, position:'sticky', top:56, zIndex:9 }}>
+        <ViewTab active={view==='record'}
+          onClick={()=>setView('record')}
+          label="🎤 录制" subtitle="Record" />
+        <ViewTab active={view==='dashboard'}
+          onClick={()=>setView('dashboard')}
+          label="📊 我的贡献" subtitle="My contributions" />
+      </div>
+
+      {/* Body */}
+      <div style={{ padding:'14px' }}>
+        {view === 'record' && <AdminPinyinAudio/>}
+        {view === 'dashboard' && (
+          <DashboardPanel
+            displayName={displayName}
+            stats={stats} pct={pct}
+            recent={recentRecordings}
+            onJumpToRecord={() => setView('record')}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ViewTab({ active, onClick, label, subtitle }) {
+  return (
+    <button onClick={onClick} style={{
+      flex:1, padding:'10px 12px', borderRadius:'10px 10px 0 0',
+      border:'none', background: active ? V.card : 'transparent',
+      color: active ? V.vermillion : V.text3,
+      fontWeight: active ? 600 : 400, cursor:'pointer',
+      borderBottom: active ? `2px solid ${V.vermillion}` : '2px solid transparent',
+      display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+      <span style={{ fontSize:14 }}>{label}</span>
+      <span style={{ fontSize:10, opacity:0.7 }}>{subtitle}</span>
+    </button>
+  );
+}
+
+function DashboardPanel({ displayName, stats, pct, recent, onJumpToRecord }) {
+  return (
+    <div style={{ maxWidth:560, margin:'0 auto' }}>
+
+      {/* Progress hero */}
+      <div style={{ background:V.card, borderRadius:16, padding:20,
+        border:`1px solid ${V.border}`, marginBottom:14 }}>
+        <div style={{ fontSize:12, color:V.text3, marginBottom:6 }}>
+          总进度 · Total Progress
+        </div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:10 }}>
+          <span style={{ fontSize:36, fontWeight:700, color:V.vermillion,
+            fontFamily:"'STKaiti','KaiTi',serif" }}>
+            {stats.recorded}
+          </span>
+          <span style={{ fontSize:16, color:V.text3 }}>
+            / {stats.total}
+          </span>
+          <span style={{ marginLeft:'auto', fontSize:22, fontWeight:600,
+            color: pct >= 80 ? '#2E7D32' : pct >= 50 ? '#FB8C00' : V.vermillion }}>
+            {pct}%
+          </span>
+        </div>
+        <div style={{ height:8, background:'#f5ede0', borderRadius:4, overflow:'hidden' }}>
+          <div style={{
+            height:'100%', width:`${pct}%`,
+            background: pct >= 80 ? '#2E7D32' : pct >= 50 ? '#FB8C00' : V.vermillion,
+            transition:'width 0.4s' }}/>
+        </div>
+        <div style={{ fontSize:11, color:V.text3, marginTop:10, lineHeight:1.5 }}>
+          {stats.recorded === 0
+            ? '👋 还没有录音 — 点击上方"录制"开始您的第一段录音'
+            : stats.recorded < stats.total
+              ? `👍 已完成 ${stats.recorded} 个发音录制，还有 ${stats.total - stats.recorded} 个待录`
+              : '🎉 恭喜！所有声母韵母都录制完成了'}
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
+        marginBottom:14 }}>
+        <StatCard label="已录音" value={stats.recorded} accent="#2E7D32"/>
+        <StatCard label="IPA 覆写" value={stats.overrides} accent="#FB8C00"/>
+      </div>
+
+      {/* Recent recordings */}
+      <div style={{ background:V.card, borderRadius:16, padding:'16px 18px',
+        border:`1px solid ${V.border}`, marginBottom:14 }}>
+        <div style={{ fontSize:12, color:V.text3, fontWeight:600, marginBottom:10 }}>
+          最近录音 · Recent
+        </div>
+        {recent.length === 0 ? (
+          <div style={{ fontSize:12, color:V.text3, padding:'14px 0',
+            textAlign:'center' }}>
+            暂无录音
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {recent.map(r => (
+              <div key={r.sound} style={{
+                padding:'8px 12px', borderRadius:10, background:V.bg,
+                border:`1px solid ${V.border}`,
+                display:'flex', flexDirection:'column', alignItems:'center',
+                minWidth:56 }}>
+                <div style={{ fontSize:18, fontWeight:700, color:V.vermillion,
+                  fontFamily:"'STKaiti','KaiTi',serif" }}>
+                  {r.sound}
+                </div>
+                <div style={{ fontSize:9, color:V.text3, marginTop:2 }}>
+                  {r.duration_ms ? `${(r.duration_ms/1000).toFixed(1)}s` : '—'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* CTA */}
+      <button onClick={onJumpToRecord} style={{
+        width:'100%', padding:14, borderRadius:12, border:'none',
+        background:V.vermillion, color:'#fdf6e3', fontWeight:500, fontSize:14,
+        cursor:'pointer' }}>
+        🎤 {stats.recorded === 0 ? '开始录音' : '继续录音'}
+      </button>
+
+      {/* Footer note */}
+      <div style={{ textAlign:'center', fontSize:10, color:V.text3,
+        marginTop:16, lineHeight:1.6 }}>
+        感谢您为大卫学中文平台贡献标准发音 🐼<br/>
+        Thank you {displayName} for recording pronunciations
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, accent }) {
+  return (
+    <div style={{ background:V.card, borderRadius:12, padding:'14px 12px',
+      border:`1px solid ${V.border}`, textAlign:'center' }}>
+      <div style={{ fontSize:22, fontWeight:700, color:accent }}>{value}</div>
+      <div style={{ fontSize:10, color:V.text3, marginTop:2 }}>{label}</div>
     </div>
   );
 }
@@ -839,7 +1069,7 @@ function AnalyticsTab({ chars }) {
 
 // ── Main AdminApp ─────────────────────────────────────────────────
 export default function AdminApp() {
-  const { session, isAdmin, loading, signIn, signOut } = useAdminAuth();
+  const { session, isAdmin, isContributor, contributorName, loading, signIn, signOut } = useAdminAuth();
   const [tab,         setTab]         = useState('characters');
   const [chars,       setChars]       = useState([]);
   const [charsLoading, setCharsLoading] = useState(true);
@@ -943,6 +1173,15 @@ export default function AdminApp() {
 
   if (loading) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:V.bg }}>Loading…</div>;
   if (!session) return <LoginScreen onSignIn={signIn}/>;
+
+  // Contributor users see a dedicated simplified panel instead of the full
+  // admin UI. They can only record pinyin audio + edit IPA overrides.
+  if (!isAdmin && isContributor) {
+    return <ContributorPanel
+      displayName={contributorName || session.user.email}
+      onSignOut={signOut}/>;
+  }
+
   if (!isAdmin) return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:V.bg, gap:16 }}>
       <div style={{ fontSize:14, color:'#c0392b' }}>Access denied — not an admin.</div>

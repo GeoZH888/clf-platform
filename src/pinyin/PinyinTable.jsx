@@ -1,9 +1,33 @@
 // src/pinyin/PinyinTable.jsx
 // 声母韵母表 — IPA display + Azure TTS via SSML phoneme tags
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import VisemeMouth from './VisemeMouth';
 import { useAzureViseme } from '../hooks/useAzureViseme';
 import { INITIAL_IPA, FINAL_IPA } from '../data/pinyinIPA';
+import { getPinyinAudioUrl } from '../lib/pinyinAudio';
+
+// ── Teaching syllables: what Azure should actually pronounce for each sound ──
+// Using isolated IPA phonemes (/p/, /t/, /tɕ/) via SSML causes Azure to
+// over-aspirate or read them as English-style sounds. We instead send the
+// standard pedagogy syllable for each initial/final — still short, but a
+// complete unit Azure can pronounce correctly in Mandarin.
+const TEACHING_SYLLABLE = {
+  // Initials (+ canonical teaching vowel)
+  b:'bō',  p:'pō',  m:'mō',  f:'fó',
+  d:'dē',  t:'tē',  n:'nē',  l:'lē',
+  g:'gē',  k:'kē',  h:'hē',
+  j:'jī',  q:'qī',  x:'xī',
+  zh:'zhī', ch:'chī', sh:'shī', r:'rī',
+  z:'zī',  c:'cī',  s:'sī',
+  y:'yī',  w:'wū',
+  // Finals — already a complete syllable on their own
+  a:'ā',   o:'ō',   e:'ē',   i:'yī',  u:'wū',  ü:'yū',
+  ai:'āi', ei:'ēi', ui:'wēi',
+  ao:'āo', ou:'ōu', iu:'yōu',
+  ie:'yē', üe:'yuē', er:'ér',
+  an:'ān', en:'ēn', in:'yīn', un:'wēn', ün:'yūn',
+  ang:'āng', eng:'ēng', ing:'yīng', ong:'wēng',
+};
 
 // ── Sound data ────────────────────────────────────────────────────────────────
 const INITIAL_GROUPS = [
@@ -110,8 +134,13 @@ function SoundCard({ item, ipaData, color, active, onTap }) {
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
-function DetailPanel({ item, ipaData, color, lang, onClose, speak, speaking, visemeId, azureError }) {
+function DetailPanel({ item, ipaData, color, lang, onClose, speak, speaking, customPlaying, visemeId, azureError }) {
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it : en;
+
+  // When a custom recording plays, we don't have viseme timing data. Pass
+  // speaking={false} to VisemeMouth so it renders the idle/static pose for
+  // this sound, which is anatomically correct as a reference shape.
+  const visemeSpeaking = speaking && !customPlaying;
 
   return (
     <div style={{
@@ -160,14 +189,14 @@ function DetailPanel({ item, ipaData, color, lang, onClose, speak, speaking, vis
 
       {/* Viseme mouth */}
       <div style={{ display:'flex', justifyContent:'center', marginBottom:14 }}>
-        <VisemeMouth visemeId={visemeId} speaking={speaking} color={color} size={240} showLabel={true}/>
+        <VisemeMouth visemeId={visemeId} speaking={visemeSpeaking} color={color} size={240} showLabel={true}/>
       </div>
 
       {/* Two TTS buttons */}
       <div style={{ display:'flex', gap:10 }}>
-        {/* Button 1: Pure IPA phoneme — exact sound, no character ambiguity */}
+        {/* Button 1: teaching syllable (custom recording → Azure bō) */}
         <button
-          onClick={() => speak(item.eg, item.py)}   // passes phonemeKey
+          onClick={() => speak(item.eg, item.py)}   // phonemeKey → teaching syllable/recording
           disabled={speaking}
           style={{
             flex:1, padding:'11px 8px', borderRadius:12, border:'none',
@@ -177,7 +206,6 @@ function DetailPanel({ item, ipaData, color, lang, onClose, speak, speaking, vis
             display:'flex', alignItems:'center', justifyContent:'center', gap:6,
           }}>
           🔊 {t(`听"${item.py}"`,`"${item.py}"`,`"${item.py}"`)}
-          {ipaData && <span style={{ fontSize:11, opacity:0.8 }}>/{ipaData.ipa}/</span>}
         </button>
 
         {/* Button 2: Example word in context */}
@@ -211,13 +239,56 @@ export default function PinyinTable({ lang='zh', onBack }) {
   const [active, setActive] = useState(null);
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it : en;
 
-  // speak() now accepts (text, phonemeKey)
-  // phonemeKey → use IPA SSML; null → read character directly
+  // speak() three-tier flow:
+  //   1. Custom recording from admin panel (if exists for this sound)
+  //   2. Azure TTS with TEACHING_SYLLABLE (e.g. 'bō' instead of SSML phoneme /p/)
+  //   3. Azure with raw character (for the example word button)
+  // Viseme animation runs for tiers 2 & 3 (Azure-driven). For tier 1, a static
+  // mouth shape is shown — animation not possible without phoneme timing data.
   const { speak: speakRaw, speaking, visemeId, error: azureError, cancel } = useAzureViseme();
+  const customAudioRef = useRef(null);
+  const [customPlaying, setCustomPlaying] = useState(false);
 
-  function speak(text, phonemeKey) {
-    speakRaw(text, phonemeKey);
+  async function speak(text, phonemeKey) {
+    cancel();
+
+    // Tier 1: custom recording (only applies to "initial/final" button, where
+    // phonemeKey is truthy — the "example word" button always uses Azure).
+    if (phonemeKey) {
+      try {
+        const customUrl = await getPinyinAudioUrl(phonemeKey);
+        if (customUrl) {
+          // Stop any prior playback
+          if (customAudioRef.current) {
+            customAudioRef.current.pause();
+            customAudioRef.current = null;
+          }
+          const audio = new Audio(customUrl);
+          customAudioRef.current = audio;
+          setCustomPlaying(true);
+          audio.onended  = () => { setCustomPlaying(false); customAudioRef.current = null; };
+          audio.onerror  = () => { setCustomPlaying(false); customAudioRef.current = null; };
+          await audio.play();
+          return;
+        }
+      } catch (err) {
+        // Fall through to Azure
+        console.warn('[PinyinTable] custom audio failed:', err?.message);
+      }
+    }
+
+    // Tier 2 & 3: Azure. For isolated initials/finals, send TEACHING_SYLLABLE;
+    // passing null as phonemeKey bypasses the SSML phoneme wrap so Azure reads
+    // the text as a whole Mandarin syllable (not as an isolated IPA /p/).
+    if (phonemeKey && TEACHING_SYLLABLE[phonemeKey]) {
+      speakRaw(TEACHING_SYLLABLE[phonemeKey], null);
+    } else {
+      speakRaw(text, null);
+    }
   }
+
+  // Unified "is audio playing right now" flag for UI
+  const isPlaying = speaking || customPlaying;
 
   const groups = tab === 'initial' ? INITIAL_GROUPS : FINAL_GROUPS;
   const ipaMap  = tab === 'initial' ? INITIAL_IPA : FINAL_IPA;
@@ -287,7 +358,8 @@ export default function PinyinTable({ lang='zh', onBack }) {
             ipaData={ipaMap[activeItem.py]}
             color={activeColor} lang={lang}
             onClose={() => { setActive(null); cancel(); }}
-            speak={speak} speaking={speaking}
+            speak={speak} speaking={isPlaying}
+            customPlaying={customPlaying}
             visemeId={visemeId} azureError={azureError}
           />
         )}
