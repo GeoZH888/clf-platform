@@ -12,6 +12,7 @@ import IllustrationStudio from './IllustrationStudio.jsx';
 import AutoPopulate from './AutoPopulate.jsx';
 import InviteManager from './InviteManager.jsx';
 import PinyinAdminTab from './PinyinAdminTab.jsx';
+import AdminPinyinAudio from './AdminPinyinAudio.jsx';
 import WordsAdminTab  from './WordsAdminTab.jsx';
 import ChengyuAdminTab from './ChengyuAdminTab.jsx';
 import GrammarAdminTab from './GrammarAdminTab.jsx';
@@ -858,7 +859,7 @@ export default function AdminApp() {
   const [dragToIdx,   setDragToIdx]  = useState(-1);
   const [ghostStyle,  setGhostStyle] = useState(null);
   const [tabOrder, setTabOrder]      = useState(() => {
-    const DEFAULT = ['characters','words','hsk','poetry','invites','pinyin','chengyu','grammar','users','analytics','apikeys','panda'];
+    const DEFAULT = ['characters','words','hsk','poetry','invites','pinyin','pinyin-audio','chengyu','grammar','users','analytics','apikeys','panda'];
     try {
       const saved = localStorage.getItem('admin_tab_order');
       if (saved) {
@@ -962,7 +963,8 @@ export default function AdminApp() {
     { id:'hsk',        label:'🎓 HSK' },
     { id:'poetry',     label:'📜 诗歌' },
     { id:'invites',    label:'🔑 邀请' },
-    { id:'pinyin',     label:'🔤 拼音' },
+    { id:'pinyin',       label:'🔤 拼音' },
+    { id:'pinyin-audio', label:'🎤 拼音音库' },
     { id:'chengyu',    label:'📜 成语' },
     { id:'grammar',    label:'📐 语法' },
     { id:'users',      label:'👥 用户' },
@@ -1334,7 +1336,8 @@ export default function AdminApp() {
         {tab==='users'     && <UsersTab/>}
         {tab==='analytics' && <AIAnalyticsTab/>}
         {tab==='invites'   && <InviteManager/>}
-        {tab==='pinyin'    && <PinyinAdminTab/>}
+        {tab==='pinyin'       && <PinyinAdminTab/>}
+        {tab==='pinyin-audio' && <AdminPinyinAudio/>}
         {tab==='words'     && <WordsAdminTab/>}
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
