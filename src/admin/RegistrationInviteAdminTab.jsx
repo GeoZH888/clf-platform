@@ -14,6 +14,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import QRCode from 'qrcode';
 import DirectCreateUserPanel from './DirectCreateUserPanel.jsx';
+import CreatedUsersListPanel from './CreatedUsersListPanel.jsx';
 
 const V = {
   bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
@@ -81,6 +82,9 @@ export default function RegistrationInviteAdminTab() {
 
       {/* Direct-create panel — admin creates accounts directly */}
       <DirectCreateUserPanel/>
+
+      {/* List of all admin-created accounts with management actions */}
+      <CreatedUsersListPanel/>
 
       {/* Section heading for QR invites */}
       <h3 style={{ margin: '8px 0 10px', fontSize: 14, color: V.accent }}>
