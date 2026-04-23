@@ -71,13 +71,15 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
-const IS_ADMIN    = window.location.pathname.startsWith('/admin');
-const IS_REGISTER = window.location.pathname.startsWith('/register');
+const IS_ADMIN       = window.location.pathname.startsWith('/admin');
+const IS_REGISTER    = window.location.pathname.startsWith('/register');
+const IS_QUICK_LOGIN = window.location.pathname.startsWith('/quick-login');
 
 import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
 import RegisterScreen       from './components/RegisterScreen.jsx';
 import RegisterStatusScreen from './components/RegisterStatusScreen.jsx';
+import QuickLoginScreen     from './components/QuickLoginScreen.jsx';
 
 // ── Minimal Settings screen ───────────────────────────────────────
 // Language switcher + user info + logout. Split into own file when it grows.
@@ -445,9 +447,11 @@ export default function App() {
     <ErrorBoundary>
       {IS_ADMIN
         ? <LanguageProvider><AdminApp/></LanguageProvider>
-        : IS_REGISTER
-          ? <LanguageProvider><RegisterRouter/></LanguageProvider>
-          : <UserApp/>}
+        : IS_QUICK_LOGIN
+          ? <LanguageProvider><QuickLoginScreen/></LanguageProvider>
+          : IS_REGISTER
+            ? <LanguageProvider><RegisterRouter/></LanguageProvider>
+            : <UserApp/>}
     </ErrorBoundary>
   );
 }

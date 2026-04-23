@@ -62,7 +62,8 @@ async function requireSuperAdmin(authHeader) {
 
 // Create one account. Returns { name, username, password, user_id }.
 // Throws if username is taken or createUser fails.
-async function createOne({ name, username, password, email, adminUser }) {
+async function createOne({ name, username, password, email, adminUser,
+                          generateQrToken, maxDevices, expiresAt, label }) {
   const finalUsername = (username || genUsername(name)).toLowerCase().trim();
   const finalPassword = password || genPassword();
   const fakeEmail = `${finalUsername}@${FAKE_EMAIL_DOMAIN}`;
@@ -100,9 +101,28 @@ async function createOne({ name, username, password, email, adminUser }) {
     approved_user_id: authData.user.id,
   });
   if (regErr) {
-    // Rollback: delete auth user we just made
     await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
     throw regErr;
+  }
+
+  // Optionally generate a quick-login QR token
+  let qrToken = null;
+  if (generateQrToken) {
+    qrToken = randChars(24, 'ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789');
+    const { error: tokErr } = await supabase.from('clf_quicklogin_tokens').insert({
+      token: qrToken,
+      user_id: authData.user.id,
+      username: finalUsername,
+      max_devices: maxDevices || 1,
+      expires_at: expiresAt || null,
+      label: label || null,
+      created_by: adminUser.id,
+    });
+    if (tokErr) {
+      console.error('[create-user] qr token insert:', tokErr);
+      // Not fatal — account still works, just no QR
+      qrToken = null;
+    }
   }
 
   return {
@@ -110,6 +130,7 @@ async function createOne({ name, username, password, email, adminUser }) {
     username: finalUsername,
     password: finalPassword,
     user_id: authData.user.id,
+    qr_token: qrToken,
   };
 }
 
@@ -138,15 +159,27 @@ export async function handler(event) {
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
   // Two modes:
-  //   { mode: 'single', name, username?, password?, email? }
-  //   { mode: 'batch', names: ['张三', 'Marco Rossi', ...] }
+  //   { mode: 'single', name, username?, password?, email?,
+  //                     generateQrToken?, maxDevices?, expiresAt?, label? }
+  //   { mode: 'batch',  names: [...], generateQrToken?, maxDevices?, expiresAt?, labelPrefix? }
+
+  // Shared QR options
+  const qrOpts = {
+    generateQrToken: !!body.generateQrToken,
+    maxDevices: body.maxDevices || 1,
+    expiresAt: body.expiresAt || null,
+  };
 
   if (body.mode === 'single') {
     if (!body.name || body.name.trim().length < 1) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: '姓名必填' }) };
     }
     try {
-      const result = await createOne({ ...body, adminUser });
+      const result = await createOne({
+        ...body, adminUser,
+        ...qrOpts,
+        label: body.label || null,
+      });
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, result }) };
     } catch (err) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: err.message }) };
@@ -164,9 +197,14 @@ export async function handler(event) {
 
     const results = [];
     const errors = [];
-    for (const rawName of names) {
+    for (let i = 0; i < names.length; i++) {
+      const rawName = names[i];
       try {
-        const r = await createOne({ name: rawName, adminUser });
+        const r = await createOne({
+          name: rawName, adminUser,
+          ...qrOpts,
+          label: body.labelPrefix ? `${body.labelPrefix} #${i + 1}` : null,
+        });
         results.push(r);
       } catch (err) {
         errors.push({ name: rawName, error: err.message });
