@@ -67,21 +67,27 @@ const MODULES = [
     text:     '#0C3C7A',
   },
 
+  {
+    id:       'words',
+    emoji:    '🐼',
+    iconImage: null,
+    name:     { zh:'词语', en:'Vocabulary', it:'Vocabolario' },
+    desc:     { zh:'生词 · 闪卡 · 听写',
+                en:'Words · flashcards · dictation',
+                it:'Parole · flashcard · dettato' },
+    features: [
+      { zh:'闪卡记忆',   en:'Flashcards',         it:'Flashcard' },
+      { zh:'听词选义',   en:'Listen & choose',    it:'Ascolta e scegli' },
+      { zh:'看义填词',   en:'Fill in blank',      it:'Completa' },
+      { zh:'主题分类',   en:'Browse by theme',    it:'Per tema' },
+    ],
+    tag:      { zh:'词汇', en:'Vocab', it:'Vocab' },
+    color:    '#E8F5E9',
+    border:   '#2E7D32',
+    text:     '#1B5E20',
+  },
+
   // ── Future modules — uncomment and adjust as they come online ──
-  // {
-  //   id:    'words', emoji:'📚',
-  //   name:  { zh:'词汇', en:'Vocabulary', it:'Vocabolario' },
-  //   desc:  { zh:'生词 · HSK词表', en:'HSK vocab', it:'Vocabolario HSK' },
-  //   features: [
-  //     { zh:'词汇卡片', en:'Flashcards',    it:'Flashcard' },
-  //     { zh:'例句',     en:'Example sentences', it:'Frasi di esempio' },
-  //     { zh:'搭配练习', en:'Collocations',  it:'Collocazioni' },
-  //     { zh:'间隔重复', en:'Spaced repetition', it:'Ripetizione spaziata' },
-  //   ],
-  //   tag: { zh:'词汇', en:'Vocab', it:'Vocab' },
-  //   color:'#E8F5E9', border:'#2E7D32', text:'#1B5E20',
-  // },
-  // {
   //   id:    'poetry', emoji:'🎴',
   //   name:  { zh:'诗歌', en:'Poetry', it:'Poesia' },
   //   ...

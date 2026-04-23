@@ -218,6 +218,7 @@ function UserApp() {
   const [practiceMode, setPracticeMode] = useState('free');  // 'free' | 'dictation' | 'completion' | 'speak'
   const [practiceModule,     setPracticeModule]     = useState(null);  // null | 'lianzi' | 'pinyin' — for 2-layer picker
   const [pinyinInitialScreen, setPinyinInitialScreen] = useState(null); // 'home' | 'table' | 'tones' | 'listen' | 'type' | 'speak'
+  const [wordsInitialScreen,  setWordsInitialScreen]  = useState(null); // 'home' | 'flashcard' | 'listen' | 'fill'
   const { progress, stats, recordPractice, recordQuiz, resetProgress } = useProgress();
   const { sets: SETS, loading: setsLoading } = useCharacters();
 
@@ -378,7 +379,9 @@ function UserApp() {
               onBack={()=>{ setPinyinInitialScreen(null); setScreen('platform'); }}/>
           )}
           {screen === 'words' && (
-            <WordsApp onBack={()=>setScreen('platform')}/>
+            <WordsApp
+              initialScreen={wordsInitialScreen}
+              onBack={()=>{ setWordsInitialScreen(null); setScreen('platform'); }}/>
           )}
           {screen === 'grammar' && (
             <GrammarApp onBack={()=>setScreen('platform')}/>
