@@ -11,6 +11,8 @@
  *   "albero" →  木  →  [practice tracing]
  *   "月亮"   →  月 + 亮  →  [practice each]
  *   "amore"  →  爱  →  [practice tracing]
+ *
+ * Backend: /.netlify/functions/word-to-clf (Claude API via server-side key).
  */
 import { useState, useRef, useEffect } from 'react';
 import { useLang } from '../context/LanguageContext.jsx';
@@ -130,7 +132,7 @@ export default function MyWordScreen({ onPractice }) {
     if (!q) return;
     setLoading(true); setError(''); setResult(null);
     try {
-      const res = await fetch('/.netlify/functions/word-to-miaohong', {
+      const res = await fetch('/.netlify/functions/word-to-clf', {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ text:q }),
