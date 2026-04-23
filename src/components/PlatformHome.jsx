@@ -138,7 +138,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
         const { data, error } = await supabase
           .from('jgw_panda_assets')
           .select('image_url')
-          .order('id');    // stable ordering so hash→index always picks same
+          .order('created_at', { ascending: true });    // stable ordering so hash→index always picks same
         if (error) throw error;
         const urls = (data || []).map(r => r.image_url).filter(Boolean);
         if (urls.length === 0) { PANDA_CACHE = {}; setPandaMap({}); return; }
