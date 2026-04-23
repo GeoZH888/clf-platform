@@ -1,476 +1,644 @@
 // src/admin/GrammarAdminTab.jsx
-// Admin panel for managing grammar patterns
-// View / edit / AI-generate patterns stored in jgw_grammar_patterns table
+// Admin panel for managing clf_grammar_topics and clf_grammar_exercises.
+// Replaces the legacy jgw_grammar_patterns-based UI.
+//
+// Layout (2 columns on desktop, stacked on mobile):
+//   Left:  Topic list by level, with search + [+ new topic]
+//   Right: Editor for selected topic + its exercises list
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 
 const V = {
-  bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
-  text:'#1a0a05', text2:'#6b4c2a', text3:'#a07850',
-  verm:'#8B4513', purple:'#6A1B9A', purpleLight:'#F3E5F5',
+  bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
+  text: '#1a0a05', text2: '#6b4c2a', text3: '#a07850',
+  accent: '#7B3F3F',   // 墨红 grammar theme
+  accentLight: '#F5E8E8',
+  green: '#2E7D32', orange: '#E65100', red: '#c62828',
 };
 
-// Built-in patterns (also stored in DB once seeded)
-const BUILTIN_PATTERNS = [
-  { pattern:'是…的', pattern_en:'Emphasis: 是…的', hsk_level:3, difficulty:1, theme:'structure',
-    rule_zh:'强调动作发生的时间、地点或方式', rule_en:'Emphasizes when/where/how a past action occurred',
-    example_zh:'我是坐飞机来的。', example_en:'I came by plane.',
-    active:true },
-  { pattern:'把字句', pattern_en:'Disposal: 把', hsk_level:3, difficulty:1, theme:'structure',
-    rule_zh:'用"把"把宾语提前，强调对宾语的处理方式', rule_en:'Moves object before verb to emphasize handling',
-    example_zh:'请把门关上。', example_en:'Please close the door.',
-    active:true },
-  { pattern:'被字句', pattern_en:'Passive: 被', hsk_level:4, difficulty:2, theme:'structure',
-    rule_zh:'"被"表示被动，宾语成为主语', rule_en:'"被" marks passive voice',
-    example_zh:'蛋糕被小狗吃了。', example_en:'The cake was eaten by the dog.',
-    active:true },
-  { pattern:'A比B+adj', pattern_en:'Comparison: A 比 B', hsk_level:3, difficulty:1, theme:'comparison',
-    rule_zh:'用"比"比较两者差异', rule_en:'Use "比" to compare: A is more [adj] than B',
-    example_zh:'今天比昨天冷。', example_en:'Today is colder than yesterday.',
-    active:true },
-  { pattern:'动词+过', pattern_en:'Experience: verb+过', hsk_level:3, difficulty:2, theme:'aspect',
-    rule_zh:'动词后加"过"表示曾经有过某种经历', rule_en:'"过" after verb = have experienced',
-    example_zh:'我吃过北京烤鸭。', example_en:'I have eaten Peking duck.',
-    active:true },
-  { pattern:'动词+着', pattern_en:'Duration: verb+着', hsk_level:4, difficulty:2, theme:'aspect',
-    rule_zh:'"着"表示动作或状态的持续', rule_en:'"着" indicates continuing action/state',
-    example_zh:'她笑着说话。', example_en:'She spoke with a smile.',
-    active:true },
-  { pattern:'要是…就…', pattern_en:'Conditional: 要是…就', hsk_level:4, difficulty:2, theme:'logic',
-    rule_zh:'"要是"引出条件，"就"引出结果', rule_en:'"要是" + condition + "就" + result',
-    example_zh:'要是明天下雨，我就不去了。', example_en:'If it rains tomorrow, I won\'t go.',
-    active:true },
-  { pattern:'虽然…但是…', pattern_en:'Concession: 虽然…但是', hsk_level:4, difficulty:2, theme:'logic',
-    rule_zh:'"虽然"承认前提，"但是"转折', rule_en:'Although…but (concession)',
-    example_zh:'虽然很难，但是很有意思。', example_en:'Although it\'s hard, it\'s very interesting.',
-    active:true },
-];
+const EMPTY_TOPIC = {
+  id: '', title_zh: '', title_en: '', title_it: '',
+  level: 1, order_idx: 0, explanation: '', examples: [],
+};
 
-function log_fn(setLog) {
-  return (msg) => setLog(prev => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev].slice(0, 20));
-}
+const EMPTY_EXERCISE = {
+  type: 'fill', difficulty: 0,
+  question: '', options: null, answer: '', explanation: '',
+};
 
 export default function GrammarAdminTab() {
-  const [patterns, setPatterns]   = useState([]);
-  const [loading,  setLoading]    = useState(true);
-  const [editId,   setEditId]     = useState(null);
-  const [editForm, setEditForm]   = useState({});
-  const [saving,   setSaving]     = useState(false);
-  const [seeding,  setSeeding]    = useState(false);
-  const [genLog,   setGenLog]     = useState([]);
-  const [genLoading,setGenLoading]= useState(false);
-  const [genProvider,setGenProvider]= useState('claude');
+  const [topics, setTopics]       = useState([]);
+  const [exercises, setExercises] = useState([]);   // only for selected topic
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
+  const [selId, setSelId]         = useState(null);
 
-  const TEXT_PROVIDERS = [
-    { id:'claude',   label:'Claude (Anthropic)', keyId:'anthropic' },
-    { id:'openai',   label:'GPT-4o (OpenAI)',    keyId:'openai'    },
-    { id:'gemini',   label:'Gemini (Google)',     keyId:'gemini'    },
-    { id:'deepseek', label:'DeepSeek',            keyId:'deepseek'  },
-    { id:'qwen',     label:'Qwen 通义千问',        keyId:'qwen'      },
-    { id:'grok',     label:'Grok (xAI)',           keyId:'grok'      },
-    { id:'mistral',  label:'Mistral',              keyId:'mistral'   },
-  ];
-  const log = log_fn(setGenLog);
+  // Topic editor form
+  const [topicForm, setTopicForm] = useState(EMPTY_TOPIC);
+  const [savingTopic, setSavingTopic] = useState(false);
+  const [topicFlash, setTopicFlash]   = useState(null);
 
-  // ── Load ──────────────────────────────────────────────────────────
-  useEffect(() => { loadPatterns(); }, []);
+  // Exercise editor modal
+  const [exModal, setExModal] = useState(null);
+  const [savingEx, setSavingEx] = useState(false);
 
-  async function loadPatterns() {
+  // ── Load topics ──
+  const loadTopics = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('jgw_grammar_patterns')
+      .from('clf_grammar_topics')
       .select('*')
-      .order('hsk_level')
-      .order('difficulty');
-    if (!error) setPatterns(data || []);
+      .order('level', { ascending: true })
+      .order('order_idx', { ascending: true });
+    if (error) console.warn('[grammar-admin]', error);
+    setTopics(data || []);
     setLoading(false);
-  }
+  }, []);
 
-  // ── Seed built-in patterns ─────────────────────────────────────────
-  async function seedPatterns() {
-    setSeeding(true);
-    log('开始添加内置语法点…');
-    const { data, error } = await supabase
-      .from('jgw_grammar_patterns')
-      .upsert(BUILTIN_PATTERNS, { onConflict:'pattern' })
-      .select();
-    if (error) { log('✗ ' + error.message); }
-    else {
-      log(`✓ 已添加/更新 ${data?.length} 条语法点`);
-      await loadPatterns();
-    }
-    setSeeding(false);
-  }
+  useEffect(() => { loadTopics(); }, [loadTopics]);
 
-  // ── Edit ──────────────────────────────────────────────────────────
-  function startEdit(p) {
-    setEditId(p.id);
-    setEditForm({
-      pattern:    p.pattern    || '',
-      pattern_en: p.pattern_en || '',
-      hsk_level:  p.hsk_level  || 3,
-      difficulty: p.difficulty || 1,
-      theme:      p.theme      || 'structure',
-      rule_zh:    p.rule_zh    || '',
-      rule_en:    p.rule_en    || '',
-      example_zh: p.example_zh || '',
-      example_en: p.example_en || '',
-      example_it: p.example_it || '',
-      extra_examples: p.extra_examples || '',
-      active:     p.active !== false,
+  // ── Load exercises when topic selected ──
+  useEffect(() => {
+    if (!selId) { setExercises([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from('clf_grammar_exercises')
+        .select('*')
+        .eq('topic_id', selId)
+        .order('difficulty', { ascending: true })
+        .order('created_at', { ascending: true });
+      setExercises(data || []);
+    })();
+  }, [selId]);
+
+  // When a topic becomes selected, populate the form
+  useEffect(() => {
+    if (!selId) { setTopicForm(EMPTY_TOPIC); return; }
+    const t = topics.find(t => t.id === selId);
+    if (t) setTopicForm({
+      id: t.id,
+      title_zh: t.title_zh || '',
+      title_en: t.title_en || '',
+      title_it: t.title_it || '',
+      level: t.level || 1,
+      order_idx: t.order_idx || 0,
+      explanation: t.explanation || '',
+      examples: t.examples || [],
     });
+  }, [selId, topics]);
+
+  // Filter + group topics for left column
+  const filtered = topics.filter(t => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return t.id.toLowerCase().includes(s)
+      || (t.title_zh || '').includes(search)
+      || (t.title_en || '').toLowerCase().includes(s);
+  });
+  const byLevel = {};
+  filtered.forEach(t => { (byLevel[t.level] = byLevel[t.level] || []).push(t); });
+  const levels = Object.keys(byLevel).map(Number).sort((a, b) => a - b);
+
+  // Exercise count per topic (for badge)
+  const [exCounts, setExCounts] = useState({});
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('clf_grammar_exercises')
+        .select('topic_id');
+      const c = {};
+      (data || []).forEach(r => { c[r.topic_id] = (c[r.topic_id] || 0) + 1; });
+      setExCounts(c);
+    })();
+  }, [selId, exercises.length]);  // refresh after save
+
+  // ── TOPIC ACTIONS ──
+
+  async function saveTopic() {
+    if (!topicForm.id.trim()) {
+      setTopicFlash({ type: 'error', msg: 'ID 不能为空（例如 ba_zi_ju）' });
+      return;
+    }
+    if (!topicForm.title_zh.trim()) {
+      setTopicFlash({ type: 'error', msg: '中文标题不能为空' });
+      return;
+    }
+    setSavingTopic(true);
+    const payload = {
+      id: topicForm.id.trim(),
+      title_zh: topicForm.title_zh.trim(),
+      title_en: topicForm.title_en.trim() || null,
+      title_it: topicForm.title_it.trim() || null,
+      level: Number(topicForm.level) || 1,
+      order_idx: Number(topicForm.order_idx) || 0,
+      explanation: topicForm.explanation || null,
+      examples: topicForm.examples || [],
+    };
+    const { error } = await supabase
+      .from('clf_grammar_topics')
+      .upsert(payload);
+    if (error) {
+      setTopicFlash({ type: 'error', msg: '保存失败: ' + error.message });
+    } else {
+      setTopicFlash({ type: 'success', msg: '已保存' });
+      await loadTopics();
+      setSelId(payload.id);
+    }
+    setSavingTopic(false);
   }
 
-  async function saveEdit(id) {
-    setSaving(true);
-    const { error } = await supabase.from('jgw_grammar_patterns')
-      .update(editForm).eq('id', id);
-    if (!error) {
-      setPatterns(prev => prev.map(p => p.id === id ? { ...p, ...editForm } : p));
-      setEditId(null);
-      log(`✓ ${editForm.pattern} 已保存`);
-    } else { log('✗ ' + error.message); }
-    setSaving(false);
+  async function deleteTopic() {
+    if (!selId) return;
+    if (!confirm(`永久删除「${topicForm.title_zh}」？\n所有相关题目和学生进度也会一起删除。`)) return;
+    const { error } = await supabase
+      .from('clf_grammar_topics')
+      .delete()
+      .eq('id', selId);
+    if (error) {
+      setTopicFlash({ type: 'error', msg: '删除失败: ' + error.message });
+      return;
+    }
+    setSelId(null);
+    await loadTopics();
   }
 
-  async function deletePattern(id, pattern) {
-    if (!confirm(`删除语法点 "${pattern}"？`)) return;
-    await supabase.from('jgw_grammar_patterns').delete().eq('id', id);
-    setPatterns(prev => prev.filter(p => p.id !== id));
+  function newTopic() {
+    setSelId(null);
+    setTopicForm(EMPTY_TOPIC);
+    setTopicFlash(null);
   }
 
-  // ── AI generate more examples ─────────────────────────────────────
-  async function aiGenerateExamples(p) {
-    const key = localStorage.getItem(`admin_key_${TEXT_PROVIDERS.find(p=>p.id===genProvider)?.keyId||genProvider}`);
-    if (!key) { log('⚠️ 请先在 API Keys 保存 Anthropic key'); return; }
-    setGenLoading(true);
-    log(`🤖 AI 生成 "${p.pattern}" 例句…`);
+  // ── EXAMPLES EDITOR (inline JSON) ──
+  function setExamplesRaw(raw) {
     try {
-      const res = await fetch('/.netlify/functions/ai-gateway', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          action:'generate_text', provider:genProvider, client_key:key, max_tokens:500,
-          prompt:`For the Chinese grammar pattern "${p.pattern}" (${p.pattern_en}):
-Rule: ${p.rule_zh}
-
-Generate 3 more example sentences. Return ONLY JSON:
-{"examples":[
-  {"zh":"中文例句","en":"English translation","it":"Traduzione italiana"},
-  {"zh":"...","en":"...","it":"..."},
-  {"zh":"...","en":"...","it":"..."}
-]}
-No explanation, no markdown.`,
-        }),
-      });
-      const d = await res.json();
-      const raw = (d.result||'').replace(/```json|```/g,'').trim();
-      const obj = JSON.parse(raw);
-      if (obj.examples) {
-        const formatted = obj.examples.map(e => `${e.zh} | ${e.en}`).join('\n');
-        setEditForm(f => ({ ...f, extra_examples: formatted }));
-        log(`✓ 已生成 ${obj.examples.length} 条例句`);
-      }
-    } catch(e) { log('✗ AI失败: ' + e.message); }
-    setGenLoading(false);
+      const parsed = raw.trim() ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) throw new Error('Must be an array');
+      setTopicForm(f => ({ ...f, examples: parsed }));
+      setTopicFlash(null);
+    } catch (e) {
+      setTopicFlash({ type: 'warn', msg: 'JSON 无效: ' + e.message });
+      // Still update the raw text so user can fix
+    }
   }
 
-  // ── AI generate new pattern ───────────────────────────────────────
-  async function aiGeneratePattern(hsk) {
-    const key = localStorage.getItem(`admin_key_${TEXT_PROVIDERS.find(p=>p.id===genProvider)?.keyId||genProvider}`);
-    if (!key) { log('⚠️ 请先在 API Keys 保存 Anthropic key'); return; }
-    setGenLoading(true);
-    log(`🤖 AI 生成 HSK${hsk} 语法点…`);
-    try {
-      const existing = patterns.map(p => p.pattern).join(', ');
-      const res = await fetch('/.netlify/functions/ai-gateway', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          action:'generate_text', provider:genProvider, client_key:key, max_tokens:600,
-          prompt:`Generate 1 new Chinese grammar pattern for HSK ${hsk} level learners.
-Already have: ${existing}. Do NOT repeat any of these.
-Return ONLY JSON (no markdown):
-{"pattern":"语法结构","pattern_en":"English name","hsk_level":${hsk},"difficulty":${hsk<=3?1:2},"theme":"structure","rule_zh":"规则说明（20字以内）","rule_en":"Rule explanation","example_zh":"中文例句","example_en":"English example","active":true}`,
-        }),
-      });
-      const d = await res.json();
-      const raw = (d.result||'').replace(/```json|```/g,'').trim();
-      const obj = JSON.parse(raw);
-      const { data, error } = await supabase.from('jgw_grammar_patterns').insert(obj).select().maybeSingle();
-      if (!error && data) {
-        setPatterns(prev => [...prev, data].sort((a,b) => a.hsk_level-b.hsk_level || a.difficulty-b.difficulty));
-        log(`✓ 新语法点 "${obj.pattern}" 已保存`);
-      } else { log('✗ 保存失败: ' + (error?.message || '')); }
-    } catch(e) { log('✗ AI失败: ' + e.message); }
-    setGenLoading(false);
+  // ── EXERCISE ACTIONS ──
+
+  async function saveExercise(form) {
+    setSavingEx(true);
+    const payload = {
+      topic_id: selId,
+      type: form.type,
+      difficulty: Number(form.difficulty),
+      question: form.question,
+      options: form.type === 'choose'
+        ? (Array.isArray(form.options) ? form.options : null)
+        : null,
+      answer: form.answer,
+      explanation: form.explanation || null,
+    };
+    let res;
+    if (form.id) {
+      res = await supabase.from('clf_grammar_exercises')
+        .update(payload).eq('id', form.id);
+    } else {
+      res = await supabase.from('clf_grammar_exercises')
+        .insert(payload);
+    }
+    setSavingEx(false);
+    if (res.error) {
+      alert('保存失败: ' + res.error.message);
+      return;
+    }
+    setExModal(null);
+    // Reload exercises
+    const { data } = await supabase
+      .from('clf_grammar_exercises')
+      .select('*')
+      .eq('topic_id', selId)
+      .order('difficulty', { ascending: true })
+      .order('created_at', { ascending: true });
+    setExercises(data || []);
   }
 
-  const themes = [...new Set(patterns.map(p => p.theme).filter(Boolean)), 'structure','aspect','comparison','logic','modal'];
+  async function deleteExercise(id) {
+    if (!confirm('删除此题？')) return;
+    const { error } = await supabase
+      .from('clf_grammar_exercises').delete().eq('id', id);
+    if (error) { alert(error.message); return; }
+    setExercises(exs => exs.filter(e => e.id !== id));
+  }
 
+  // ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth:900 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr',
+      gap: 12, padding: 12, background: V.bg, minHeight: 'calc(100vh - 120px)' }}>
 
-      {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
-        <div style={{ fontSize:15, fontWeight:600, color:V.text }}>📐 语法管理 Grammar Patterns</div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-          <div>
-            <select value={genProvider} onChange={e=>setGenProvider(e.target.value)}
-              style={{ padding:'5px 8px', borderRadius:8, border:`1px solid ${V.purple}`,
-                background:V.purpleLight, fontSize:11, color:V.purple }}>
-              {TEXT_PROVIDERS.map(p=>{
-                const hasKey=!!localStorage.getItem(`admin_key_${p.keyId}`);
-                return <option key={p.id} value={p.id}>{hasKey?'✓ ':''}{p.label}</option>;
-              })}
-            </select>
-          </div>
-          {patterns.length === 0 && (
-            <button onClick={seedPatterns} disabled={seeding}
-              style={{ padding:'7px 14px', fontSize:12, cursor:'pointer', borderRadius:8,
-                border:'none', background:V.purple, color:'#fff', fontWeight:600 }}>
-              {seeding ? '添加中…' : '🌱 添加内置语法点'}
-            </button>
-          )}
-          {[3,4,5].map(hsk => (
-            <button key={hsk} onClick={() => aiGeneratePattern(hsk)} disabled={genLoading}
-              style={{ padding:'7px 12px', fontSize:12, cursor:'pointer', borderRadius:8,
-                border:`1px solid ${V.purple}`, background:V.purpleLight,
-                color:V.purple, fontWeight:500 }}>
-              🤖 + HSK{hsk}
-            </button>
-          ))}
-          <button onClick={loadPatterns}
-            style={{ padding:'7px 12px', fontSize:12, cursor:'pointer', borderRadius:8,
-              border:`1px solid ${V.border}`, background:V.bg, color:V.text2 }}>
-            ↺
-          </button>
+      {/* ═══ LEFT: Topic list ═══ */}
+      <div style={{ background: V.card, border: `1px solid ${V.border}`,
+        borderRadius: 10, padding: 12, overflow: 'auto', maxHeight: 'calc(100vh - 140px)' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="搜索语法点"
+            style={{ flex: 1, padding: '5px 10px', fontSize: 12,
+              border: `1px solid ${V.border}`, borderRadius: 6,
+              boxSizing: 'border-box' }}/>
+          <button onClick={newTopic} style={{
+            padding: '5px 10px', fontSize: 12, background: V.accent, color: '#fff',
+            border: 'none', borderRadius: 6, cursor: 'pointer' }}>+ 新</button>
         </div>
+        <div style={{ fontSize: 11, color: V.text3, marginBottom: 6 }}>
+          {topics.length} 个主题 · {Object.values(exCounts).reduce((a,b)=>a+b, 0)} 道题
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 20, textAlign: 'center', color: V.text3 }}>加载中…</div>
+        ) : levels.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: V.text3 }}>
+            {topics.length === 0 ? '暂无语法点' : '无匹配结果'}
+          </div>
+        ) : levels.map(lvl => (
+          <div key={lvl} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: V.accent, fontWeight: 500,
+              margin: '4px 4px 4px', letterSpacing: 1,
+              fontFamily: "'STKaiti','KaiTi',serif" }}>
+              Level {lvl}
+            </div>
+            <div style={{ display: 'grid', gap: 3 }}>
+              {byLevel[lvl].map(t => (
+                <button key={t.id} onClick={() => setSelId(t.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 9px',
+                    background: selId === t.id ? V.accent : 'transparent',
+                    color:      selId === t.id ? '#fff'   : V.text,
+                    border: `1px solid ${selId === t.id ? V.accent : V.border}`,
+                    borderRadius: 5, cursor: 'pointer', textAlign: 'left',
+                    fontSize: 12, width: '100%',
+                  }}>
+                  <span style={{ flex: 1,
+                    fontFamily: "'STKaiti','KaiTi',serif", fontWeight: 500 }}>
+                    {t.title_zh}
+                  </span>
+                  <span style={{ fontSize: 10,
+                    opacity: selId === t.id ? 0.8 : 0.5 }}>
+                    {exCounts[t.id] || 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Stats */}
-      {patterns.length > 0 && (
-        <div style={{ display:'flex', gap:10, marginBottom:14, flexWrap:'wrap' }}>
-          {[3,4,5,6].map(hsk => {
-            const n = patterns.filter(p => p.hsk_level === hsk).length;
-            if (!n) return null;
-            return (
-              <div key={hsk} style={{ background:V.purpleLight, border:`1px solid #CE93D8`,
-                borderRadius:10, padding:'6px 14px', fontSize:12 }}>
-                <span style={{ color:V.purple, fontWeight:600 }}>HSK{hsk}</span>
-                <span style={{ color:V.text3, marginLeft:6 }}>{n}条</span>
-              </div>
-            );
-          })}
-          <div style={{ background:'#E8F5E9', border:'1px solid #A5D6A7',
-            borderRadius:10, padding:'6px 14px', fontSize:12 }}>
-            <span style={{ color:'#2E7D32', fontWeight:600 }}>总计</span>
-            <span style={{ color:V.text3, marginLeft:6 }}>{patterns.length}条</span>
+      {/* ═══ RIGHT: Editor ═══ */}
+      <div style={{ background: V.card, border: `1px solid ${V.border}`,
+        borderRadius: 10, padding: 16, overflow: 'auto', maxHeight: 'calc(100vh - 140px)' }}>
+
+        {/* Flash messages */}
+        {topicFlash && (
+          <div style={{
+            padding: 8, marginBottom: 10, fontSize: 12, borderRadius: 6,
+            background: topicFlash.type === 'success' ? '#E8F5E9'
+                      : topicFlash.type === 'warn'    ? '#FFF8E1' : '#FFEBEE',
+            color:      topicFlash.type === 'success' ? V.green
+                      : topicFlash.type === 'warn'    ? V.orange : V.red,
+          }}>
+            {topicFlash.msg}
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, color: V.text3, marginBottom: 10 }}>
+          {selId ? '编辑语法点' : '新建语法点'}
+        </div>
+
+        {/* ── Topic form ── */}
+        <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
+          <Row label="ID (slug)" hint="英文小写 + 下划线，如 ba_zi_ju">
+            <input value={topicForm.id}
+              onChange={e => setTopicForm(f => ({ ...f, id: e.target.value }))}
+              placeholder="ba_zi_ju"
+              disabled={!!selId}
+              style={inputStyle(!!selId)}/>
+          </Row>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <Row label="中文标题 *">
+              <input value={topicForm.title_zh}
+                onChange={e => setTopicForm(f => ({ ...f, title_zh: e.target.value }))}
+                placeholder="把字句"
+                style={inputStyle()}/>
+            </Row>
+            <Row label="英文标题">
+              <input value={topicForm.title_en}
+                onChange={e => setTopicForm(f => ({ ...f, title_en: e.target.value }))}
+                placeholder="Disposal: 把"
+                style={inputStyle()}/>
+            </Row>
+            <Row label="意大利文标题">
+              <input value={topicForm.title_it}
+                onChange={e => setTopicForm(f => ({ ...f, title_it: e.target.value }))}
+                placeholder="Frase con 把"
+                style={inputStyle()}/>
+            </Row>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Row label="级别 (1-5)">
+              <select value={topicForm.level}
+                onChange={e => setTopicForm(f => ({ ...f, level: Number(e.target.value) }))}
+                style={inputStyle()}>
+                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Level {n}</option>)}
+              </select>
+            </Row>
+            <Row label="级别内排序">
+              <input type="number" value={topicForm.order_idx}
+                onChange={e => setTopicForm(f => ({ ...f, order_idx: Number(e.target.value) }))}
+                style={inputStyle()}/>
+            </Row>
+          </div>
+
+          <Row label="讲解 (Markdown)" hint="支持 **bold**；换行用两个换行">
+            <textarea value={topicForm.explanation}
+              onChange={e => setTopicForm(f => ({ ...f, explanation: e.target.value }))}
+              rows={6}
+              placeholder="**结构**：主语 + 把 + 宾语 + 动词 + 补语/了/结果"
+              style={{ ...inputStyle(), minHeight: 100, fontFamily: 'ui-monospace, monospace',
+                fontSize: 12, resize: 'vertical' }}/>
+          </Row>
+
+          <Row label="例句 JSON" hint='[{"zh":"...", "pinyin":"...", "en":"...", "it":"..."}]'>
+            <textarea
+              defaultValue={JSON.stringify(topicForm.examples || [], null, 2)}
+              onBlur={e => setExamplesRaw(e.target.value)}
+              rows={6}
+              style={{ ...inputStyle(), minHeight: 120, fontFamily: 'ui-monospace, monospace',
+                fontSize: 11, resize: 'vertical' }}/>
+          </Row>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={saveTopic} disabled={savingTopic} style={{
+              flex: 1, padding: '8px', background: V.accent, color: '#fff',
+              border: 'none', borderRadius: 6, cursor: savingTopic ? 'not-allowed' : 'pointer',
+              opacity: savingTopic ? 0.5 : 1, fontSize: 13,
+              fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 2,
+            }}>
+              {savingTopic ? '保存中…' : '💾 保存'}
+            </button>
+            {selId && (
+              <button onClick={deleteTopic} style={{
+                padding: '8px 16px', background: V.card, color: V.red,
+                border: `1px solid ${V.red}`, borderRadius: 6, cursor: 'pointer',
+                fontSize: 12,
+              }}>🗑 删除主题</button>
+            )}
           </div>
         </div>
-      )}
 
-      {/* AI log */}
-      {genLog.length > 0 && (
-        <div style={{ background:'#1a0a05', borderRadius:10, padding:'10px 14px',
-          fontFamily:'monospace', fontSize:11, color:'#69F0AE', marginBottom:14,
-          maxHeight:100, overflowY:'auto' }}>
-          {genLog.map((l,i) => <div key={i}>{l}</div>)}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && patterns.length === 0 && (
-        <div style={{ background:V.purpleLight, border:`2px dashed #CE93D8`, borderRadius:14,
-          padding:'2rem', textAlign:'center', color:V.purple }}>
-          <div style={{ fontSize:40, marginBottom:8 }}>📐</div>
-          <div style={{ fontSize:14, fontWeight:600, marginBottom:8 }}>还没有语法点</div>
-          <div style={{ fontSize:12, opacity:0.8, marginBottom:16 }}>点击"添加内置语法点"快速开始，或用AI生成新语法点</div>
-        </div>
-      )}
-
-      {/* Pattern list */}
-      {loading ? <div style={{ textAlign:'center', color:V.text3, padding:20 }}>加载中…</div> : (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {patterns.map(p => (
-            <div key={p.id} style={{ background:V.card,
-              border:`1.5px solid ${editId===p.id?V.purple:V.border}`,
-              borderRadius:12, overflow:'hidden',
-              boxShadow:editId===p.id?`0 0 0 2px ${V.purple}22`:'none' }}>
-
-              {/* Summary row */}
-              <div style={{ padding:'10px 14px', display:'flex', gap:12, alignItems:'center' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
-                    <span style={{ fontSize:15, fontWeight:700, color:V.purple,
-                      fontFamily:"'STKaiti','KaiTi',serif", letterSpacing:1 }}>{p.pattern}</span>
-                    <span style={{ fontSize:11, color:V.text3 }}>{p.pattern_en}</span>
-                    <span style={{ fontSize:10, background:V.purpleLight, color:V.purple,
-                      padding:'1px 6px', borderRadius:8 }}>HSK{p.hsk_level} · Lv{p.difficulty}</span>
-                    {p.theme && <span style={{ fontSize:10, background:'#f0e8d8', color:V.text3,
-                      padding:'1px 6px', borderRadius:8 }}>{p.theme}</span>}
-                    {!p.active && <span style={{ fontSize:10, background:'#FFEBEE', color:'#C62828',
-                      padding:'1px 6px', borderRadius:8 }}>已禁用</span>}
-                  </div>
-                  <div style={{ fontSize:12, color:V.text2, marginTop:3,
-                    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {p.example_zh}
-                  </div>
-                </div>
-                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                  <button onClick={() => editId===p.id ? setEditId(null) : startEdit(p)}
-                    style={{ padding:'4px 10px', borderRadius:8, fontSize:11, cursor:'pointer',
-                      border:`1px solid ${editId===p.id?V.purple:V.border}`,
-                      background:editId===p.id?V.purple:V.bg,
-                      color:editId===p.id?'#fff':V.text2 }}>
-                    {editId===p.id ? '✕' : '✏️ 编辑'}
-                  </button>
-                  <button onClick={() => deletePattern(p.id, p.pattern)}
-                    style={{ padding:'4px 8px', borderRadius:8, fontSize:11, cursor:'pointer',
-                      border:'1px solid #FFCDD2', background:'#FFEBEE', color:'#C62828' }}>
-                    ✕
-                  </button>
-                </div>
+        {/* ── Exercises list ── */}
+        {selId && (
+          <div style={{ paddingTop: 16, borderTop: `1px dashed ${V.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 13, color: V.text, fontWeight: 500,
+                fontFamily: "'STKaiti','KaiTi',serif" }}>
+                练习题 · {exercises.length}
               </div>
-
-              {/* Inline edit panel */}
-              {editId === p.id && (
-                <div style={{ borderTop:`1px solid ${V.border}`, padding:'14px',
-                  background:'#fdfaf5' }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>语法结构 Pattern</label>
-                      <input value={editForm.pattern} onChange={e=>setEditForm(f=>({...f,pattern:e.target.value}))}
-                        style={{ width:'100%', padding:'7px 9px', fontSize:15, borderRadius:8,
-                          border:`1px solid ${V.border}`, fontFamily:"'STKaiti','KaiTi',serif",
-                          letterSpacing:1, boxSizing:'border-box', color:V.purple, fontWeight:700 }}/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>英文名称 English name</label>
-                      <input value={editForm.pattern_en} onChange={e=>setEditForm(f=>({...f,pattern_en:e.target.value}))}
-                        style={{ width:'100%', padding:'7px 9px', fontSize:13, borderRadius:8,
-                          border:`1px solid ${V.border}`, boxSizing:'border-box' }}/>
-                    </div>
-                    <div style={{ gridColumn:'1/-1' }}>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>中文规则说明</label>
-                      <input value={editForm.rule_zh} onChange={e=>setEditForm(f=>({...f,rule_zh:e.target.value}))}
-                        style={{ width:'100%', padding:'7px 9px', fontSize:13, borderRadius:8,
-                          border:`1px solid ${V.border}`, boxSizing:'border-box' }}/>
-                    </div>
-                    <div style={{ gridColumn:'1/-1' }}>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>English rule</label>
-                      <input value={editForm.rule_en} onChange={e=>setEditForm(f=>({...f,rule_en:e.target.value}))}
-                        style={{ width:'100%', padding:'7px 9px', fontSize:13, borderRadius:8,
-                          border:`1px solid ${V.border}`, boxSizing:'border-box' }}/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>例句 (中文)</label>
-                      <input value={editForm.example_zh} onChange={e=>setEditForm(f=>({...f,example_zh:e.target.value}))}
-                        style={{ width:'100%', padding:'7px 9px', fontSize:13, borderRadius:8,
-                          border:`1px solid ${V.border}`, boxSizing:'border-box',
-                          fontFamily:"'STKaiti','KaiTi',serif" }}/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>Example (English)</label>
-                      <input value={editForm.example_en} onChange={e=>setEditForm(f=>({...f,example_en:e.target.value}))}
-                        style={{ width:'100%', padding:'7px 9px', fontSize:13, borderRadius:8,
-                          border:`1px solid ${V.border}`, boxSizing:'border-box' }}/>
-                    </div>
-                  </div>
-
-                  {/* Extra examples textarea */}
-                  <div style={{ marginBottom:10 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                      <label style={{ fontSize:10, color:V.text3 }}>额外例句（每行一个，格式: 中文 | English）</label>
-                      <button onClick={() => aiGenerateExamples(p)} disabled={genLoading}
-                        style={{ fontSize:10, padding:'2px 10px', borderRadius:6, border:'none',
-                          background:V.purple, color:'#fff', cursor:'pointer' }}>
-                        🤖 AI生成
-                      </button>
-                    </div>
-                    <textarea value={editForm.extra_examples}
-                      onChange={e=>setEditForm(f=>({...f,extra_examples:e.target.value}))}
-                      rows={4} placeholder="他是坐火车来的。| He came by train.&#10;她是在北京出生的。| She was born in Beijing."
-                      style={{ width:'100%', padding:'8px', fontSize:12, borderRadius:8,
-                        border:`1px solid ${V.border}`, boxSizing:'border-box',
-                        resize:'vertical', fontFamily:'inherit' }}/>
-                  </div>
-
-                  {/* Meta */}
-                  <div style={{ display:'flex', gap:10, marginBottom:12, flexWrap:'wrap' }}>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>HSK</label>
-                      <select value={editForm.hsk_level} onChange={e=>setEditForm(f=>({...f,hsk_level:Number(e.target.value)}))}
-                        style={{ padding:'5px 8px', borderRadius:8, border:`1px solid ${V.border}`, fontSize:12 }}>
-                        {[3,4,5,6].map(n => <option key={n} value={n}>HSK {n}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>难度</label>
-                      <select value={editForm.difficulty} onChange={e=>setEditForm(f=>({...f,difficulty:Number(e.target.value)}))}
-                        style={{ padding:'5px 8px', borderRadius:8, border:`1px solid ${V.border}`, fontSize:12 }}>
-                        {[1,2,3].map(n => <option key={n} value={n}>Lv{n}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>主题</label>
-                      <select value={editForm.theme} onChange={e=>setEditForm(f=>({...f,theme:e.target.value}))}
-                        style={{ padding:'5px 8px', borderRadius:8, border:`1px solid ${V.border}`, fontSize:12 }}>
-                        {themes.map(th => <option key={th} value={th}>{th}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ display:'flex', alignItems:'flex-end', gap:6 }}>
-                      <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, cursor:'pointer' }}>
-                        <input type="checkbox" checked={editForm.active}
-                          onChange={e=>setEditForm(f=>({...f,active:e.target.checked}))}/>
-                        启用
-                      </label>
-                    </div>
-                  </div>
-
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => saveEdit(p.id)} disabled={saving}
-                      style={{ padding:'8px 20px', borderRadius:9, border:'none',
-                        background:saving?'#E0E0E0':V.purple,
-                        color:saving?'#aaa':'#fff', fontWeight:600, fontSize:13, cursor:'pointer' }}>
-                      {saving ? '保存中…' : '💾 保存'}
-                    </button>
-                    <button onClick={() => setEditId(null)}
-                      style={{ padding:'8px 14px', borderRadius:9, border:`1px solid ${V.border}`,
-                        background:V.bg, color:V.text2, fontSize:13, cursor:'pointer' }}>
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button onClick={() => setExModal({ ...EMPTY_EXERCISE })}
+                style={{ padding: '5px 12px', fontSize: 12, background: V.accent,
+                  color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer' }}>
+                + 新题
+              </button>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* SQL hint */}
-      <div style={{ marginTop:16, background:'#F3E5F5', border:'1px solid #CE93D8',
-        borderRadius:10, padding:'10px 14px', fontSize:11, color:V.purple }}>
-        <strong>SQL required in Supabase:</strong>
-        <pre style={{ margin:'6px 0 0', fontSize:10, lineHeight:1.6, color:'#4A148C', overflow:'auto' }}>{
-`CREATE TABLE IF NOT EXISTS jgw_grammar_patterns (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  pattern text UNIQUE NOT NULL,
-  pattern_en text,
-  hsk_level int DEFAULT 3,
-  difficulty int DEFAULT 1,
-  theme text DEFAULT 'structure',
-  rule_zh text,
-  rule_en text,
-  example_zh text,
-  example_en text,
-  example_it text,
-  extra_examples text,
-  active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE jgw_grammar_patterns ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon read" ON jgw_grammar_patterns FOR SELECT TO anon USING (active = true);`
-        }</pre>
+            {exercises.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: V.text3,
+                background: V.bg, borderRadius: 6, fontSize: 12 }}>
+                还没有题目
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 4 }}>
+                {exercises.map(ex => <ExerciseRow key={ex.id} exercise={ex}
+                  onEdit={() => setExModal(ex)}
+                  onDelete={() => deleteExercise(ex.id)}/>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ═══ Exercise modal ═══ */}
+      {exModal && (
+        <ExerciseModal exercise={exModal}
+          onClose={() => setExModal(null)}
+          onSave={saveExercise}
+          saving={savingEx}/>
+      )}
+    </div>
+  );
+}
+
+// ── Row helper ─────────────────────────────────────────────────
+function Row({ label, hint, children }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: V.text3, marginBottom: 3 }}>
+        {label}
+        {hint && <span style={{ marginLeft: 6, opacity: 0.7 }}>· {hint}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function inputStyle(disabled) {
+  return {
+    width: '100%', padding: '6px 10px', fontSize: 12,
+    border: `1px solid ${V.border}`, borderRadius: 6,
+    background: disabled ? '#f5f0e8' : '#fff',
+    color: disabled ? V.text3 : V.text,
+    boxSizing: 'border-box', outline: 'none',
+    fontFamily: 'inherit',
+  };
+}
+
+// ── Exercise row ──────────────────────────────────────────────
+function ExerciseRow({ exercise, onEdit, onDelete }) {
+  const diffLabel = ['易', '中', '难'][exercise.difficulty];
+  const diffColor = ['#2E7D32', '#E65100', '#c62828'][exercise.difficulty];
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '6px 10px', background: V.bg,
+      border: `1px solid ${V.border}`, borderRadius: 5,
+      fontSize: 12,
+    }}>
+      <span style={{
+        padding: '1px 6px', fontSize: 10,
+        background: diffColor + '22', color: diffColor,
+        borderRadius: 8, fontFamily: "'STKaiti','KaiTi',serif",
+        minWidth: 20, textAlign: 'center',
+      }}>{diffLabel}</span>
+      <span style={{
+        padding: '1px 6px', fontSize: 10,
+        background: V.border, color: V.text2, borderRadius: 3,
+      }}>{exercise.type === 'fill' ? '填' : '选'}</span>
+      <span style={{ flex: 1,
+        fontFamily: "'STKaiti','KaiTi',serif",
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {exercise.question}
+      </span>
+      <span style={{ fontSize: 10, color: V.text3 }}>
+        → {exercise.answer}
+      </span>
+      <button onClick={onEdit} style={miniBtn}>编辑</button>
+      <button onClick={onDelete} style={{ ...miniBtn, color: V.red, borderColor: '#FFCDD2' }}>删</button>
+    </div>
+  );
+}
+
+const miniBtn = {
+  padding: '2px 8px', fontSize: 11,
+  background: V.card, border: `1px solid ${V.border}`,
+  borderRadius: 4, cursor: 'pointer', color: V.text2,
+};
+
+// ── Exercise edit modal ──────────────────────────────────────
+function ExerciseModal({ exercise, onClose, onSave, saving }) {
+  const [form, setForm] = useState({
+    ...exercise,
+    options: exercise.options
+      ? (Array.isArray(exercise.options) ? exercise.options : [])
+      : ['', '', '', ''],
+  });
+
+  function updateOpt(i, val) {
+    const next = [...(form.options || ['', '', '', ''])];
+    next[i] = val;
+    setForm(f => ({ ...f, options: next }));
+  }
+
+  function addOpt() {
+    setForm(f => ({ ...f, options: [...(f.options || []), ''] }));
+  }
+
+  function removeOpt(i) {
+    setForm(f => ({ ...f, options: f.options.filter((_, j) => j !== i) }));
+  }
+
+  function submit() {
+    if (!form.question.trim() || !form.answer.trim()) {
+      alert('题面和答案不能为空');
+      return;
+    }
+    if (form.type === 'choose') {
+      const opts = (form.options || []).filter(o => o.trim());
+      if (opts.length < 2) {
+        alert('选择题至少需要 2 个选项');
+        return;
+      }
+      if (!opts.includes(form.answer.trim())) {
+        if (!confirm('答案不在选项列表中，确定保存？')) return;
+      }
+      onSave({ ...form, options: opts });
+    } else {
+      onSave({ ...form, options: null });
+    }
+  }
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        zIndex: 9999, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
+      <div style={{
+        background: V.card, borderRadius: 10, padding: 20,
+        maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12, color: V.accent,
+          fontFamily: "'STKaiti','KaiTi',serif" }}>
+          {exercise.id ? '编辑题目' : '新建题目'}
+        </div>
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Row label="类型">
+              <select value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                style={inputStyle()}>
+                <option value="fill">填空</option>
+                <option value="choose">选择</option>
+              </select>
+            </Row>
+            <Row label="难度">
+              <select value={form.difficulty}
+                onChange={e => setForm(f => ({ ...f, difficulty: Number(e.target.value) }))}
+                style={inputStyle()}>
+                <option value={0}>易</option>
+                <option value={1}>中</option>
+                <option value={2}>难</option>
+              </select>
+            </Row>
+          </div>
+
+          <Row label="题面" hint="填空用 ___ 标记空格">
+            <textarea value={form.question}
+              onChange={e => setForm(f => ({ ...f, question: e.target.value }))}
+              rows={2}
+              style={{ ...inputStyle(), fontFamily: "'STKaiti','KaiTi',serif", fontSize: 14 }}/>
+          </Row>
+
+          {form.type === 'choose' && (
+            <Row label="选项" hint="点 + 添加更多">
+              <div style={{ display: 'grid', gap: 4 }}>
+                {(form.options || []).map((opt, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: V.text3, width: 20 }}>
+                      {['A','B','C','D','E','F'][i] || i}
+                    </span>
+                    <input value={opt}
+                      onChange={e => updateOpt(i, e.target.value)}
+                      style={{ ...inputStyle(), flex: 1 }}/>
+                    <button onClick={() => removeOpt(i)} style={miniBtn}>×</button>
+                  </div>
+                ))}
+                <button onClick={addOpt} style={{ ...miniBtn, alignSelf: 'flex-start' }}>
+                  + 添加选项
+                </button>
+              </div>
+            </Row>
+          )}
+
+          <Row label="正确答案">
+            <input value={form.answer}
+              onChange={e => setForm(f => ({ ...f, answer: e.target.value }))}
+              style={{ ...inputStyle(), fontFamily: "'STKaiti','KaiTi',serif" }}/>
+          </Row>
+
+          <Row label="解析（可选）">
+            <textarea value={form.explanation || ''}
+              onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))}
+              rows={2}
+              style={inputStyle()}/>
+          </Row>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+            <button onClick={onClose} style={{
+              padding: '6px 14px', background: V.card, color: V.text2,
+              border: `1px solid ${V.border}`, borderRadius: 5, cursor: 'pointer',
+              fontSize: 12,
+            }}>取消</button>
+            <button onClick={submit} disabled={saving} style={{
+              padding: '6px 14px', background: V.accent, color: '#fff',
+              border: 'none', borderRadius: 5, cursor: saving ? 'not-allowed' : 'pointer',
+              opacity: saving ? 0.5 : 1, fontSize: 12,
+              fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 2,
+            }}>
+              {saving ? '保存中…' : '💾 保存'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
