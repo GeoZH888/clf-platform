@@ -497,7 +497,11 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
 
     if (showGuide && char?.c) {
       const fontCss = selScript?.css || "'STKaiti','KaiTi',serif";
-      const fontSize = 230;
+      // Match HanziWriter's padding:20 — its character renders in (S-40) square.
+      // Using a font size equal to the inner dimension gives a glyph that
+      // visually occupies the same area as HanziWriter's strokes.
+      const innerS = S - 40;
+      const fontSize = innerS;
 
       // Wait for font to be ready before drawing on canvas
       try {
@@ -508,7 +512,9 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
       ctx.font = `${fontSize}px ${fontCss}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = penMode==='soft' ? 'rgba(139,69,19,0.16)' : 'rgba(0,100,180,0.12)';
-      ctx.fillText(char.c, S/2, S/2+6);
+      // Draw at exact center (no +6 offset — that was pushing guide down relative
+      // to HanziWriter's stroke data which uses geometric centering).
+      ctx.fillText(char.c, S/2, S/2);
       ctx.restore();
     }
   }, [char?.c, selScript, showGuide, penMode]);
