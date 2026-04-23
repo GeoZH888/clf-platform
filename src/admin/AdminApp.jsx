@@ -10,7 +10,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import IllustrationStudio from './IllustrationStudio.jsx';
 import AutoPopulate from './AutoPopulate.jsx';
-import InviteManager from './InviteManager.jsx';
 import RegistrationInviteAdminTab from './RegistrationInviteAdminTab.jsx';
 import PinyinAdminTab from './PinyinAdminTab.jsx';
 import AdminPinyinAudio from './AdminPinyinAudio.jsx';
@@ -1090,7 +1089,7 @@ export default function AdminApp() {
   const [dragToIdx,   setDragToIdx]  = useState(-1);
   const [ghostStyle,  setGhostStyle] = useState(null);
   const [tabOrder, setTabOrder]      = useState(() => {
-    const DEFAULT = ['characters','words','hsk','poetry','invites','register-invites','pinyin','pinyin-audio','chengyu','grammar','users','analytics','apikeys','panda'];
+    const DEFAULT = ['characters','words','hsk','poetry','register-invites','pinyin','pinyin-audio','chengyu','grammar','users','analytics','apikeys','panda'];
     try {
       const saved = localStorage.getItem('admin_tab_order');
       if (saved) {
@@ -1202,8 +1201,7 @@ export default function AdminApp() {
     { id:'words',      label:'📝 词语' },
     { id:'hsk',        label:'🎓 HSK' },
     { id:'poetry',     label:'📜 诗歌' },
-    { id:'invites',    label:'🔑 邀请' },
-    { id:'register-invites', label:'📬 注册邀请' },
+    { id:'register-invites', label:'📬 邀请注册' },
     { id:'pinyin',       label:'🔤 拼音' },
     { id:'pinyin-audio', label:'🎤 拼音音库' },
     { id:'chengyu',    label:'📜 成语' },
@@ -1576,7 +1574,6 @@ export default function AdminApp() {
 
         {tab==='users'     && <UsersTab/>}
         {tab==='analytics' && <AIAnalyticsTab/>}
-        {tab==='invites'   && <InviteManager/>}
         {tab==='register-invites' && <RegistrationInviteAdminTab/>}
         {tab==='pinyin'       && <PinyinAdminTab/>}
         {tab==='pinyin-audio' && <AdminPinyinAudio/>}
