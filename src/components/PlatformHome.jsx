@@ -12,10 +12,15 @@
 
 import { useState, useEffect } from 'react';
 import { useLang } from '../context/LanguageContext.jsx';
+import { supabase } from '../lib/supabase.js';
 import PathSelector from './PathSelector.jsx';
 import LangSwitcher from './LangSwitcher.jsx';
 
 const PATH_STORAGE_KEY = 'clf_current_path';
+
+// In-memory cache so pandas stay stable across re-renders within the session.
+// Cleared when the tab is closed.
+let PANDA_CACHE = null;
 
 // ── Module registry ────────────────────────────────────────────────
 // id → must match what App.jsx's onSelect expects (e.g. 'lianzi' → 'home').
@@ -121,6 +126,46 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
   // requirement later, re-introduce an allowedModules filter here.
   const visibleModules = MODULES;
 
+  // Fetch panda assets once per session. Each module gets the SAME panda
+  // every time, derived from a hash of the module id. Deterministic across
+  // reloads, sessions, and devices (given same panda inventory).
+  const [pandaMap, setPandaMap] = useState(PANDA_CACHE);
+  useEffect(() => {
+    if (PANDA_CACHE) return;   // already fetched this session
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('jgw_panda_assets')
+          .select('image_url')
+          .order('id');    // stable ordering so hash→index always picks same
+        if (error) throw error;
+        const urls = (data || []).map(r => r.image_url).filter(Boolean);
+        if (urls.length === 0) { PANDA_CACHE = {}; setPandaMap({}); return; }
+
+        // Deterministic hash: each module id maps to a fixed panda index.
+        // Simple djb2-style hash keeps it stable and spread across the list.
+        const hashId = (str) => {
+          let h = 5381;
+          for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i);
+          return Math.abs(h);
+        };
+
+        const map = {};
+        visibleModules.forEach(m => {
+          map[m.id] = urls[hashId(m.id) % urls.length];
+        });
+        PANDA_CACHE = map;
+        setPandaMap(map);
+      } catch (err) {
+        console.warn('[PlatformHome] panda fetch failed:', err?.message);
+        PANDA_CACHE = {};
+        setPandaMap({});
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 40 }}>
 
@@ -163,6 +208,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
         gap: 14 }}>
         {visibleModules.map(m => (
           <ModuleCard key={m.id} mod={m} lang={lang}
+            pandaUrl={pandaMap?.[m.id]}
             onClick={() => onSelect?.(m.id)} />
         ))}
       </div>
@@ -180,7 +226,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
 // ────────────────────────────────────────────────────────────────────
 // ModuleCard — large gateway card per module
 // ────────────────────────────────────────────────────────────────────
-function ModuleCard({ mod, lang, onClick }) {
+function ModuleCard({ mod, lang, onClick, pandaUrl }) {
   const name = mod.name?.[lang] || mod.name?.en || mod.id;
   const desc = mod.desc?.[lang] || mod.desc?.en || '';
   const tag  = mod.tag?.[lang]  || mod.tag?.en  || '';
@@ -214,15 +260,47 @@ function ModuleCard({ mod, lang, onClick }) {
 
       {/* Icon + title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-        <div style={{ width: 56, height: 56, borderRadius: 16,
-          background: mod.border, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 28, flexShrink: 0, overflow: 'hidden' }}>
-          {mod.iconImage
-            ? <img src={mod.iconImage} alt={name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { e.currentTarget.style.display = 'none'; }}/>
-            : <span>{mod.emoji}</span>}
+        {/* Icon square — panda image (deterministic per module) with
+            emoji as a small corner badge overlay. If panda fails to load
+            or no panda exists, emoji becomes the main icon. */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16,
+            background: mod.border, color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 28, overflow: 'hidden' }}>
+            {pandaUrl
+              ? <img src={pandaUrl} alt={name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={e => {
+                    e.currentTarget.style.display = 'none';
+                    const fb = e.currentTarget.parentElement?.querySelector('[data-emoji-fallback]');
+                    if (fb) fb.style.display = 'inline';
+                  }}/>
+              : mod.iconImage
+                ? <img src={mod.iconImage} alt={name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.currentTarget.style.display = 'none'; }}/>
+                : null}
+            {/* Main-icon fallback — only visible when no panda renders */}
+            <span data-emoji-fallback
+              style={{ display: pandaUrl ? 'none' : 'inline' }}>
+              {mod.emoji}
+            </span>
+          </div>
+
+          {/* Emoji corner badge — only when a panda image is present */}
+          {pandaUrl && mod.emoji && (
+            <div style={{
+              position: 'absolute', bottom: -4, right: -4,
+              width: 22, height: 22, borderRadius: '50%',
+              background: '#fff', border: `1.5px solid ${mod.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, lineHeight: 1,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+            }}>
+              {mod.emoji}
+            </div>
+          )}
         </div>
         <div>
           <div style={{ fontSize: 22, fontWeight: 500, color: mod.text,

@@ -71,10 +71,13 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
-const IS_ADMIN = window.location.pathname.startsWith('/admin');
+const IS_ADMIN    = window.location.pathname.startsWith('/admin');
+const IS_REGISTER = window.location.pathname.startsWith('/register');
 
 import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
+import RegisterScreen       from './components/RegisterScreen.jsx';
+import RegisterStatusScreen from './components/RegisterStatusScreen.jsx';
 
 // ── Minimal Settings screen ───────────────────────────────────────
 // Language switcher + user info + logout. Split into own file when it grows.
@@ -442,7 +445,102 @@ export default function App() {
     <ErrorBoundary>
       {IS_ADMIN
         ? <LanguageProvider><AdminApp/></LanguageProvider>
-        : <UserApp/>}
+        : IS_REGISTER
+          ? <LanguageProvider><RegisterRouter/></LanguageProvider>
+          : <UserApp/>}
     </ErrorBoundary>
+  );
+}
+
+// ── Register routing ────────────────────────────────────────────
+// Handles:
+//   /register                      → RegisterScreen (form)
+//   /register?invite=XYZ           → RegisterScreen with invite prefilled
+//   /register/status               → RegisterStatusScreen
+//   /register/success              → "account created, please log in" (after QR auto-approve)
+function RegisterRouter() {
+  const path = window.location.pathname;
+  const isStatus  = path.startsWith('/register/status');
+  const isSuccess = path.startsWith('/register/success');
+  const [view, setView] = useState(
+    isSuccess ? 'success' : isStatus ? 'status' : 'form'
+  );
+  const [statusToken, setStatusToken] = useState(
+    new URLSearchParams(window.location.search).get('token') || ''
+  );
+  const [createdUsername, setCreatedUsername] = useState(
+    new URLSearchParams(window.location.search).get('u') || ''
+  );
+
+  function goHome()  { window.location.href = '/'; }
+  function goLogin() { window.location.href = '/admin'; }   // reuse admin login page
+
+  if (view === 'success') {
+    return <DirectLoginSuccessScreen
+      username={createdUsername}
+      onGoLogin={goLogin}
+      onGoHome={goHome}/>;
+  }
+
+  if (view === 'status') {
+    return <RegisterStatusScreen onBack={goHome} token={statusToken}/>;
+  }
+
+  return (
+    <RegisterScreen
+      onBack={goHome}
+      onSuccess={(token) => {
+        setStatusToken(token);
+        setView('status');
+        try {
+          window.history.pushState({}, '',
+            `/register/status${token ? `?token=${token}` : ''}`);
+        } catch {}
+      }}
+      onDirectLogin={(username) => {
+        setCreatedUsername(username);
+        setView('success');
+        try {
+          window.history.pushState({}, '',
+            `/register/success?u=${encodeURIComponent(username)}`);
+        } catch {}
+      }}/>
+  );
+}
+
+function DirectLoginSuccessScreen({ username, onGoLogin, onGoHome }) {
+  return (
+    <div style={{ minHeight: '100dvh', background: '#fdf6e3',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20 }}>
+      <div style={{ background: '#fff', border: '1px solid #e8d5b0',
+        borderRadius: 16, padding: 32, maxWidth: 440, width: '100%',
+        textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
+        <h1 style={{ fontSize: 20, color: '#2E7D32', margin: '0 0 8px',
+          fontFamily: "'STKaiti','KaiTi',serif" }}>
+          账号创建成功
+        </h1>
+        <p style={{ fontSize: 13, color: '#6b4c2a', margin: '0 0 20px',
+          lineHeight: 1.5 }}>
+          您的账号 <code style={{ background: '#fdf6e3', padding: '2px 8px',
+          borderRadius: 4, fontWeight: 600, color: '#8B4513' }}>{username}</code> 已开通。<br/>
+          请使用刚才设置的密码登录。
+        </p>
+        <button onClick={onGoLogin} style={{
+          padding: '12px 24px', background: '#8B4513', color: '#fff',
+          border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 500,
+          cursor: 'pointer', width: '100%', marginBottom: 8,
+        }}>
+          前往登录 →
+        </button>
+        <button onClick={onGoHome} style={{
+          padding: '10px 24px', background: 'transparent', color: '#8B4513',
+          border: 'none', fontSize: 12, cursor: 'pointer',
+        }}>
+          返回首页
+        </button>
+      </div>
+    </div>
   );
 }
