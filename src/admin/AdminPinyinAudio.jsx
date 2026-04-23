@@ -26,6 +26,13 @@ const ALL_SOUNDS = [
   ...Object.keys(FINAL_IPA).map(s   => ({ sound: s, kind: 'final',   ...FINAL_IPA[s]   })),
 ];
 
+// Supabase Storage keys must be ASCII. Transliterate ü → v (standard Chinese
+// keyboard convention: 'nv' for 'nǚ'). Reverse lookup is unambiguous because
+// DB still stores the true `sound` with ü; only the filename maps to ASCII.
+function safeFilename(sound) {
+  return sound.replace(/ü/g, 'v') + '.webm';
+}
+
 export default function AdminPinyinAudio() {
   const [loading,    setLoading]    = useState(true);
   const [audioMap,   setAudioMap]   = useState({});     // sound → url
@@ -124,8 +131,8 @@ export default function AdminPinyinAudio() {
   async function handleDeleteAudio(sound) {
     if (!confirm(`删除 "${sound}" 的录音吗？`)) return;
     try {
-      // Guess filename — we upload as `${sound}.webm`
-      await supabase.storage.from('pinyin-audio').remove([`${sound}.webm`]);
+      // Filename uses same ASCII-safe transform as upload
+      await supabase.storage.from('pinyin-audio').remove([safeFilename(sound)]);
       await supabase.from('pinyin_audio').delete().eq('sound', sound);
       reload();
     } catch (err) { alert('删除失败: ' + err.message); }
@@ -399,7 +406,7 @@ function RecordModal({ sound, onClose, onSaved }) {
     if (!blob) return;
     setPhase('uploading');
     try {
-      const filename = `${sound}.webm`;
+      const filename = safeFilename(sound);
       // Upload with upsert so re-recording overwrites cleanly
       const { error: upErr } = await supabase.storage
         .from('pinyin-audio')
