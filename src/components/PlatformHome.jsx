@@ -92,6 +92,26 @@ const MODULES = [
     text:     '#1B5E20',
   },
 
+  {
+    id:       'grammar',
+    emoji:    '🐼',
+    iconImage: null,
+    name:     { zh:'语法', en:'Grammar', it:'Grammatica' },
+    desc:     { zh:'循序渐进 · 自适应练习',
+                en:'Step by step · adaptive practice',
+                it:'Passo dopo passo · pratica adattiva' },
+    features: [
+      { zh:'基础句式', en:'Basic sentences',     it:'Frasi base' },
+      { zh:'讲解例句', en:'Examples & rules',    it:'Esempi e regole' },
+      { zh:'自适应难度', en:'Adaptive difficulty', it:'Difficoltà adattiva' },
+      { zh:'掌握度追踪', en:'Mastery tracking',   it:'Monitoraggio livello' },
+    ],
+    tag:      { zh:'结构', en:'Structure', it:'Struttura' },
+    color:    '#F5E8E8',
+    border:   '#7B3F3F',
+    text:     '#4A2020',
+  },
+
   // ── Future modules — uncomment and adjust as they come online ──
   //   id:    'poetry', emoji:'🎴',
   //   name:  { zh:'诗歌', en:'Poetry', it:'Poesia' },
