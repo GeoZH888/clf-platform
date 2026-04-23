@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import QRCode from 'qrcode';
+import DirectCreateUserPanel from './DirectCreateUserPanel.jsx';
 
 const V = {
   bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
@@ -77,6 +78,14 @@ export default function RegistrationInviteAdminTab() {
       <div style={{ fontSize: 11, color: V.text3, marginBottom: 14 }}>
         生成后的二维码可分享或打印。扫码用户将进入注册页面，邀请码自动填入。
       </div>
+
+      {/* Direct-create panel — admin creates accounts directly */}
+      <DirectCreateUserPanel/>
+
+      {/* Section heading for QR invites */}
+      <h3 style={{ margin: '8px 0 10px', fontSize: 14, color: V.accent }}>
+        🎫 二维码邀请
+      </h3>
 
       {/* Invite list */}
       {loading ? (
