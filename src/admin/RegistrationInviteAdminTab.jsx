@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
+import QRCode from 'qrcode';
 
 const V = {
   bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
@@ -36,17 +37,7 @@ export default function RegistrationInviteAdminTab() {
   const [loading, setLoading] = useState(true);
   const [showBatch, setShowBatch] = useState(false);
   const [batchResults, setBatchResults] = useState([]);
-  const [qrLibReady, setQrLibReady] = useState(!!window.QRCode);
-
-  // Load QRCode.js library once
-  useEffect(() => {
-    if (window.QRCode) { setQrLibReady(true); return; }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-    script.onload  = () => setQrLibReady(true);
-    script.onerror = () => console.warn('QRCode library failed to load');
-    document.head.appendChild(script);
-  }, []);
+  // QRCode is now imported from npm — always available, no loading state needed.
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +90,7 @@ export default function RegistrationInviteAdminTab() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {invites.map(inv => (
             <InviteRow key={inv.code} invite={inv}
-              qrLibReady={qrLibReady}
+             
               onDelete={() => deleteInvite(inv.code)}
               onRefresh={load}/>
           ))}
@@ -111,7 +102,7 @@ export default function RegistrationInviteAdminTab() {
         <BatchGenerateModal
           onClose={() => { setShowBatch(false); setBatchResults([]); load(); }}
           onGenerated={(results) => setBatchResults(results)}
-          qrLibReady={qrLibReady}
+         
           results={batchResults}/>
       )}
     </div>
@@ -121,7 +112,7 @@ export default function RegistrationInviteAdminTab() {
 // ═══════════════════════════════════════════════════════════════════
 //  Individual invite row
 // ═══════════════════════════════════════════════════════════════════
-function InviteRow({ invite, qrLibReady, onDelete, onRefresh }) {
+function InviteRow({ invite, onDelete, onRefresh }) {
   const [showQR, setShowQR] = useState(false);
   const url = `${BASE_URL}/register?invite=${invite.code}`;
   const isExhausted = invite.used_count >= invite.max_uses;
@@ -188,7 +179,7 @@ function InviteRow({ invite, qrLibReady, onDelete, onRefresh }) {
               <button onClick={() => setShowQR(false)} style={closeBtn}>✕</button>
             </div>
             <div style={{ padding: 20, textAlign: 'center' }}>
-              <QRCanvas url={url} qrLibReady={qrLibReady} size={240}/>
+              <QRCanvas url={url} size={240}/>
               <div style={{ fontSize: 10, color: V.text3, marginTop: 8, wordBreak: 'break-all' }}>
                 {url}
               </div>
@@ -213,7 +204,7 @@ function InviteRow({ invite, qrLibReady, onDelete, onRefresh }) {
 // ═══════════════════════════════════════════════════════════════════
 //  Batch generation modal
 // ═══════════════════════════════════════════════════════════════════
-function BatchGenerateModal({ onClose, onGenerated, qrLibReady, results }) {
+function BatchGenerateModal({ onClose, onGenerated, results }) {
   const [count, setCount] = useState(10);
   const [maxUses, setMaxUses] = useState(1);
   const [expiryDays, setExpiryDays] = useState(30);
@@ -256,21 +247,32 @@ function BatchGenerateModal({ onClose, onGenerated, qrLibReady, results }) {
   }
 
   async function exportPDF() {
-    // Use browser print: open a new window with all QRs laid out, then print
+    // Pre-render each QR code as a data URL BEFORE opening the new window.
+    // This avoids loading any library in the popup (which had CDN issues).
+    const cards = await Promise.all(results.map(async r => {
+      const url = `${BASE_URL}/register?invite=${r.code}`;
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 200, margin: 1,
+        color: { dark: '#1a0a05', light: '#ffffff' },
+      });
+      return { code: r.code, label: r.label, url, dataUrl };
+    }));
+
     const win = window.open('', '_blank', 'width=800,height=900');
     if (!win) { alert('请允许弹出窗口以导出 PDF'); return; }
     const html = `<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <title>邀请二维码批量打印</title>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
   body { font-family: sans-serif; padding: 20px; margin: 0; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px;
           text-align: center; page-break-inside: avoid; }
+  .card img { width: 180px; height: 180px; }
   .code { font-family: monospace; font-weight: bold; font-size: 12px;
-          color: #8B4513; margin-top: 4px; }
+          color: #8B4513; margin-top: 6px; }
   .url { font-size: 9px; color: #999; word-break: break-all; margin-top: 4px; }
   .label { font-size: 11px; color: #555; margin-top: 2px; }
   h1 { font-size: 16px; color: #8B4513; margin: 0 0 16px; }
@@ -280,26 +282,19 @@ function BatchGenerateModal({ onClose, onGenerated, qrLibReady, results }) {
 </head>
 <body>
 <div class="no-print" style="margin-bottom:14px;">
-  <h1>邀请二维码 · ${results.length} 个</h1>
+  <h1>邀请二维码 · ${cards.length} 个</h1>
   <button onclick="window.print()">🖨 打印 / 另存为 PDF</button>
 </div>
 <div class="grid">
-${results.map(r => `
+${cards.map(c => `
   <div class="card">
-    <canvas data-url="${BASE_URL}/register?invite=${r.code}" width="180" height="180"></canvas>
-    <div class="code">${r.code}</div>
-    ${r.label ? `<div class="label">${r.label}</div>` : ''}
-    <div class="url">${BASE_URL}/register?invite=${r.code}</div>
+    <img src="${c.dataUrl}" alt="${c.code}"/>
+    <div class="code">${c.code}</div>
+    ${c.label ? `<div class="label">${c.label}</div>` : ''}
+    <div class="url">${c.url}</div>
   </div>
 `).join('')}
 </div>
-<script>
-window.addEventListener('load', () => {
-  document.querySelectorAll('canvas[data-url]').forEach(c => {
-    QRCode.toCanvas(c, c.dataset.url, { width: 180, margin: 1 });
-  });
-});
-</script>
 </body>
 </html>`;
     win.document.write(html);
@@ -429,7 +424,7 @@ window.addEventListener('load', () => {
                   }}>
                     <QRCanvas
                       url={`${BASE_URL}/register?invite=${r.code}`}
-                      qrLibReady={qrLibReady} size={120}
+                      size={120}
                       canvasId={`batch_${r.code}`}/>
                     <div style={{ fontSize: 11, fontFamily: 'monospace',
                       fontWeight: 600, color: V.accent, marginTop: 4 }}>
@@ -452,22 +447,21 @@ window.addEventListener('load', () => {
 // ═══════════════════════════════════════════════════════════════════
 //  QR canvas with on-mount rendering
 // ═══════════════════════════════════════════════════════════════════
-function QRCanvas({ url, qrLibReady, size = 200, canvasId }) {
+function QRCanvas({ url, size = 200, canvasId }) {
   const canvasRef = useRef(null);
   useEffect(() => {
-    if (!qrLibReady || !window.QRCode || !canvasRef.current) return;
-    window.QRCode.toCanvas(canvasRef.current, url, {
+    if (!canvasRef.current) return;
+    QRCode.toCanvas(canvasRef.current, url, {
       width: size, margin: 1,
       color: { dark: '#1a0a05', light: '#fdf6e3' },
     }, (err) => { if (err) console.warn('QR render:', err); });
-  }, [url, size, qrLibReady]);
+  }, [url, size]);
 
   return (
     <canvas ref={canvasRef}
       id={canvasId}
       width={size} height={size}
-      style={{ display: qrLibReady ? 'block' : 'none',
-        margin: '0 auto', borderRadius: 6 }}/>
+      style={{ display: 'block', margin: '0 auto', borderRadius: 6 }}/>
   );
 }
 
