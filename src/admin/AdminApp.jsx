@@ -13,7 +13,7 @@ import AutoPopulate from './AutoPopulate.jsx';
 import InviteManager from './InviteManager.jsx';
 import PinyinAdminTab from './PinyinAdminTab.jsx';
 import AdminPinyinAudio from './AdminPinyinAudio.jsx';
-import WordsAdminTab  from './WordsAdminTab.jsx';
+import CLFWordsAdminTab from './CLFWordsAdminTab.jsx';   // CLF words (clf_words)
 import ChengyuAdminTab from './ChengyuAdminTab.jsx';
 import GrammarAdminTab from './GrammarAdminTab.jsx';
 import HSKAdminTab     from './HSKAdminTab.jsx';
@@ -1198,7 +1198,7 @@ export default function AdminApp() {
   const DEFAULT_TABS = [
     { id:'characters', label:'📝 字符管理' },
     { id:'corpus',     label:'📚 语料库 RAG' },
-    { id:'words',      label:'📚 词语' },
+    { id:'words',      label:'📝 词语' },
     { id:'hsk',        label:'🎓 HSK' },
     { id:'poetry',     label:'📜 诗歌' },
     { id:'invites',    label:'🔑 邀请' },
@@ -1577,7 +1577,7 @@ export default function AdminApp() {
         {tab==='invites'   && <InviteManager/>}
         {tab==='pinyin'       && <PinyinAdminTab/>}
         {tab==='pinyin-audio' && <AdminPinyinAudio/>}
-        {tab==='words'     && <WordsAdminTab/>}
+        {tab==='words'     && <CLFWordsAdminTab/>}
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
         {tab==='grammar'   && <GrammarAdminTab/>}
