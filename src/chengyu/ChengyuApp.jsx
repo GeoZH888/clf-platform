@@ -67,12 +67,12 @@ export default function ChengyuApp({ onBack }) {
     diffField:     'difficulty',
     hskField:      'hsk_level',
     module:        'chengyu',
-    progressTable: 'jgw_chengyu_progress',
+    progressTable: 'clf_chengyu_progress',
     itemIdCol:     'idiom_id',
   });
 
   useEffect(() => {
-    supabase.from('jgw_chengyu')
+    supabase.from('clf_chengyu')
       .select('*').eq('active', true).order('hsk_level').order('difficulty').order('sort_order')
       .then(({ data }) => { setIdioms(data ?? []); setLoading(false); });
   }, []);

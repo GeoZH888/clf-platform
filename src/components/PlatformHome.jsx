@@ -112,14 +112,29 @@ const MODULES = [
     text:     '#4A2020',
   },
 
+  {
+    id:       'chengyu',
+    emoji:    '🐼',
+    iconImage: null,
+    name:     { zh:'成语', en:'Idioms', it:'Proverbi' },
+    desc:     { zh:'中华成语 · 典故 · 游戏',
+                en:'Chinese idioms · stories · games',
+                it:'Proverbi cinesi · storie · giochi' },
+    features: [
+      { zh:'闪卡记忆',   en:'Flashcards',       it:'Flashcard' },
+      { zh:'选义测验',   en:'Meaning quiz',     it:'Quiz significato' },
+      { zh:'配对游戏',   en:'Matching game',    it:'Abbinamento' },
+      { zh:'成语接龙',   en:'Idiom chain',      it:'Catena proverbi' },
+    ],
+    tag:      { zh:'典故', en:'Classics', it:'Classici' },
+    color:    '#FFF3E0',
+    border:   '#8B4513',
+    text:     '#5D2E0C',
+  },
+
   // ── Future modules — uncomment and adjust as they come online ──
   //   id:    'poetry', emoji:'🎴',
   //   name:  { zh:'诗歌', en:'Poetry', it:'Poesia' },
-  //   ...
-  // },
-  // {
-  //   id:    'chengyu', emoji:'🎭',
-  //   name:  { zh:'成语', en:'Idioms', it:'Idiomi' },
   //   ...
   // },
 ];
