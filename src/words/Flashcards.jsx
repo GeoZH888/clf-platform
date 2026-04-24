@@ -1,8 +1,8 @@
-// src/words/Flashcards.jsx
+﻿// src/words/Flashcards.jsx
 // Classic flashcard practice: front shows word, flip to see meaning.
 // User rates "know it" vs "not yet" → score recorded to progress store.
 //
-// Adapted from Miaohong jgw_words version:
+// Adapted from jgw_words legacy version:
 //   - Reads from clf_words (not jgw_words)
 //   - Logs to clf_words_log keyed by user_id (not device_token)
 //   - Uses sortAdaptively from useWordsProgress for weak-first ordering

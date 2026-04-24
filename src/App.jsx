@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase.js';
 import AdminApp       from './admin/AdminApp.jsx';
 import PlatformHome   from './components/PlatformHome.jsx';
@@ -141,7 +141,7 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
       </div>
 
       <div style={{ fontSize:10, color:'#a07850', textAlign:'center', marginTop:20 }}>
-        大卫学中文 · Miaohong
+        大卫学中文 · 汉字学习平台
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-// src/words/WordsHomeScreen.jsx
+﻿// src/words/WordsHomeScreen.jsx
 // Home screen for 词语 (Vocabulary) module.
 // Reads platform-level learning path from localStorage (clf_current_path)
 // and filters word list accordingly.
@@ -10,7 +10,7 @@ import { getModeStats } from '../hooks/useWordsProgress';
 
 const PATH_STORAGE_KEY = 'clf_current_path';
 
-// Themes — consistent with Miaohong's wordsData but could be loaded from DB later
+// Themes — consistent with legacy wordsData but could be loaded from DB later
 const THEMES = [
   { id:'greetings', emoji:'👋', zh:'问候', en:'Greetings', it:'Saluti' },
   { id:'family',    emoji:'👨‍👩‍👧', zh:'家庭', en:'Family',  it:'Famiglia' },

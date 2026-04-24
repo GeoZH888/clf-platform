@@ -161,9 +161,11 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
   // requirement later, re-introduce an allowedModules filter here.
   const visibleModules = MODULES;
 
-  // Fetch panda assets once per session. Each module gets the SAME panda
-  // every time, derived from a hash of the module id. Deterministic across
-  // reloads, sessions, and devices (given same panda inventory).
+  // Fetch panda assets once per session. For each module:
+  //   1. If a row in jgw_panda_assets has module_id matching the module → use it
+  //   2. Otherwise, fall back to deterministic hash of module id over all pandas
+  // This means admins can pin specific pandas in PandaStudio, but unassigned
+  // modules still get a stable random panda.
   const [pandaMap, setPandaMap] = useState(PANDA_CACHE);
   useEffect(() => {
     if (PANDA_CACHE) return;   // already fetched this session
@@ -172,14 +174,24 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
       try {
         const { data, error } = await supabase
           .from('jgw_panda_assets')
-          .select('image_url')
-          .order('created_at', { ascending: true });    // stable ordering so hash→index always picks same
+          .select('image_url, module_id')
+          .order('created_at', { ascending: true });    // stable ordering for hash fallback
         if (error) throw error;
-        const urls = (data || []).map(r => r.image_url).filter(Boolean);
-        if (urls.length === 0) { PANDA_CACHE = {}; setPandaMap({}); return; }
 
-        // Deterministic hash: each module id maps to a fixed panda index.
-        // Simple djb2-style hash keeps it stable and spread across the list.
+        const all = (data || []).filter(r => r.image_url);
+        if (all.length === 0) { PANDA_CACHE = {}; setPandaMap({}); return; }
+
+        // Build module_id → image_url map for pinned assignments
+        const pinned = {};
+        all.forEach(r => {
+          if (r.module_id) pinned[r.module_id] = r.image_url;
+        });
+
+        // For unpinned modules, fall back to deterministic hash over the pool
+        // of UNPINNED pandas (so pinned ones don't double-appear).
+        const unpinnedUrls = all
+          .filter(r => !r.module_id)
+          .map(r => r.image_url);
         const hashId = (str) => {
           let h = 5381;
           for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i);
@@ -188,7 +200,12 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
 
         const map = {};
         visibleModules.forEach(m => {
-          map[m.id] = urls[hashId(m.id) % urls.length];
+          if (pinned[m.id]) {
+            map[m.id] = pinned[m.id];
+          } else if (unpinnedUrls.length > 0) {
+            map[m.id] = unpinnedUrls[hashId(m.id) % unpinnedUrls.length];
+          }
+          // else: no panda for this module — emoji fallback in JSX handles it
         });
         PANDA_CACHE = map;
         setPandaMap(map);

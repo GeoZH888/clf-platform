@@ -40,6 +40,18 @@ const PROVIDERS = [
   { id:'ideogram',  label:'Ideogram' },
 ];
 
+// Modules a panda can be pinned to. Values match MODULES[].id in PlatformHome.jsx.
+// When module_id is set on jgw_panda_assets, that panda is shown for that
+// module on the home screen instead of the hash-based fallback.
+const MODULE_OPTIONS = [
+  { id: '',         label: '— 不分配 —' },
+  { id: 'lianzi',   label: '🐢 练字' },
+  { id: 'pinyin',   label: '🔤 拼音' },
+  { id: 'words',    label: '📝 词语' },
+  { id: 'grammar',  label: '📐 语法' },
+  { id: 'chengyu',  label: '🐼 成语' },
+];
+
 function getKey(id) { return localStorage.getItem(`admin_key_${id}`) || ''; }
 
 async function uploadToSupabase(blob, emotionId) {
@@ -125,6 +137,7 @@ async function removeBgCanvas(imgUrl) {
 function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
   const [genUrl,   setGenUrl]   = useState(null);
   const [savedUrl, setSavedUrl] = useState(null);
+  const [moduleId, setModuleId] = useState('');
   const [loading,  setLoading]  = useState(false);
   const [status,   setStatus]   = useState('');
   const [editLabel,setEditLabel]= useState(emotion.label);
@@ -133,9 +146,12 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    supabase.from('jgw_panda_assets').select('image_url')
+    supabase.from('jgw_panda_assets').select('image_url, module_id')
       .eq('emotion', emotion.id).maybeSingle()
-      .then(({ data }) => { if (data?.image_url) setSavedUrl(data.image_url); });
+      .then(({ data }) => {
+        if (data?.image_url) setSavedUrl(data.image_url);
+        if (data?.module_id) setModuleId(data.module_id);
+      });
   }, [emotion.id]);
 
   async function generate() {
@@ -184,11 +200,39 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
     const url = genUrl || savedUrl;
     if (!url) return;
     setLoading(true);
+    const payload = {
+      emotion:   emotion.id,
+      image_url: url,
+      module_id: moduleId || null,
+    };
     const { error } = await supabase.from('jgw_panda_assets')
-      .upsert({ emotion: emotion.id, image_url: url }, { onConflict:'emotion' });
+      .upsert(payload, { onConflict:'emotion' });
     if (error) { setStatus('❌ ' + error.message); }
     else { setSavedUrl(url); setGenUrl(null); setStatus('✅ 已保存为正式'); onSaved?.(); }
     setLoading(false);
+  }
+
+  // Save module_id assignment immediately when dropdown changes
+  // (only if a panda is already saved)
+  async function handleModuleChange(newModuleId) {
+    setModuleId(newModuleId);
+    if (!savedUrl) return;  // no row to update yet — will save on first 💾
+    setStatus('⏳ 更新模块分配…');
+    // First, clear any other row pinned to this module (only one panda per module)
+    if (newModuleId) {
+      await supabase.from('jgw_panda_assets')
+        .update({ module_id: null })
+        .eq('module_id', newModuleId)
+        .neq('emotion', emotion.id);
+    }
+    const { error } = await supabase.from('jgw_panda_assets')
+      .update({ module_id: newModuleId || null })
+      .eq('emotion', emotion.id);
+    if (error) { setStatus('❌ ' + error.message); }
+    else {
+      setStatus(newModuleId ? `✅ 已分配给 ${newModuleId}` : '✅ 已取消分配');
+      onSaved?.();
+    }
   }
 
   const preview = genUrl || savedUrl;
@@ -208,6 +252,9 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
             fontFamily:"'STKaiti','KaiTi',serif" }}/>
         {savedUrl && <span style={{ fontSize:10, padding:'2px 6px', borderRadius:8,
           background:editColor+'22', color:editColor }}>✓ 已保存</span>}
+        {moduleId && <span style={{ fontSize:10, padding:'2px 6px', borderRadius:8,
+          background:'#FFF8E1', color:'#F57F17',
+          border:'1px solid #FFE082' }}>📍 {moduleId}</span>}
         <button onClick={() => onDeleted(emotion.id)}
           style={{ fontSize:12, color:'#c0392b', border:'none',
             background:'none', cursor:'pointer', padding:'0 4px' }}>✕</button>
@@ -267,6 +314,22 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
           <input type="color" value={editColor} onChange={e=>setEditColor(e.target.value)}
             style={{ width:28, height:22, border:'none', cursor:'pointer',
               borderRadius:4, padding:0 }}/>
+        </div>
+
+        {/* Module assignment */}
+        <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
+          <span style={{ fontSize:10, color:V.text3, whiteSpace:'nowrap' }}>分配给</span>
+          <select value={moduleId}
+            onChange={e => handleModuleChange(e.target.value)}
+            disabled={loading}
+            style={{ flex:1, fontSize:11, padding:'3px 6px',
+              borderRadius:6, border:`1px solid ${V.border}`,
+              background:moduleId ? '#FFF8E1' : '#fff',
+              color:V.text2, cursor:'pointer' }}>
+            {MODULE_OPTIONS.map(opt =>
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            )}
+          </select>
         </div>
       </div>
 

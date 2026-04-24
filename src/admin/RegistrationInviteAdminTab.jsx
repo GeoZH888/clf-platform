@@ -1,11 +1,11 @@
-// src/admin/RegistrationInviteAdminTab.jsx
+﻿// src/admin/RegistrationInviteAdminTab.jsx
 // Admin tab for creating and managing registration invite codes.
 // Each code gets a QR encoding: https://<site>/register?invite=<code>
 //
 // Features:
 //   - Batch generation (1-100 codes in one action)
 //   - Per-batch config: max_uses per code, expiry, auto_approve, label prefix
-//   - QR rendering (via qrcodejs loaded from CDN like your InviteManager does)
+//   - QR rendering (via qrcodejs loaded from CDN)
 //   - Download individual QR as PNG
 //   - Export all batch QRs as a printable PDF
 //   - History list with used/remaining, delete
