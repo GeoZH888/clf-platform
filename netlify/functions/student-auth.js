@@ -180,7 +180,7 @@ async function handleNewUserLogin(admin, reg, fp, headers) {
     return { statusCode: 200, headers, body: JSON.stringify({
       device_token: existing.device_token,
       label: reg.name,
-      modules: null,  // new users have access to all modules
+      modules: ['lianzi','pinyin','words','hsk','poetry','chengyu','grammar','games'],
       expires_at: qrToken?.expires_at || null,
       user_id: userId,
       username: reg.username,
@@ -224,7 +224,7 @@ async function handleNewUserLogin(admin, reg, fp, headers) {
   return { statusCode: 200, headers, body: JSON.stringify({
     device_token: sess.device_token,
     label: reg.name,
-    modules: null,
+    modules: ['lianzi','pinyin','words','hsk','poetry','chengyu','grammar','games'],
     expires_at: qrToken?.expires_at || null,
     user_id: userId,
     username: reg.username,
