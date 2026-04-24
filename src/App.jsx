@@ -28,7 +28,6 @@ import { useDeviceAuth } from './hooks/useDeviceAuth.js';
 import QRGate from './components/QRGate.jsx';
 import { SETS } from './data/characters.js';
 import CLFApp from './clf/CLFApp.jsx';
-import AdminPinyinAudio from './AdminPinyinAudio.jsx';
 
 // ── Fix title + random panda favicon ─────────────────────────────
 document.title = '大卫学中文';
