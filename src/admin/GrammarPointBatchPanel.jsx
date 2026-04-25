@@ -8,6 +8,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase.js";
+import { getPrompt } from "../lib/prompts.js";
+import { parseTolerant } from "../lib/json-utils.js";
 
 // ─── theme (mirrors GrammarAdminTab V) ──────────────────────────────────────
 const V = {
@@ -31,73 +33,34 @@ const PROVIDERS = [
   { id: "deepseek",        label: "DeepSeek",           model: "deepseek-chat",         keyId: "deepseek"  },
 ];
 
-const LEVEL_GUIDE = `LEVELING (5 tiers, calibrated against HSK + heritage learner reality):
-L1 — HSK1. 是/有 sentences, basic SVO, pronouns, numbers, dates, 吗 questions.
-L2 — HSK2-3. Comparison (A 比 B), aspect particles (了/过/着), 是…的, basic complements.
-L3 — HSK3-4. 把字句, reduplication, directional/result complements, 要是…就…, 因为…所以….
-L4 — HSK4-5. 被字句, 虽然…但是…, 越…越…, 不但…而且…, purpose/concession structures.
-L5 — HSK5-6+. Formal/written register, 之所以…是因为, advanced subordination, idiomatic 4-char patterns.`;
+// ─── prompt building ────────────────────────────────────────────────────────
+// Prompt content (LEVEL_GUIDE, SYSTEM_RULES, full template) now lives in DB
+// table clf_prompt_templates under keys 'grammar_text' and 'grammar_single',
+// with code-side fallback in src/lib/prompts.js → DEFAULTS.
+// Edit prompts via the SuperAdmin "🎯 Prompt 模板" tab.
+//
+// These helpers build the optional fragments that get substituted into the
+// template ({avoid_block}, {level_hint}, {count_hint}). They stay in code
+// because they're STRUCTURAL (depend on whether values are present), not
+// content the admin would want to edit.
 
-const SYSTEM_RULES = `You generate grammar-topic entries for a Chinese learning
-platform aimed at heritage learners (Chinese diaspora children in Italy) and
-Italian L2 learners.
-
-${LEVEL_GUIDE}
-
-For each grammar topic output ONE JSON object with EXACTLY these fields:
-- id          : lowercase pinyin slug, words joined by underscores (e.g. "ba_zi_ju").
-                This is also the database primary key. Must be unique.
-- title_zh    : Chinese title, short (e.g. "把字句")
-- title_en    : English title (e.g. "Disposal: 把")
-- title_it    : Italian title (e.g. "Frase con 把")
-- level       : integer 1–5 (use the LEVELING guide above)
-- order_idx   : integer, default 0
-- explanation : 2–4 lines of Markdown. Start with **结构**: <pattern>, then a
-                one-line usage note. Tight — students read on phones.
-- examples    : array of 4 sentences. Each: { zh, pinyin, en, it }.
-
-QUALITY RULES (non-negotiable):
-- Pinyin uses tone marks (ā á ǎ à), never numbers.
-- Examples must be natural, not textbook-awkward. Realistic settings:
-  family, school, food, travel, friends.
-- Italian translations: idiomatic Italian, not word-for-word.
-- English translations: idiomatic, not literal.
-- Order examples simple → varied use.
-- Each example must clearly illustrate the target structure.
-
-Output ONLY a JSON array. No markdown fences. No preamble. No trailing prose.`;
-
-// ─── prompt builders ────────────────────────────────────────────────────────
-function buildPrompt({ userInput, count, level, existingIds }) {
-  const avoid = existingIds.length
-    ? `\nAVOID these ids (already in database): ${existingIds.join(", ")}`
-    : "";
-  const levelHint = level ? `\nTarget level: L${level}.` : "";
-  const countHint = count ? `\nGenerate exactly ${count} grammar topics.` : "";
-
-  return `${SYSTEM_RULES}
-${avoid}${levelHint}${countHint}
-
-User request:
-"""
-${userInput.trim()}
-"""
-
-If the request is a list of ids/slugs, generate one entry per id.
-If the request is a theme or empty (auto-fill mode), invent appropriate
-grammar topics for the target level that AREN'T in the avoid list.
-
-Return ONLY the JSON array.`;
+function buildBatchVars({ userInput, count, level, existingIds }) {
+  return {
+    user_input:  userInput.trim(),
+    avoid_block: existingIds.length
+      ? `\nAVOID these ids (already in database): ${existingIds.join(", ")}`
+      : "",
+    level_hint:  level ? `\nTarget level: L${level}.` : "",
+    count_hint:  count ? `\nGenerate exactly ${count} grammar topics.` : "",
+  };
 }
 
-function buildSinglePrompt({ id, level, existingIds }) {
-  const avoid = existingIds.filter((s) => s !== id);
-  return `${SYSTEM_RULES}
-
-AVOID these ids: ${avoid.join(", ")}
-
-Regenerate the grammar topic with id "${id}" at level L${level || "auto"}.
-Return a JSON array with exactly ONE object.`;
+function buildSingleVars({ id, level, existingIds }) {
+  return {
+    id,
+    level: level || "auto",
+    avoid_ids: existingIds.filter((s) => s !== id).join(", "),
+  };
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -112,14 +75,8 @@ const EMPTY_DRAFT = {
   examples: [],
 };
 
-function extractJsonArray(s) {
-  const cleaned = s.replace(/```(?:json)?/gi, "").trim();
-  const first = cleaned.indexOf("[");
-  const last = cleaned.lastIndexOf("]");
-  if (first === -1 || last === -1 || last < first)
-    throw new Error("响应中未找到 JSON 数组");
-  return JSON.parse(cleaned.slice(first, last + 1));
-}
+// extractJsonArray removed — use parseTolerant from ../lib/json-utils.js,
+// which handles markdown fences, Chinese punctuation, and unescaped inner quotes.
 
 function validateDraft(d) {
   const errs = [];
@@ -291,14 +248,12 @@ export default function GrammarPointBatchPanel({ onSaved }) {
     setBusy(true);
     setMsg(null);
     try {
-      const prompt = buildPrompt({
-        userInput: input,
-        count: n,
-        level,
-        existingIds,
-      });
+      const prompt = await getPrompt(
+        "grammar_text",
+        buildBatchVars({ userInput: input, count: n, level, existingIds })
+      );
       const raw = await callAi(provider, prompt);
-      const parsed = extractJsonArray(raw);
+      const parsed = parseTolerant(raw);
       if (!Array.isArray(parsed)) throw new Error("AI 未返回数组");
       const fresh = parsed.filter((p) => !existingIds.includes(p.id));
       const merged = fresh.map((p) => ({ ...EMPTY_DRAFT, ...p }));
@@ -347,13 +302,12 @@ export default function GrammarPointBatchPanel({ onSaved }) {
     setRegenIndex(index);
     setMsg(null);
     try {
-      const prompt = buildSinglePrompt({
-        id: draft.id,
-        level: draft.level,
-        existingIds,
-      });
+      const prompt = await getPrompt(
+        "grammar_single",
+        buildSingleVars({ id: draft.id, level: draft.level, existingIds })
+      );
       const raw = await callAi(provider, prompt);
-      const parsed = extractJsonArray(raw);
+      const parsed = parseTolerant(raw);
       if (!parsed[0]) throw new Error("AI 未返回有效结果");
       setDrafts((arr) =>
         arr.map((d, i) => (i === index ? { ...EMPTY_DRAFT, ...parsed[0] } : d))

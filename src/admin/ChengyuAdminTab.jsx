@@ -9,6 +9,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { getPrompt } from '../lib/prompts.js';
+import { parseTolerant } from '../lib/json-utils.js';
 
 // ── Illustration styles ───────────────────────────────────────────────────────
 const IMG_STYLES = [
@@ -43,30 +45,7 @@ const THEMES = ['wisdom','animals','nature','history','general','emotion','achie
 const COUNT_PRESETS = [3, 5, 10, 20];  // dropdown values
 const CUSTOM_SENTINEL = -1;             // marker for "custom" selection
 
-// ── Tolerant JSON parser (handles Chinese quotes, trailing text, etc.) ───────
-function parseTolerant(text) {
-  const stripped = text.replace(/```json|```/gi, '').trim();
-  try { return JSON.parse(stripped); } catch (_) {}
-  const match = stripped.match(/\[[\s\S]*\]/);
-  if (match) {
-    try { return JSON.parse(match[0]); } catch (_) {}
-    const cleaned = match[0]
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/，/g, ',')
-      .replace(/：/g, ':');
-    try { return JSON.parse(cleaned); } catch (_) {}
-    // Last resort: escape unescaped inner quotes
-    const deepClean = cleaned.replace(
-      /"([^"\\]*)":\s*"((?:[^"\\]|\\.)*)"(?=\s*[,}\]])/g,
-      (_, k, v) => `"${k}":"${v.replace(/(?<!\\)"/g, '\\"')}"`
-    );
-    try { return JSON.parse(deepClean); } catch (e) {
-      throw new Error(`Parse failed. First 200 chars: ${stripped.slice(0, 200)}`);
-    }
-  }
-  throw new Error('No JSON array found in AI response');
-}
+// parseTolerant moved to ../lib/json-utils.js — shared with other AI tabs.
 
 // ── TTS helper: Azure first, browser fallback ────────────────────────────────
 async function speakChinese(text) {
@@ -187,13 +166,11 @@ export default function ChengyuAdminTab({ apiKeys }) {
     setGenerating(true);
     log(`开始生成 ${count} 条 ${batchTheme} 主题成语…`);
     try {
-      const prompt = `生成 ${count} 条中文成语，要求：
-- 主题：${batchTheme}
-- HSK等级：${batchHsk}
-- 每条包含：成语、拼音、中文意思、英语意思、意大利语意思、历史典故（中文，200字以内）、例句（中文）、难度（1-4）
-- 返回纯 JSON 数组，不要任何 markdown 或说明文字
-- ⚠️ 字符串中的双引号必须用反斜杠转义（例如 "他说\\"你好\\""），不要使用中文引号 " " 『 』
-格式：[{"idiom":"...","pinyin":"...","meaning_zh":"...","meaning_en":"...","meaning_it":"...","story_zh":"...","example_zh":"...","difficulty":2,"theme":"${batchTheme}","hsk_level":${batchHsk}}]`;
+      const prompt = await getPrompt('chengyu_text', {
+        count,
+        theme: batchTheme,
+        hsk:   batchHsk,
+      });
 
       const res = await fetch('/.netlify/functions/ai-gateway', {
         method: 'POST',
@@ -263,17 +240,11 @@ export default function ChengyuAdminTab({ apiKeys }) {
       // Use story as the primary scene description (story is much richer than the 4-char idiom)
       // Fall back to meaning_zh for newly created idioms that haven't been written yet
       const sceneZh = idiom.story_zh || idiom.meaning_zh || '';
-      const prompt = `Children's book illustration depicting this scene from a Chinese fable:
-
-${sceneZh}
-
-Visual focus: the narrative moment from this story. Show characters, setting, and action clearly. A single coherent scene, not a collage of symbols.
-
-Style: ${style.prompt}.
-
-STRICTLY AVOID: any Chinese text, calligraphy, or written characters; Chinese New Year decorations (red lanterns, couplets, firecrackers, gold ingots); holiday motifs; symbolic objects unrelated to the story. No text or watermarks anywhere in the image.
-
-Composition: square format, balanced, focal subject centered, soft natural lighting, period-appropriate ancient Chinese rural or village setting.`;
+      const prompt = await getPrompt('chengyu_image', {
+        story: sceneZh,
+        idiom: idiom.idiom,
+        style: style.prompt,
+      });
 
       let imageUrl;
 

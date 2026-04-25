@@ -27,6 +27,7 @@ import ApiKeyManager  from './ApiKeyManager.jsx';
 import PandaStudio    from './PandaStudio.jsx';
 import AIAnalyticsTab from './AIAnalyticsTab.jsx';
 import CorpusTab      from './CorpusTab.jsx';
+import PromptTemplatesTab from './PromptTemplatesTab.jsx';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -1210,6 +1211,7 @@ export default function AdminApp() {
     { id:'analytics',  label:'📊 AI 分析' },
     { id:'apikeys',    label:'🔑 API Keys' },
     { id:'panda',      label:'🐼 Panda Studio' },
+    { id:'prompts',    label:'🎯 Prompt 模板' },
   ];
   const DEFAULT_TAB_IDS = DEFAULT_TABS.map(t => t.id);
 
@@ -1585,6 +1587,7 @@ export default function AdminApp() {
         {tab==='poetry'    && <PoetryAdminTab/>}
         {tab==='apikeys'   && <ApiKeyManager/>}
         {tab==='panda'     && <PandaStudio/>}
+        {tab==='prompts'   && <PromptTemplatesTab currentUser={session?.user}/>}
 
       </div>
 
