@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
+import GrammarPointBatchPanel from './GrammarPointBatchPanel.jsx';
 
 const V = {
   bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
@@ -33,6 +34,7 @@ export default function GrammarAdminTab() {
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
   const [selId, setSelId]         = useState(null);
+  const [showBatch, setShowBatch] = useState(false);
 
   // Topic editor form
   const [topicForm, setTopicForm] = useState(EMPTY_TOPIC);
@@ -306,6 +308,28 @@ export default function GrammarAdminTab() {
           }}>
             {topicFlash.msg}
           </div>
+        )}
+
+        {/* AI 批量生成 — 只在新建模式显示 */}
+        {!selId && (
+          <>
+            <button
+              onClick={() => setShowBatch(s => !s)}
+              style={{
+                width: '100%', marginBottom: 12, padding: '8px 12px', fontSize: 12,
+                background: showBatch ? V.accent : '#fff',
+                color: showBatch ? '#fff' : V.text,
+                border: `1px solid ${V.accent}`, borderRadius: 6, cursor: 'pointer',
+                fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 1,
+              }}>
+              {showBatch ? '✕ 关闭批量生成' : '🪄 AI 批量生成（推荐）'}
+            </button>
+            {showBatch && (
+              <GrammarPointBatchPanel
+                onSaved={() => { setShowBatch(false); loadTopics(); }}
+              />
+            )}
+          </>
         )}
 
         <div style={{ fontSize: 12, color: V.text3, marginBottom: 10 }}>
