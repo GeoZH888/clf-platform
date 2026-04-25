@@ -1,16 +1,27 @@
 // CLF Heritage Chinese Learning Platform
-// src/components/admin/GrammarPointBatchPanel.jsx
+// src/admin/GrammarPointBatchPanel.jsx
 //
-// AI-only batch generation for clf_grammar_points.
-// Features:
-//   • Gap analysis on mount — count per level, one-click "fill L3 +5"
-//   • Existing-slug awareness — prompt tells AI what to avoid
-//   • Per-card regenerate — fix just one bad draft without redoing the rest
-//   • Robust JSON recovery — handles fences, preamble, stray prose
-//   • Bulk upsert by slug
+// AI-only batch generation for clf_grammar_topics.
+// Schema-aligned with GrammarAdminTab.jsx EMPTY_TOPIC:
+//   id (PK, slug-style) · title_zh · title_en · title_it ·
+//   level · order_idx · explanation · examples (jsonb[])
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase.js";
+
+// ─── theme (mirrors GrammarAdminTab V) ──────────────────────────────────────
+const V = {
+  bg: "#fdf6e3",
+  card: "#fff",
+  border: "#e8d5b0",
+  text: "#1a0a05",
+  text2: "#6b4c2a",
+  text3: "#a07850",
+  accent: "#7B3F3F",
+  accentLight: "#F5E8E8",
+  green: "#2E7D32",
+  red: "#c62828",
+};
 
 // ─── config ─────────────────────────────────────────────────────────────────
 const PROVIDERS = [
@@ -27,28 +38,29 @@ L3 — HSK3-4. 把字句, reduplication, directional/result complements, 要是�
 L4 — HSK4-5. 被字句, 虽然…但是…, 越…越…, 不但…而且…, purpose/concession structures.
 L5 — HSK5-6+. Formal/written register, 之所以…是因为, advanced subordination, idiomatic 4-char patterns.`;
 
-const SYSTEM_RULES = `You generate grammar-point entries for a Chinese learning
+const SYSTEM_RULES = `You generate grammar-topic entries for a Chinese learning
 platform aimed at heritage learners (Chinese diaspora children in Italy) and
 Italian L2 learners.
 
 ${LEVEL_GUIDE}
 
-For each grammar point output ONE JSON object with EXACTLY these fields:
-- slug          : lowercase pinyin, words joined by underscores (e.g. "ba_zi_ju")
-- title_zh      : Chinese title, short (e.g. "把字句")
-- title_en      : English title (e.g. "Disposal: 把")
-- title_it      : Italian title (e.g. "Frase con 把")
-- level         : integer 1–5 (use the LEVELING guide above)
-- order_in_level: integer, default 0
-- explanation_md: 2–4 lines of Markdown. Start with **结构**: <pattern>, then a
-                  one-line usage note. Tight — students read on phones.
-- examples      : array of 4 sentences. Each: { zh, pinyin, en, it }.
+For each grammar topic output ONE JSON object with EXACTLY these fields:
+- id          : lowercase pinyin slug, words joined by underscores (e.g. "ba_zi_ju").
+                This is also the database primary key. Must be unique.
+- title_zh    : Chinese title, short (e.g. "把字句")
+- title_en    : English title (e.g. "Disposal: 把")
+- title_it    : Italian title (e.g. "Frase con 把")
+- level       : integer 1–5 (use the LEVELING guide above)
+- order_idx   : integer, default 0
+- explanation : 2–4 lines of Markdown. Start with **结构**: <pattern>, then a
+                one-line usage note. Tight — students read on phones.
+- examples    : array of 4 sentences. Each: { zh, pinyin, en, it }.
 
 QUALITY RULES (non-negotiable):
 - Pinyin uses tone marks (ā á ǎ à), never numbers.
 - Examples must be natural, not textbook-awkward. Realistic settings:
   family, school, food, travel, friends.
-- Italian translations: idiomatic Italian, not word-for-word from Chinese.
+- Italian translations: idiomatic Italian, not word-for-word.
 - English translations: idiomatic, not literal.
 - Order examples simple → varied use.
 - Each example must clearly illustrate the target structure.
@@ -56,12 +68,12 @@ QUALITY RULES (non-negotiable):
 Output ONLY a JSON array. No markdown fences. No preamble. No trailing prose.`;
 
 // ─── prompt builders ────────────────────────────────────────────────────────
-function buildPrompt({ userInput, count, level, existingSlugs }) {
-  const avoid = existingSlugs.length
-    ? `\nAVOID these slugs (already in database): ${existingSlugs.join(", ")}`
+function buildPrompt({ userInput, count, level, existingIds }) {
+  const avoid = existingIds.length
+    ? `\nAVOID these ids (already in database): ${existingIds.join(", ")}`
     : "";
   const levelHint = level ? `\nTarget level: L${level}.` : "";
-  const countHint = count ? `\nGenerate exactly ${count} grammar points.` : "";
+  const countHint = count ? `\nGenerate exactly ${count} grammar topics.` : "";
 
   return `${SYSTEM_RULES}
 ${avoid}${levelHint}${countHint}
@@ -71,36 +83,35 @@ User request:
 ${userInput.trim()}
 """
 
-If the request is a list of slugs, generate one entry per slug.
+If the request is a list of ids/slugs, generate one entry per id.
 If the request is a theme or empty (auto-fill mode), invent appropriate
-grammar points for the target level that AREN'T in the avoid list.
+grammar topics for the target level that AREN'T in the avoid list.
 
 Return ONLY the JSON array.`;
 }
 
-function buildSinglePrompt({ slug, level, existingSlugs }) {
-  const avoid = existingSlugs.filter((s) => s !== slug);
+function buildSinglePrompt({ id, level, existingIds }) {
+  const avoid = existingIds.filter((s) => s !== id);
   return `${SYSTEM_RULES}
 
-AVOID these slugs: ${avoid.join(", ")}
+AVOID these ids: ${avoid.join(", ")}
 
-Regenerate the grammar point with slug "${slug}" at level L${level || "auto"}.
+Regenerate the grammar topic with id "${id}" at level L${level || "auto"}.
 Return a JSON array with exactly ONE object.`;
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const EMPTY_DRAFT = {
-  slug: "",
+  id: "",
   title_zh: "",
   title_en: "",
   title_it: "",
   level: 1,
-  order_in_level: 0,
-  explanation_md: "",
+  order_idx: 0,
+  explanation: "",
   examples: [],
 };
 
-// Defensive JSON extraction — LLMs sometimes wrap or prepend prose.
 function extractJsonArray(s) {
   const cleaned = s.replace(/```(?:json)?/gi, "").trim();
   const first = cleaned.indexOf("[");
@@ -112,8 +123,8 @@ function extractJsonArray(s) {
 
 function validateDraft(d) {
   const errs = [];
-  if (!d.slug || !/^[a-z0-9_]+$/.test(d.slug))
-    errs.push("slug 必须小写+下划线");
+  if (!d.id || !/^[a-z0-9_]+$/.test(d.id))
+    errs.push("id 必须小写+下划线");
   if (!d.title_zh) errs.push("缺少中文标题");
   if (!Number.isInteger(d.level) || d.level < 1 || d.level > 5)
     errs.push("level 必须 1–5");
@@ -138,14 +149,39 @@ async function callAi(provider, prompt) {
   return data.text;
 }
 
-// ─── component ──────────────────────────────────────────────────────────────
+// ─── styles ─────────────────────────────────────────────────────────────────
+const inputStyle = {
+  width: "100%",
+  padding: "5px 8px",
+  fontSize: 12,
+  border: `1px solid ${V.border}`,
+  borderRadius: 5,
+  boxSizing: "border-box",
+  background: V.card,
+  color: V.text,
+};
+
+const btnPrimary = (disabled = false) => ({
+  padding: "6px 12px",
+  fontSize: 12,
+  background: V.accent,
+  color: "#fff",
+  border: "none",
+  borderRadius: 5,
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.5 : 1,
+  fontFamily: "'STKaiti','KaiTi',serif",
+  letterSpacing: 1,
+});
+
+// ─── main component ─────────────────────────────────────────────────────────
 export default function GrammarPointBatchPanel({ onSaved }) {
   const [provider, setProvider] = useState("claude");
   const [userInput, setUserInput] = useState("");
   const [count, setCount] = useState(5);
-  const [targetLevel, setTargetLevel] = useState(0); // 0 = auto
+  const [targetLevel, setTargetLevel] = useState(0);
 
-  const [existing, setExisting] = useState([]); // [{slug, level}]
+  const [existing, setExisting] = useState([]); // [{id, level}]
   const [drafts, setDrafts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [regenIndex, setRegenIndex] = useState(null);
@@ -155,8 +191,8 @@ export default function GrammarPointBatchPanel({ onSaved }) {
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
-        .from("clf_grammar_points")
-        .select("slug, level");
+        .from("clf_grammar_topics")
+        .select("id, level");
       if (error) {
         setMsg({ kind: "err", text: `加载现有数据失败: ${error.message}` });
         return;
@@ -165,7 +201,7 @@ export default function GrammarPointBatchPanel({ onSaved }) {
     })();
   }, []);
 
-  const existingSlugs = useMemo(() => existing.map((e) => e.slug), [existing]);
+  const existingIds = useMemo(() => existing.map((e) => e.id), [existing]);
   const countsByLevel = useMemo(() => {
     const c = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     existing.forEach((e) => {
@@ -189,12 +225,12 @@ export default function GrammarPointBatchPanel({ onSaved }) {
         userInput: input,
         count: n,
         level,
-        existingSlugs,
+        existingIds,
       });
       const raw = await callAi(provider, prompt);
       const parsed = extractJsonArray(raw);
       if (!Array.isArray(parsed)) throw new Error("AI 未返回数组");
-      const fresh = parsed.filter((p) => !existingSlugs.includes(p.slug));
+      const fresh = parsed.filter((p) => !existingIds.includes(p.id));
       const merged = fresh.map((p) => ({ ...EMPTY_DRAFT, ...p }));
       setDrafts((prev) => [...prev, ...merged]);
       const dropped = parsed.length - fresh.length;
@@ -213,7 +249,7 @@ export default function GrammarPointBatchPanel({ onSaved }) {
 
   function handleGenerateCustom() {
     if (!userInput.trim() && targetLevel === 0) {
-      setMsg({ kind: "err", text: "请输入主题/slug 列表，或选择目标级别" });
+      setMsg({ kind: "err", text: "请输入主题或选择目标级别" });
       return;
     }
     generate({
@@ -225,7 +261,7 @@ export default function GrammarPointBatchPanel({ onSaved }) {
 
   function handleQuickFill(level, n = 5) {
     generate({
-      input: `Auto-fill grammar points for L${level} that aren't already present.`,
+      input: `Auto-fill grammar topics for L${level} that aren't already present.`,
       n,
       level,
     });
@@ -234,17 +270,17 @@ export default function GrammarPointBatchPanel({ onSaved }) {
   // ── per-card regenerate ───────────────────────────────────────────────────
   async function regenerateCard(index) {
     const draft = drafts[index];
-    if (!draft.slug) {
-      setMsg({ kind: "err", text: "请先填写 slug" });
+    if (!draft.id) {
+      setMsg({ kind: "err", text: "请先填写 id" });
       return;
     }
     setRegenIndex(index);
     setMsg(null);
     try {
       const prompt = buildSinglePrompt({
-        slug: draft.slug,
+        id: draft.id,
         level: draft.level,
-        existingSlugs,
+        existingIds,
       });
       const raw = await callAi(provider, prompt);
       const parsed = extractJsonArray(raw);
@@ -252,7 +288,7 @@ export default function GrammarPointBatchPanel({ onSaved }) {
       setDrafts((arr) =>
         arr.map((d, i) => (i === index ? { ...EMPTY_DRAFT, ...parsed[0] } : d))
       );
-      setMsg({ kind: "ok", text: `已重新生成 ${draft.slug}` });
+      setMsg({ kind: "ok", text: `已重新生成 ${draft.id}` });
     } catch (e) {
       setMsg({ kind: "err", text: `重新生成失败：${e.message}` });
     } finally {
@@ -280,15 +316,25 @@ export default function GrammarPointBatchPanel({ onSaved }) {
     }
     setBusy(true);
     try {
+      const payload = drafts.map((d) => ({
+        id: d.id.trim(),
+        title_zh: d.title_zh.trim(),
+        title_en: d.title_en?.trim() || null,
+        title_it: d.title_it?.trim() || null,
+        level: Number(d.level) || 1,
+        order_idx: Number(d.order_idx) || 0,
+        explanation: d.explanation || null,
+        examples: d.examples || [],
+      }));
       const { data, error } = await supabase
-        .from("clf_grammar_points")
-        .upsert(drafts, { onConflict: "slug" })
+        .from("clf_grammar_topics")
+        .upsert(payload, { onConflict: "id" })
         .select();
       if (error) throw error;
       setMsg({ kind: "ok", text: `已保存 ${data.length} 条语法点` });
       setExisting((prev) => [
-        ...prev.filter((e) => !drafts.some((d) => d.slug === e.slug)),
-        ...data.map((d) => ({ slug: d.slug, level: d.level })),
+        ...prev.filter((e) => !drafts.some((d) => d.id === e.id)),
+        ...data.map((d) => ({ id: d.id, level: d.level })),
       ]);
       setDrafts([]);
       onSaved?.(data);
@@ -301,15 +347,39 @@ export default function GrammarPointBatchPanel({ onSaved }) {
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div className="rounded-2xl bg-[#fdf6e8] p-6 space-y-5">
-      <header className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-[#7a1c1c]">
+    <div
+      style={{
+        background: V.bg,
+        border: `1px solid ${V.border}`,
+        borderRadius: 8,
+        padding: 14,
+        marginBottom: 16,
+      }}
+    >
+      {/* header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 14,
+            color: V.accent,
+            fontFamily: "'STKaiti','KaiTi',serif",
+            letterSpacing: 2,
+            fontWeight: 500,
+          }}
+        >
           🪄 AI 批量生成语法点
-        </h2>
+        </div>
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
-          className="rounded-md border border-[#d9c9a0] bg-white px-2 py-1 text-sm"
+          style={{ ...inputStyle, width: "auto" }}
         >
           {PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>
@@ -317,58 +387,94 @@ export default function GrammarPointBatchPanel({ onSaved }) {
             </option>
           ))}
         </select>
-      </header>
+      </div>
 
-      {/* ── gap analysis ──────────────────────────────────────────────── */}
-      <section className="rounded-lg bg-white/60 p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-[#7a1c1c]">
+      {/* gap analysis */}
+      <div
+        style={{
+          background: V.card,
+          border: `1px solid ${V.border}`,
+          borderRadius: 6,
+          padding: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ fontSize: 11, color: V.text3, marginBottom: 6 }}>
           数据库现状（{existing.length} 条）
-        </h3>
-        <div className="flex flex-wrap gap-2">
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {[1, 2, 3, 4, 5].map((lv) => (
             <div
               key={lv}
-              className="flex items-center gap-2 rounded-md border border-[#d9c9a0] bg-white px-3 py-1.5"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 8px",
+                background: V.accentLight,
+                borderRadius: 5,
+                fontSize: 11,
+              }}
             >
-              <span className="text-sm text-[#7a1c1c]">L{lv}</span>
-              <span className="text-sm font-mono">{countsByLevel[lv]}</span>
+              <span style={{ color: V.accent, fontWeight: 500 }}>L{lv}</span>
+              <span style={{ fontFamily: "ui-monospace, monospace" }}>
+                {countsByLevel[lv]}
+              </span>
               <button
                 onClick={() => handleQuickFill(lv, 5)}
                 disabled={busy}
-                className="text-xs rounded bg-[#c41e3a] text-white px-2 py-0.5 hover:opacity-90 disabled:opacity-40"
+                style={{
+                  ...btnPrimary(busy),
+                  padding: "2px 6px",
+                  fontSize: 10,
+                  letterSpacing: 0,
+                }}
               >
                 +5
               </button>
             </div>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* ── custom prompt ─────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-[#7a1c1c]">自定义生成</h3>
+      {/* custom prompt */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: V.text3, marginBottom: 4 }}>
+          自定义生成（每行一个 id，或一句主题描述）
+        </div>
         <textarea
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          rows={4}
-          placeholder={`每行一个 slug，例如：\nba_zi_ju\nbei_zi_ju\n\n或一句主题，例如：\n二级里关于比较和对比的语法`}
-          className="w-full rounded-lg border border-[#d9c9a0] bg-white px-3 py-2 font-mono text-sm"
+          rows={3}
+          placeholder={"ba_zi_ju\nbei_zi_ju\n或：二级里关于比较和对比的语法"}
+          style={{
+            ...inputStyle,
+            fontFamily: "ui-monospace, monospace",
+            resize: "vertical",
+          }}
         />
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-[#7a1c1c]">数量</label>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            marginTop: 6,
+          }}
+        >
+          <span style={{ fontSize: 11, color: V.text3 }}>数量</span>
           <input
             type="number"
             min={1}
             max={20}
             value={count}
             onChange={(e) => setCount(parseInt(e.target.value, 10) || 5)}
-            className="w-16 rounded border border-[#d9c9a0] bg-white px-2 py-1 text-sm"
+            style={{ ...inputStyle, width: 60 }}
           />
-          <label className="text-sm text-[#7a1c1c]">级别</label>
+          <span style={{ fontSize: 11, color: V.text3 }}>级别</span>
           <select
             value={targetLevel}
             onChange={(e) => setTargetLevel(parseInt(e.target.value, 10))}
-            className="rounded border border-[#d9c9a0] bg-white px-2 py-1 text-sm"
+            style={{ ...inputStyle, width: "auto" }}
           >
             <option value={0}>Auto</option>
             {[1, 2, 3, 4, 5].map((n) => (
@@ -380,62 +486,82 @@ export default function GrammarPointBatchPanel({ onSaved }) {
           <button
             onClick={handleGenerateCustom}
             disabled={busy}
-            className="ml-auto rounded-lg bg-[#c41e3a] px-4 py-2 text-white text-sm disabled:opacity-50"
+            style={{ ...btnPrimary(busy), marginLeft: "auto" }}
           >
             {busy ? "生成中…" : "🪄 生成"}
           </button>
         </div>
-      </section>
+      </div>
 
-      {/* ── status ────────────────────────────────────────────────────── */}
+      {/* status */}
       {msg && (
         <div
-          className={`rounded-md px-3 py-2 text-sm ${
-            msg.kind === "ok"
-              ? "bg-green-50 text-green-800"
-              : "bg-red-50 text-red-800"
-          }`}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 5,
+            fontSize: 11,
+            marginBottom: 10,
+            background: msg.kind === "ok" ? "#e8f5e9" : "#ffebee",
+            color: msg.kind === "ok" ? V.green : V.red,
+          }}
         >
           {msg.text}
         </div>
       )}
 
-      {/* ── drafts ────────────────────────────────────────────────────── */}
+      {/* drafts */}
       {drafts.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-[#7a1c1c]">
+        <div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, color: V.accent, fontWeight: 500 }}>
               草稿审阅（{drafts.length}）
-            </h3>
-            <div className="flex gap-2">
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
               <button
                 onClick={clearAll}
                 disabled={busy}
-                className="rounded-md border border-[#d9c9a0] bg-white px-3 py-1 text-sm"
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  background: V.card,
+                  color: V.text2,
+                  border: `1px solid ${V.border}`,
+                  borderRadius: 5,
+                  cursor: "pointer",
+                }}
               >
-                全部清空
+                清空
               </button>
               <button
                 onClick={handleSaveAll}
                 disabled={busy || !allValid}
-                className="rounded-md bg-[#c41e3a] px-4 py-1.5 text-sm text-white disabled:opacity-50"
+                style={btnPrimary(busy || !allValid)}
               >
                 {busy ? "保存中…" : `💾 保存全部 (${drafts.length})`}
               </button>
             </div>
           </div>
-          {drafts.map((d, i) => (
-            <DraftCard
-              key={i}
-              draft={d}
-              errors={validation[i]}
-              regenerating={regenIndex === i}
-              onChange={(patch) => patchDraft(i, patch)}
-              onRegenerate={() => regenerateCard(i)}
-              onRemove={() => removeDraft(i)}
-            />
-          ))}
-        </section>
+          <div style={{ display: "grid", gap: 6 }}>
+            {drafts.map((d, i) => (
+              <DraftCard
+                key={i}
+                draft={d}
+                errors={validation[i]}
+                regenerating={regenIndex === i}
+                onChange={(patch) => patchDraft(i, patch)}
+                onRegenerate={() => regenerateCard(i)}
+                onRemove={() => removeDraft(i)}
+              />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -455,75 +581,122 @@ function DraftCard({
 
   return (
     <div
-      className={`rounded-lg border bg-white p-3 ${
-        bad ? "border-red-300" : "border-[#d9c9a0]"
-      } ${regenerating ? "opacity-60" : ""}`}
+      style={{
+        background: V.card,
+        border: `1px solid ${bad ? V.red : V.border}`,
+        borderRadius: 5,
+        padding: 8,
+        opacity: regenerating ? 0.6 : 1,
+      }}
     >
-      <div className="flex items-center gap-3">
-        <span className="text-xs rounded bg-[#fdf6e8] px-2 py-0.5 text-[#7a1c1c]">
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            fontSize: 10,
+            padding: "2px 6px",
+            background: V.accentLight,
+            color: V.accent,
+            borderRadius: 3,
+            fontWeight: 500,
+          }}
+        >
           L{draft.level}
         </span>
         <input
-          value={draft.slug}
-          onChange={(e) => onChange({ slug: e.target.value })}
-          placeholder="slug"
-          className="font-mono text-sm border-b border-transparent hover:border-[#d9c9a0] focus:border-[#c41e3a] outline-none w-44"
+          value={draft.id}
+          onChange={(e) => onChange({ id: e.target.value })}
+          placeholder="id"
+          style={{
+            ...inputStyle,
+            width: 160,
+            fontFamily: "ui-monospace, monospace",
+          }}
         />
         <input
           value={draft.title_zh}
           onChange={(e) => onChange({ title_zh: e.target.value })}
           placeholder="中文标题"
-          className="text-sm border-b border-transparent hover:border-[#d9c9a0] focus:border-[#c41e3a] outline-none flex-1"
+          style={{
+            ...inputStyle,
+            flex: 1,
+            fontFamily: "'STKaiti','KaiTi',serif",
+          }}
         />
         <button
           onClick={onRegenerate}
           disabled={regenerating}
           title="用 AI 重新生成这一条"
-          className="text-xs rounded bg-[#7a1c1c] text-white px-2 py-1 hover:opacity-90 disabled:opacity-40"
+          style={{
+            padding: "4px 8px",
+            fontSize: 11,
+            background: V.text2,
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: regenerating ? "not-allowed" : "pointer",
+          }}
         >
           {regenerating ? "…" : "🔁"}
         </button>
         <button
           onClick={() => setOpen((o) => !o)}
-          className="text-xs text-[#7a1c1c] hover:underline"
+          style={{
+            padding: "4px 8px",
+            fontSize: 11,
+            background: "transparent",
+            color: V.text2,
+            border: `1px solid ${V.border}`,
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
         >
           {open ? "收起" : "展开"}
         </button>
         <button
           onClick={onRemove}
-          className="text-xs text-red-600 hover:underline"
+          style={{
+            padding: "4px 8px",
+            fontSize: 11,
+            background: "transparent",
+            color: V.red,
+            border: `1px solid ${V.border}`,
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
         >
           删除
         </button>
       </div>
 
       {bad && (
-        <div className="mt-2 text-xs text-red-600">⚠️ {errors.join(" · ")}</div>
+        <div style={{ marginTop: 4, fontSize: 10, color: V.red }}>
+          ⚠️ {errors.join(" · ")}
+        </div>
       )}
 
       {open && (
-        <div className="mt-3 space-y-2 text-sm">
-          <div className="grid grid-cols-2 gap-2">
+        <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <input
               value={draft.title_en}
               onChange={(e) => onChange({ title_en: e.target.value })}
               placeholder="English title"
-              className="rounded border border-[#d9c9a0] px-2 py-1"
+              style={inputStyle}
             />
             <input
               value={draft.title_it}
               onChange={(e) => onChange({ title_it: e.target.value })}
               placeholder="Titolo italiano"
-              className="rounded border border-[#d9c9a0] px-2 py-1"
+              style={inputStyle}
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <select
               value={draft.level}
               onChange={(e) =>
                 onChange({ level: parseInt(e.target.value, 10) })
               }
-              className="rounded border border-[#d9c9a0] px-2 py-1"
+              style={inputStyle}
             >
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
@@ -533,22 +706,26 @@ function DraftCard({
             </select>
             <input
               type="number"
-              value={draft.order_in_level}
+              value={draft.order_idx}
               onChange={(e) =>
-                onChange({ order_in_level: parseInt(e.target.value, 10) || 0 })
+                onChange({ order_idx: parseInt(e.target.value, 10) || 0 })
               }
-              placeholder="order"
-              className="rounded border border-[#d9c9a0] px-2 py-1"
+              placeholder="order_idx"
+              style={inputStyle}
             />
           </div>
           <textarea
-            value={draft.explanation_md}
-            onChange={(e) => onChange({ explanation_md: e.target.value })}
+            value={draft.explanation}
+            onChange={(e) => onChange({ explanation: e.target.value })}
             rows={3}
             placeholder="讲解 (Markdown)"
-            className="w-full rounded border border-[#d9c9a0] px-2 py-1 font-mono text-xs"
+            style={{
+              ...inputStyle,
+              fontFamily: "ui-monospace, monospace",
+              resize: "vertical",
+            }}
           />
-          <div className="text-xs text-[#7a1c1c]/70">
+          <div style={{ fontSize: 10, color: V.text3 }}>
             例句 ({draft.examples?.length || 0})
           </div>
           <textarea
@@ -560,8 +737,13 @@ function DraftCard({
                 /* ignore until valid */
               }
             }}
-            rows={8}
-            className="w-full rounded border border-[#d9c9a0] px-2 py-1 font-mono text-xs"
+            rows={6}
+            style={{
+              ...inputStyle,
+              fontFamily: "ui-monospace, monospace",
+              fontSize: 10,
+              resize: "vertical",
+            }}
           />
         </div>
       )}
