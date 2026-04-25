@@ -1,48 +1,73 @@
 // netlify/functions/batch-generate-illustrations-background.js
 //
-// 批量为字符生成插画 (Phase 2C)
-// BACKGROUND FUNCTION — 可能运行 10-30 分钟, 取决于字数 + 模型
+// 批量为字符 OR 词语生成插画
+// BACKGROUND FUNCTION — 可能运行 10-30 分钟, 取决于条数 + 模型
 //
 // 输入 (POST body):
-//   {
-//     filter: {
-//       hsk_level: 1,                 // 过滤 HSK 级别
-//       source_label: "HSK 1",        // 或按来源过滤  
-//       only_missing: true,           // 只给没图的字生成 (默认 true)
-//       limit: 50,                    // 最多几张 (默认 50)
-//     },
-//     provider: 'stability' | 'dalle3',  // 图生成模型
-//     style: 'cartoon' | 'simple_pictograms' | ... // 风格
-//     custom_prompt_template?: string,   // 自定义 prompt 模板, 用 {meaning} 占位
-//   }
+//   character batch (default, target_type 省略或 'character'):
+//     {
+//       character_ids?: [...]         // 直接指定 (优先)
+//       filter?: { hsk_level, source_label, limit, only_missing }
+//       only_missing?: true           // 用于 character_ids 模式
+//       provider: 'stability' | 'dalle3'
+//       style: 'cartoon' | 'simple_pictograms' | 'watercolor' | 'flat'
+//       custom_prompt_template?: string  // 用 {meaning} 占位
+//     }
 //
-// 流程:
-//   1. 查 jgw_characters 符合 filter 的字
-//   2. 创建 batch job (存在 character_extraction_jobs 表里, method='illustration_batch')
-//   3. 对每字:
-//      - 构造 prompt (meaning-centric)
+//   word batch (target_type === 'word'):
+//     {
+//       target_type: 'word',
+//       word_ids?: [...]              // 直接指定 (优先)
+//       filter?: { theme, limit, only_missing, only_illustratable }
+//       only_missing?: true           // 用于 word_ids 模式
+//       only_illustratable?: true     // 用于 word_ids 模式
+//       provider: 'stability' | 'dalle3'
+//       style: 'flashcard' | 'photo' | 'emoji' | 'cartoon' | 'abstract'
+//     }
+//
+// 流程对两种 target 都一样:
+//   1. 查目标表 (jgw_characters 或 clf_words)
+//   2. 创建 batch job (character_extraction_jobs 表, extraction_method 区分)
+//   3. 每条:
+//      - 构造 prompt (char: meaning-centric, word: 从 clf_prompt_templates 读)
 //      - 调生图 API
-//      - 上传到 Storage bucket
-//      - UPDATE jgw_characters SET image_url=...
+//      - 上传到 Storage (illustrations 或 word-illustrations bucket)
+//      - UPDATE 目标表的 image_url
 //      - 更新 job.total_added (作为进度计数)
 //   4. 完成时 status=complete
 
 import { createClient } from '@supabase/supabase-js';
 
-const DEFAULT_STYLE_PROMPTS = {
+// ─── Style prompt defaults ────────────────────────────────────────────────
+
+// Character styles — kept as a hardcoded fallback (current behavior)
+const CHAR_DEFAULT_STYLE_PROMPTS = {
   cartoon: 'cartoon illustration, simple, bright colors, child-friendly, white background, for children learning Chinese',
   simple_pictograms: 'simple pictogram illustration, minimal design, white background, single subject, educational for kids',
   watercolor: 'watercolor painting, soft colors, artistic, calligraphy inspired, white background',
   flat: 'flat design illustration, simple shapes, modern, white background',
 };
 
+// Word styles — fallback when DB read fails. Should match seed in
+// clf_prompt_templates_word_migration.sql under keys word_image_<style>.
+// Variables: {word_zh}, {meaning_en}
+const WORD_DEFAULT_STYLE_PROMPTS = {
+  flashcard: 'Clean educational flashcard illustration of "{meaning_en}" (Chinese: {word_zh}) for vocabulary learners. Single central subject, white background, bright primary colors, bold clean shapes, no text, suitable for language-learning app. Simple and instantly recognizable.',
+  photo:     'High-quality educational photograph of "{meaning_en}" (Chinese: {word_zh}). Clear focus, neutral background, well-lit studio style, single subject. Suitable for language-learning flashcard. Photorealistic, no text.',
+  emoji:     'Large emoji-style illustration of "{meaning_en}" on a plain white background. Round, friendly, glossy aesthetic similar to Apple/Google emoji design. Single centered subject, bright colors, soft shadow, no text.',
+  cartoon:   'Cute cartoon illustration of "{meaning_en}" (Chinese: {word_zh}) for children\'s Chinese textbook. Friendly characters or objects, pastel colors, rounded shapes, playful style, white background, no text. Evokes warmth and fun.',
+  abstract:  'Abstract minimalist illustration evoking the concept of "{meaning_en}". Geometric shapes, muted color palette, flat design, symbolic rather than literal. Suitable for modern educational material. No text.',
+};
+
 const NEGATIVE_PROMPT = 'text, letters, words, writing, calligraphy, Chinese characters, glyphs, symbols, watermark, signature, logo, multiple subjects, collage, blurry, low quality, distorted, deformed';
+
+// ─── Main handler ─────────────────────────────────────────────────────────
 
 export default async (req, context) => {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'POST only' }), { 
+    return new Response(JSON.stringify({ error: 'POST only' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
@@ -53,10 +78,28 @@ export default async (req, context) => {
     return json({ error: 'invalid JSON' }, 400);
   }
 
+  const supabase = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
+  // Branch on target_type. Default to 'character' for backwards compatibility.
+  const targetType = body.target_type === 'word' ? 'word' : 'character';
+
+  if (targetType === 'word') {
+    return runWordBatch(body, supabase);
+  } else {
+    return runCharacterBatch(body, supabase);
+  }
+};
+
+// ─── Character batch (preserved from original) ────────────────────────────
+
+async function runCharacterBatch(body, supabase) {
   const {
-    character_ids = null,        // 直接指定字符 id (优先)
-    filter = {},                  // 或用过滤条件
-    only_missing = true,          // 适用于 character_ids 模式
+    character_ids = null,
+    filter = {},
+    only_missing = true,
     provider = 'stability',
     style = 'simple_pictograms',
     custom_prompt_template = null,
@@ -68,34 +111,26 @@ export default async (req, context) => {
     limit = 50,
   } = filter;
 
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
-  // 1. Query characters to process
+  // 1. Query characters
   let chars;
-  
+
   if (character_ids && character_ids.length > 0) {
-    // 直接指定字符 ID 模式
     let query = supabase
       .from('jgw_characters')
       .select('id, glyph_modern, meaning_en, meaning_zh, visual_description, image_url, pictograph_type')
       .in('id', character_ids);
-    
+
     if (only_missing) query = query.is('image_url', null);
-    
+
     const { data, error: qErr } = await query;
     if (qErr) return json({ error: 'query: ' + qErr.message }, 500);
     chars = data || [];
-    
   } else {
-    // 过滤模式
     let query = supabase
       .from('jgw_characters')
       .select('id, glyph_modern, meaning_en, meaning_zh, visual_description, image_url, pictograph_type')
       .limit(limit);
-    
+
     if (hsk_level) query = query.eq('hsk_level', hsk_level);
     if (filter.only_missing !== false) query = query.is('image_url', null);
 
@@ -110,21 +145,21 @@ export default async (req, context) => {
       }
       query = query.in('id', charIds.slice(0, limit));
     }
-    
+
     const { data, error: qErr } = await query;
     if (qErr) return json({ error: 'query: ' + qErr.message }, 500);
     chars = data || [];
   }
-  
+
   if (chars.length === 0) {
     return json({ error: 'no characters match filter' }, 404);
   }
 
-  // 2. Create batch job  
-  const jobLabel = character_ids 
+  // 2. Create batch job
+  const jobLabel = character_ids
     ? `Illustrations: ${chars.length} selected chars`
     : `Illustrations: ${source_label || `HSK ${hsk_level}` || 'filtered'}`;
-  
+
   const { data: job, error: jobErr } = await supabase
     .from('character_extraction_jobs')
     .insert({
@@ -133,11 +168,12 @@ export default async (req, context) => {
       extraction_method: 'illustration_batch',
       status: 'extracting',
       total_candidates: chars.length,
-      total_added: 0,  // 用作进度计数
-      config: { 
+      total_added: 0,
+      config: {
+        target_type: 'character',
         mode: character_ids ? 'selected' : 'filter',
         character_count: character_ids?.length,
-        filter, provider, style, custom_prompt_template 
+        filter, provider, style, custom_prompt_template,
       },
     })
     .select()
@@ -145,49 +181,45 @@ export default async (req, context) => {
 
   if (jobErr) return json({ error: 'job: ' + jobErr.message }, 500);
 
-  // 3. Process each character (in background)
-  const stylePrompt = DEFAULT_STYLE_PROMPTS[style] || DEFAULT_STYLE_PROMPTS.simple_pictograms;
+  // 3. Process
+  const stylePrompt = CHAR_DEFAULT_STYLE_PROMPTS[style] || CHAR_DEFAULT_STYLE_PROMPTS.simple_pictograms;
   let completed = 0;
   const errors = [];
-  
+
   for (const char of chars) {
     try {
-      // Build prompt — meaning-centric (not glyph)
       const meaningText = char.visual_description || char.meaning_en || char.meaning_zh || '';
       if (!meaningText) {
         errors.push({ char: char.glyph_modern, error: 'no meaning available' });
         continue;
       }
-      
+
       const prompt = custom_prompt_template
         ? custom_prompt_template.replace('{meaning}', meaningText)
         : `${meaningText}, ${stylePrompt}`;
-      
-      // Generate
+
       const imageBase64 = await generateImage(provider, prompt);
       if (!imageBase64) {
         errors.push({ char: char.glyph_modern, error: 'generation returned no image' });
         continue;
       }
-      
-      // Upload to Storage
+
       const path = `char_${char.id}_${style}_${Date.now()}.png`;
       const buffer = Buffer.from(imageBase64, 'base64');
-      
+
       const { error: upErr } = await supabase.storage
         .from('illustrations')
         .upload(path, buffer, { upsert: true, contentType: 'image/png' });
-      
+
       if (upErr) {
         errors.push({ char: char.glyph_modern, error: 'upload: ' + upErr.message });
         continue;
       }
-      
+
       const { data: { publicUrl } } = supabase.storage
         .from('illustrations')
         .getPublicUrl(path);
-      
-      // Update character
+
       await supabase
         .from('jgw_characters')
         .update({
@@ -196,25 +228,22 @@ export default async (req, context) => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', char.id);
-      
+
       completed++;
-      console.log(`[batch-illust] ${completed}/${chars.length}: ${char.glyph_modern} -> OK`);
-      
-      // Update job progress every 5 chars
+      console.log(`[batch-illust char] ${completed}/${chars.length}: ${char.glyph_modern} -> OK`);
+
       if (completed % 5 === 0 || completed === chars.length) {
         await supabase
           .from('character_extraction_jobs')
           .update({ total_added: completed })
           .eq('id', job.id);
       }
-      
     } catch (err) {
-      console.error(`[batch-illust] ${char.glyph_modern} error:`, err.message);
+      console.error(`[batch-illust char] ${char.glyph_modern} error:`, err.message);
       errors.push({ char: char.glyph_modern, error: err.message });
     }
   }
 
-  // 4. Finalize
   await supabase
     .from('character_extraction_jobs')
     .update({
@@ -222,27 +251,214 @@ export default async (req, context) => {
       total_added: completed,
       total_skipped: errors.length,
       completed_at: new Date().toISOString(),
-      error_message: errors.length > 0 
-        ? `${errors.length} errors. First: ${errors[0]?.error || ''}`.substring(0, 500) 
+      error_message: errors.length > 0
+        ? `${errors.length} errors. First: ${errors[0]?.error || ''}`.substring(0, 500)
         : null,
     })
     .eq('id', job.id);
 
   return json({
+    target_type: 'character',
     job_id: job.id,
     total: chars.length,
     completed,
     errors: errors.length,
   });
-};
+}
 
-// ─────────────────────────────────────────────────────────────────────
-// 生图 — 调 Stability / DALL-E
-// ─────────────────────────────────────────────────────────────────────
+// ─── Word batch (NEW) ─────────────────────────────────────────────────────
+
+async function runWordBatch(body, supabase) {
+  const {
+    word_ids = null,
+    filter = {},
+    only_missing = true,
+    only_illustratable = true,
+    provider = 'stability',
+    style = 'flashcard',
+  } = body;
+
+  const {
+    theme = null,
+    limit = 50,
+  } = filter;
+
+  // Top-level OR filter-level, default true
+  const effectiveOnlyMissing = (word_ids && word_ids.length > 0)
+    ? only_missing
+    : (filter.only_missing !== false);
+  const effectiveOnlyIllustratable = (word_ids && word_ids.length > 0)
+    ? only_illustratable
+    : (filter.only_illustratable !== false);
+
+  // 1. Query words
+  let words;
+
+  if (word_ids && word_ids.length > 0) {
+    let query = supabase
+      .from('clf_words')
+      .select('id, word_zh, pinyin, meaning_en, meaning_zh, image_url, illustratable, theme, hsk_level')
+      .in('id', word_ids);
+
+    if (effectiveOnlyMissing)       query = query.is('image_url', null);
+    if (effectiveOnlyIllustratable) query = query.neq('illustratable', false);
+
+    const { data, error: qErr } = await query;
+    if (qErr) return json({ error: 'query: ' + qErr.message }, 500);
+    words = data || [];
+  } else {
+    let query = supabase
+      .from('clf_words')
+      .select('id, word_zh, pinyin, meaning_en, meaning_zh, image_url, illustratable, theme, hsk_level')
+      .limit(limit);
+
+    if (theme)                       query = query.eq('theme', theme);
+    if (effectiveOnlyMissing)        query = query.is('image_url', null);
+    if (effectiveOnlyIllustratable)  query = query.neq('illustratable', false);
+
+    const { data, error: qErr } = await query;
+    if (qErr) return json({ error: 'query: ' + qErr.message }, 500);
+    words = data || [];
+  }
+
+  if (words.length === 0) {
+    return json({ error: 'no words match filter' }, 404);
+  }
+
+  // 2. Resolve prompt template (DB → fallback to code DEFAULT)
+  const promptTpl = await resolveWordPromptTemplate(style, supabase);
+
+  // 3. Create batch job
+  const jobLabel = (word_ids && word_ids.length > 0)
+    ? `Word illustrations: ${words.length} selected`
+    : `Word illustrations: ${theme || 'all themes'}`;
+
+  const { data: job, error: jobErr } = await supabase
+    .from('character_extraction_jobs')
+    .insert({
+      source_type: 'word_illustration_batch',
+      source_label: jobLabel,
+      extraction_method: 'word_illustration_batch',
+      status: 'extracting',
+      total_candidates: words.length,
+      total_added: 0,
+      config: {
+        target_type: 'word',
+        mode: (word_ids && word_ids.length > 0) ? 'selected' : 'filter',
+        word_count: word_ids?.length,
+        filter, provider, style,
+      },
+    })
+    .select()
+    .single();
+
+  if (jobErr) return json({ error: 'job: ' + jobErr.message }, 500);
+
+  // 4. Process
+  let completed = 0;
+  const errors = [];
+
+  for (const w of words) {
+    try {
+      const meaning_en = w.meaning_en || w.meaning_zh || '';
+      if (!meaning_en) {
+        errors.push({ word: w.word_zh, error: 'no meaning available' });
+        continue;
+      }
+
+      const prompt = promptTpl
+        .replaceAll('{word_zh}', w.word_zh || '')
+        .replaceAll('{meaning_en}', meaning_en);
+
+      const imageBase64 = await generateImage(provider, prompt);
+      if (!imageBase64) {
+        errors.push({ word: w.word_zh, error: 'generation returned no image' });
+        continue;
+      }
+
+      const path = `word_${w.id}_${style}_${Date.now()}.png`;
+      const buffer = Buffer.from(imageBase64, 'base64');
+
+      const { error: upErr } = await supabase.storage
+        .from('word-illustrations')
+        .upload(path, buffer, { upsert: true, contentType: 'image/png' });
+
+      if (upErr) {
+        errors.push({ word: w.word_zh, error: 'upload: ' + upErr.message });
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('word-illustrations')
+        .getPublicUrl(path);
+
+      await supabase
+        .from('clf_words')
+        .update({
+          image_url: publicUrl,
+          // No pictograph_type — that's character-only
+        })
+        .eq('id', w.id);
+
+      completed++;
+      console.log(`[batch-illust word] ${completed}/${words.length}: ${w.word_zh} -> OK`);
+
+      if (completed % 5 === 0 || completed === words.length) {
+        await supabase
+          .from('character_extraction_jobs')
+          .update({ total_added: completed })
+          .eq('id', job.id);
+      }
+    } catch (err) {
+      console.error(`[batch-illust word] ${w.word_zh} error:`, err.message);
+      errors.push({ word: w.word_zh, error: err.message });
+    }
+  }
+
+  await supabase
+    .from('character_extraction_jobs')
+    .update({
+      status: 'complete',
+      total_added: completed,
+      total_skipped: errors.length,
+      completed_at: new Date().toISOString(),
+      error_message: errors.length > 0
+        ? `${errors.length} errors. First: ${errors[0]?.error || ''}`.substring(0, 500)
+        : null,
+    })
+    .eq('id', job.id);
+
+  return json({
+    target_type: 'word',
+    job_id: job.id,
+    total: words.length,
+    completed,
+    errors: errors.length,
+  });
+}
+
+// ─── Word prompt resolver (DB → fallback) ─────────────────────────────────
+
+async function resolveWordPromptTemplate(style, supabase) {
+  try {
+    const { data, error } = await supabase
+      .from('clf_prompt_templates')
+      .select('template')
+      .eq('key', `word_image_${style}`)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.template) return data.template;
+  } catch (e) {
+    console.warn(`[batch-illust] DB fetch failed for word_image_${style}, using code fallback:`, e.message);
+  }
+  return WORD_DEFAULT_STYLE_PROMPTS[style] || WORD_DEFAULT_STYLE_PROMPTS.flashcard;
+}
+
+// ─── Image generation (shared) ────────────────────────────────────────────
 
 async function generateImage(provider, prompt) {
   const baseUrl = process.env.URL || 'https://zhongwen-world.netlify.app';
-  
+
   if (provider === 'stability') {
     const res = await fetch(`${baseUrl}/.netlify/functions/stability-proxy`, {
       method: 'POST',
@@ -254,13 +470,13 @@ async function generateImage(provider, prompt) {
         height: 512,
       }),
     });
-    
+
     if (!res.ok) throw new Error(`stability ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     return data.image_base64;
   }
-  
+
   if (provider === 'dalle3') {
     const res = await fetch(`${baseUrl}/.netlify/functions/ai-gateway`, {
       method: 'POST',
@@ -271,21 +487,19 @@ async function generateImage(provider, prompt) {
         prompt,
       }),
     });
-    
+
     if (!res.ok) throw new Error(`dalle ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    // ai-gateway may return image_base64 or url — normalize
     if (data.image_base64) return data.image_base64;
     if (data.image_url) {
-      // Fetch the URL and convert to base64
       const imgRes = await fetch(data.image_url);
       const buf = await imgRes.arrayBuffer();
       return Buffer.from(buf).toString('base64');
     }
     throw new Error('no image in dalle response');
   }
-  
+
   throw new Error('unknown provider: ' + provider);
 }
 
