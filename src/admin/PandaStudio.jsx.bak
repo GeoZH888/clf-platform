@@ -373,32 +373,8 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
 
 // ── Main PandaStudio ─────────────────────────────────────────────
 export default function PandaStudio() {
-  const [emotions,   setEmotions]   = useState([]);
-  const [loadingEm,  setLoadingEm]  = useState(true);
+  const [emotions,   setEmotions]   = useState(DEFAULT_EMOTIONS);
   const [provider,   setProvider]   = useState('openai');
-
-  // Load emotions from clf_panda_emotions; seed with DEFAULT_EMOTIONS if empty.
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from('clf_panda_emotions')
-        .select('*')
-        .order('order_idx', { ascending: true });
-      if (error) { console.warn('[panda emotions]', error); setLoadingEm(false); return; }
-      if (!data || data.length === 0) {
-        const seed = DEFAULT_EMOTIONS.map((e, i) => ({
-          id: e.id, label: e.label, prompt: e.prompt,
-          color: e.color || '#888888', order_idx: i,
-        }));
-        const { data: inserted } = await supabase
-          .from('clf_panda_emotions').insert(seed).select();
-        setEmotions(inserted || seed);
-      } else {
-        setEmotions(data);
-      }
-      setLoadingEm(false);
-    })();
-  }, []);
   const [batchRun,   setBatchRun]   = useState(false);
   const [batchStatus,setBatchStatus]= useState('');
   const batchStop = { current: false };
@@ -420,13 +396,10 @@ export default function PandaStudio() {
     setNewId(''); setNewLabel(''); setNewPrompt(''); setNewColor('#888888');
   }
 
-  async function deleteEmotion(id) {
+  function deleteEmotion(id) {
     if (!confirm(`删除 "${id}" 这个熊猫情绪？`)) return;
-    const { error } = await supabase
-      .from('clf_panda_emotions').delete().eq('id', id);
-    if (error) { alert('删除失败: ' + error.message); return; }
     setEmotions(em => em.filter(e=>e.id!==id));
-    // Also clean up generated image asset (if any)
+    // Also remove from DB
     supabase.from('jgw_panda_assets').delete().eq('emotion', id);
   }
 
