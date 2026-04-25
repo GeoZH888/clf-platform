@@ -234,6 +234,24 @@ export default function ChengyuAdminTab({ apiKeys }) {
     }
   }
 
+  // ── Regenerate ALL images using current style/provider ───────────────────
+  async function handleRegenAllImages() {
+    if (!confirm(`将为全部 ${idioms.length} 条成语重新生成插图（使用 story 作为 prompt）。\n\n样式: ${IMG_STYLES.find(s=>s.id===imgStyle)?.label}\n引擎: ${IMG_PROVIDERS.find(p=>p.id===imgProvider)?.label}\n\n继续？`)) return;
+    log(`开始批量重新生成 ${idioms.length} 条成语插图...`);
+    for (let i = 0; i < idioms.length; i++) {
+      const idiom = idioms[i];
+      log(`[${i+1}/${idioms.length}] ${idiom.idiom}`);
+      try {
+        await handleGenerateImage(idiom);
+      } catch (e) {
+        log(`✗ ${idiom.idiom} 失败: ${e.message}`);
+      }
+      // Brief pause to avoid rate limits
+      await new Promise(r => setTimeout(r, 500));
+    }
+    log(`✓ 批量插图完成`);
+  }
+
   // ── Generate single illustration ──────────────────────────────────────────
   async function handleGenerateImage(idiom) {
     const style = IMG_STYLES.find(s => s.id === imgStyle);
@@ -242,7 +260,20 @@ export default function ChengyuAdminTab({ apiKeys }) {
     log(`生成插图: ${idiom.idiom} · ${style.label} · ${provider.label}`);
 
     try {
-      const prompt = `Illustration for Chinese idiom "${idiom.idiom}" (${idiom.meaning_zh}). ${style.prompt}. The image should visually represent the idiom's meaning. Clean background, educational style.`;
+      // Use story as the primary scene description (story is much richer than the 4-char idiom)
+      // Fall back to meaning_zh for newly created idioms that haven't been written yet
+      const sceneZh = idiom.story_zh || idiom.meaning_zh || '';
+      const prompt = `Children's book illustration depicting this scene from a Chinese fable:
+
+${sceneZh}
+
+Visual focus: the narrative moment from this story. Show characters, setting, and action clearly. A single coherent scene, not a collage of symbols.
+
+Style: ${style.prompt}.
+
+STRICTLY AVOID: any Chinese text, calligraphy, or written characters; Chinese New Year decorations (red lanterns, couplets, firecrackers, gold ingots); holiday motifs; symbolic objects unrelated to the story. No text or watermarks anywhere in the image.
+
+Composition: square format, balanced, focal subject centered, soft natural lighting, period-appropriate ancient Chinese rural or village setting.`;
 
       let imageUrl;
 
@@ -449,6 +480,11 @@ export default function ChengyuAdminTab({ apiKeys }) {
               style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${V.border}`,
                 background:V.bg, color:V.verm, fontSize:12, cursor:'pointer' }}>
               🖼 批量生成无图插图
+            </button>
+            <button onClick={handleRegenAllImages}
+              style={{ marginLeft:8, padding:'7px 14px', borderRadius:8, border:`1px solid ${V.verm}`,
+                background:V.verm, color:'#fff', fontSize:12, cursor:'pointer' }}>
+              🔄 全部用 Story 重新生成
             </button>
           </div>
         </div>

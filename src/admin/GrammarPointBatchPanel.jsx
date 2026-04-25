@@ -25,10 +25,10 @@ const V = {
 
 // ─── config ─────────────────────────────────────────────────────────────────
 const PROVIDERS = [
-  { id: "claude", label: "Claude (Sonnet 4.6)", model: "claude-sonnet-4-6" },
-  { id: "claude-opus", label: "Claude Opus 4.7", model: "claude-opus-4-7" },
-  { id: "gpt-4o", label: "GPT-4o", model: "gpt-4o" },
-  { id: "deepseek", label: "DeepSeek", model: "deepseek-chat" },
+  { id: "anthropic",       label: "Claude Sonnet 4.5",  model: "claude-sonnet-4-5",     keyId: "anthropic" },
+  { id: "anthropic-opus",  label: "Claude Opus 4.5",    model: "claude-opus-4-5",       keyId: "anthropic" },
+  { id: "openai",          label: "GPT-4o",             model: "gpt-4o",                keyId: "openai"    },
+  { id: "deepseek",        label: "DeepSeek",           model: "deepseek-chat",         keyId: "deepseek"  },
 ];
 
 const LEVEL_GUIDE = `LEVELING (5 tiers, calibrated against HSK + heritage learner reality):
@@ -133,20 +133,90 @@ function validateDraft(d) {
   return errs;
 }
 
+// Browser-direct API call.
+// Bypasses Netlify Functions entirely (no 26s/100s timeout limit on long generations).
+// Uses admin's locally-stored API key from ApiKeyManager (`admin_key_<keyId>`).
 async function callAi(provider, prompt) {
   const cfg = PROVIDERS.find((p) => p.id === provider) || PROVIDERS[0];
-  const r = await fetch("/.netlify/functions/generate-grammar-points", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt, provider: cfg.id, model: cfg.model }),
-  });
-  if (!r.ok) {
-    const errText = await r.text();
-    throw new Error(`AI 调用失败 (${r.status}): ${errText}`);
+  const apiKey =
+    (typeof window !== "undefined" && window._getAdminKey?.(cfg.keyId)) ||
+    localStorage.getItem(`admin_key_${cfg.keyId}`) ||
+    "";
+  if (!apiKey) {
+    throw new Error(
+      `请先在 "🔑 API Keys" 标签页填入 ${cfg.label} 对应的 ${cfg.keyId} key`
+    );
   }
-  const data = await r.json();
-  if (data?.error) throw new Error(data.error);
-  return data.text;
+
+  // Anthropic (Claude) — direct browser call, supports CORS
+  if (cfg.keyId === "anthropic") {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        max_tokens: 8000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`Anthropic ${r.status}: ${err}`);
+    }
+    const data = await r.json();
+    return data?.content?.[0]?.text || "";
+  }
+
+  // OpenAI
+  if (cfg.keyId === "openai") {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 4000,
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`OpenAI ${r.status}: ${err}`);
+    }
+    const data = await r.json();
+    return data?.choices?.[0]?.message?.content || "";
+  }
+
+  // DeepSeek
+  if (cfg.keyId === "deepseek") {
+    const r = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 4000,
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`DeepSeek ${r.status}: ${err}`);
+    }
+    const data = await r.json();
+    return data?.choices?.[0]?.message?.content || "";
+  }
+
+  throw new Error(`未知 provider: ${cfg.keyId}`);
 }
 
 // ─── styles ─────────────────────────────────────────────────────────────────
