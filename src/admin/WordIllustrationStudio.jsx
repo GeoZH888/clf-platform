@@ -14,44 +14,29 @@
 //   you need to branch on that. Alternatively, we save the generated URL
 //   ourselves via uploadToSupabase(), which is what we do here.
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { getPrompt } from '../lib/prompts.js';
 
-const AI_PROVIDERS = [
-  { id: 'claude', label: 'Claude (Anthropic)' },
-  { id: 'openai', label: 'GPT-4o (OpenAI)' },
-  { id: 'gemini', label: 'Gemini 1.5 (Google)' },
+// Image generation providers (mirrors ChengyuAdminTab IMG_PROVIDERS).
+// dalle3   → direct OpenAI call (needs admin_key_openai in localStorage)
+// stability→ /.netlify/functions/stability-proxy
+// flux     → /.netlify/functions/ai-gateway with type='image'
+const IMG_PROVIDERS = [
+  { id: 'dalle3',    label: 'DALL-E 3',     keyId: 'openai' },
+  { id: 'stability', label: 'Stability AI', keyId: null     },
+  { id: 'flux',      label: 'Flux (JINAN)',  keyId: null     },
 ];
 
-// Word-specific style presets (the 5 chosen + custom)
+// Style preset ids — must match clf_prompt_templates keys: word_image_<id>
+// Custom doesn't go through getPrompt; user types prompt directly.
 const STYLE_PRESETS = [
-  { id: 'flashcard', label: '📚 闪卡风',
-    prompt: (zh, en) =>
-      `Clean educational flashcard illustration of "${en}" (Chinese: ${zh}) for vocabulary learners. ` +
-      `Single central subject, white background, bright primary colors, bold clean shapes, no text, ` +
-      `suitable for language-learning app. Simple and instantly recognizable.` },
-  { id: 'photo', label: '📷 实景照',
-    prompt: (zh, en) =>
-      `High-quality educational photograph of "${en}" (Chinese: ${zh}). Clear focus, neutral background, ` +
-      `well-lit studio style, single subject. Suitable for language-learning flashcard. ` +
-      `Photorealistic, no text.` },
-  { id: 'emoji', label: '😀 表情符',
-    prompt: (zh, en) =>
-      `Large emoji-style illustration of "${en}" on a plain white background. ` +
-      `Round, friendly, glossy aesthetic similar to Apple/Google emoji design. ` +
-      `Single centered subject, bright colors, soft shadow, no text.` },
-  { id: 'cartoon', label: '🎨 卡通画',
-    prompt: (zh, en) =>
-      `Cute cartoon illustration of "${en}" (Chinese: ${zh}) for children's Chinese textbook. ` +
-      `Friendly characters or objects, pastel colors, rounded shapes, playful style, ` +
-      `white background, no text. Evokes warmth and fun.` },
-  { id: 'abstract', label: '🌀 抽象画',
-    prompt: (zh, en) =>
-      `Abstract minimalist illustration evoking the concept of "${en}". ` +
-      `Geometric shapes, muted color palette, flat design, symbolic rather than literal. ` +
-      `Suitable for modern educational material. No text.` },
-  { id: 'custom', label: '✏️ 自定义',
-    prompt: () => '' },
+  { id: 'flashcard', label: '📚 闪卡风' },
+  { id: 'photo',     label: '📷 实景照' },
+  { id: 'emoji',     label: '😀 表情符' },
+  { id: 'cartoon',   label: '🎨 卡通画' },
+  { id: 'abstract',  label: '🌀 抽象画' },
+  { id: 'custom',    label: '✏️ 自定义' },
 ];
 
 // Sanitize word_zh for Supabase Storage key — Chinese chars are allowed,
@@ -63,32 +48,59 @@ function wordFilename(word_zh, ext = 'png') {
 
 export default function WordIllustrationStudio({ words = [], initialWord = null, onUpdate, onClose }) {
   const [selectedWord,  setSelectedWord]  = useState(initialWord);
-  const [provider,      setProvider]      = useState('claude');
+  const [provider,      setProvider]      = useState('stability');
   const [stylePreset,   setStylePreset]   = useState('flashcard');
   const [customPrompt,  setCustomPrompt]  = useState('');
   const [generatedUrl,  setGeneratedUrl]  = useState(null);
   const [isGenerating,  setIsGenerating]  = useState(false);
   const [isUploading,   setIsUploading]   = useState(false);
   const [status,        setStatus]        = useState(null);
+  const [promptPreview, setPromptPreview] = useState('');
   const fileInputRef = useRef(null);
 
   const setMsg   = (type, message) => setStatus({ type, message });
   const clearMsg = () => setStatus(null);
 
-  const getPrompt = () => {
-    const zh = selectedWord?.word_zh || '?';
-    const en = selectedWord?.meaning_en || selectedWord?.meaning_zh || '';
+  // ── Async fetch + cache the resolved prompt for preview ─────────────
+  useEffect(() => {
+    if (!selectedWord || stylePreset === 'custom') {
+      setPromptPreview('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await getPrompt(`word_image_${stylePreset}`, {
+          word_zh:    selectedWord.word_zh    || '',
+          meaning_en: selectedWord.meaning_en || selectedWord.meaning_zh || '',
+        });
+        if (!cancelled) setPromptPreview(p);
+      } catch (e) {
+        if (!cancelled) setPromptPreview(`(prompt 加载失败: ${e.message})`);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedWord, stylePreset]);
 
+  // Returns the actual prompt to send (may differ from preview if user
+  // is on 'custom' style — preview is empty in that case)
+  async function resolvePrompt() {
     if (stylePreset === 'custom') return customPrompt;
+    return await getPrompt(`word_image_${stylePreset}`, {
+      word_zh:    selectedWord?.word_zh    || '',
+      meaning_en: selectedWord?.meaning_en || selectedWord?.meaning_zh || '',
+    });
+  }
 
-    const preset = STYLE_PRESETS.find(p => p.id === stylePreset);
-    return preset?.prompt(zh, en) || '';
-  };
-
-  // ── Generate via ai-gateway ────────────────────────────────────────
+  // ── Generate via correct image-generation provider ─────────────────
   const handleGenerate = async () => {
     if (!selectedWord) return setMsg('error', '请先选择一个词语。');
-    const prompt = getPrompt();
+    let prompt;
+    try {
+      prompt = await resolvePrompt();
+    } catch (e) {
+      return setMsg('error', `Prompt 解析失败: ${e.message}`);
+    }
     if (!prompt.trim()) return setMsg('error', '请输入提示词。');
 
     setIsGenerating(true);
@@ -96,38 +108,68 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
     setGeneratedUrl(null);
 
     try {
-      const res  = await fetch('/.netlify/functions/ai-gateway', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_image',
-          provider,
-          prompt,
-          // hint for backend in case you add target-type routing later
-          target_type: 'word',
-          target_key: selectedWord.word_zh,
-          // character field preserved for backend compatibility
-          character: selectedWord.word_zh,
-        }),
-      });
+      let imageUrl;
 
-      const text = await res.text();
-      if (!text) throw new Error('服务器返回空响应');
-
-      let data;
-      try { data = JSON.parse(text); }
-      catch { throw new Error(`服务器返回非 JSON: ${text.slice(0, 200)}`); }
-
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-
-      if (data.url) {
-        setGeneratedUrl(data.url);
-        setMsg('success', '✅ 图片生成成功！点击「上传到 Supabase」保存。');
-      } else if (data.enhancedPrompt) {
-        setMsg('info', `✏️ Enhanced prompt:\n${data.enhancedPrompt}`);
+      if (provider === 'dalle3') {
+        const key = localStorage.getItem('admin_key_openai');
+        if (!key) throw new Error('需要在 🔑 API Keys 设置 OpenAI key');
+        const res = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'dall-e-3',
+            prompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+          }),
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message);
+        imageUrl = d.data?.[0]?.url;
+        if (!imageUrl) throw new Error('DALL-E 未返回图片 URL');
+      } else if (provider === 'stability') {
+        const res = await fetch('/.netlify/functions/stability-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            negative_prompt: 'text, watermark, blurry',
+            width: 1024,
+            height: 1024,
+          }),
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
+        imageUrl = d.image_base64
+          ? `data:image/png;base64,${d.image_base64}`
+          : d.url;
+        if (!imageUrl) throw new Error('Stability 未返回图片');
       } else {
-        setMsg('error', '生成未返回图片 URL');
+        // flux (or any other) via ai-gateway
+        const res = await fetch('/.netlify/functions/ai-gateway', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider,
+            prompt,
+            type: 'image',
+          }),
+        });
+        const text = await res.text();
+        let d;
+        try { d = JSON.parse(text); }
+        catch { throw new Error(`服务器返回非 JSON: ${text.slice(0, 200)}`); }
+        if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
+        imageUrl = d.url || d.image_url;
+        if (!imageUrl) throw new Error('ai-gateway 未返回图片 URL');
       }
+
+      setGeneratedUrl(imageUrl);
+      setMsg('success', '✅ 图片生成成功！点击「上传到 Supabase」保存。');
     } catch (err) {
       setMsg('error', `生成失败: ${err.message}`);
     } finally {
@@ -263,7 +305,7 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
         <section style={S.section}>
           <label style={S.label}>AI 提供商 Provider</label>
           <div style={S.pills}>
-            {AI_PROVIDERS.map(p => (
+            {IMG_PROVIDERS.map(p => (
               <button key={p.id} type="button"
                 onClick={() => setProvider(p.id)}
                 style={provider === p.id ? S.pillActive : S.pill}>
@@ -292,9 +334,9 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
               style={S.textarea}/>
-          ) : selectedWord && (
+          ) : selectedWord && promptPreview && (
             <div style={S.promptPreview}>
-              <em style={{ fontSize: 12, color: '#666' }}>{getPrompt()}</em>
+              <em style={{ fontSize: 12, color: '#666' }}>{promptPreview}</em>
             </div>
           )}
         </section>

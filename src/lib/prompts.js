@@ -103,6 +103,20 @@ AVOID these ids: {avoid_ids}
 
 Regenerate the grammar topic with id "{id}" at level L{level}.
 Return a JSON array with exactly ONE object.`,
+
+  // ─── Word illustration (词语插图) ──────────────────────────────────────
+  // 5 styles + custom (custom doesn't go through getPrompt). Variables:
+  //   {word_zh}     — the Chinese word, always provided
+  //   {meaning_en}  — English meaning (caller falls back to meaning_zh, then "")
+  word_image_flashcard: `Clean educational flashcard illustration of "{meaning_en}" (Chinese: {word_zh}) for vocabulary learners. Single central subject, white background, bright primary colors, bold clean shapes, no text, suitable for language-learning app. Simple and instantly recognizable.`,
+
+  word_image_photo: `High-quality educational photograph of "{meaning_en}" (Chinese: {word_zh}). Clear focus, neutral background, well-lit studio style, single subject. Suitable for language-learning flashcard. Photorealistic, no text.`,
+
+  word_image_emoji: `Large emoji-style illustration of "{meaning_en}" on a plain white background. Round, friendly, glossy aesthetic similar to Apple/Google emoji design. Single centered subject, bright colors, soft shadow, no text.`,
+
+  word_image_cartoon: `Cute cartoon illustration of "{meaning_en}" (Chinese: {word_zh}) for children's Chinese textbook. Friendly characters or objects, pastel colors, rounded shapes, playful style, white background, no text. Evokes warmth and fun.`,
+
+  word_image_abstract: `Abstract minimalist illustration evoking the concept of "{meaning_en}". Geometric shapes, muted color palette, flat design, symbolic rather than literal. Suitable for modern educational material. No text.`,
 };
 
 /**
