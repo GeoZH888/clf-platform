@@ -448,7 +448,7 @@ export default function PoetryApp({ onBack }) {
   const [search,  setSearch]  = useState('');
 
   useEffect(() => {
-    supabase.from('jgw_poems').select('*').eq('active',true)
+    supabase.from('clf_poems').select('*').eq('active',true)
       .order('difficulty').order('sort_order')
       .then(({ data }) => { setPoems(data||[]); setLoading(false); });
   }, []);

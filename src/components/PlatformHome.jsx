@@ -132,9 +132,30 @@ const MODULES = [
     text:     '#5D2E0C',
   },
 
+  {
+    id:       'poetry',
+    emoji:    '🪷',
+    iconImage: null,
+    name:     { zh:'诗歌', en:'Poetry', it:'Poesia' },
+    desc:     { zh:'唐诗宋词 · 拼音 · 朗读',
+                en:'Classical poems · pinyin · recitation',
+                it:'Poesia classica · pinyin · recitazione' },
+    features: [
+      { zh:'唐诗宋词', en:'Tang & Song poems', it:'Poesie Tang e Song' },
+      { zh:'逐字拼音', en:'Per-character pinyin', it:'Pinyin per carattere' },
+      { zh:'三语翻译', en:'Trilingual translation', it:'Traduzione trilingue' },
+      { zh:'意境插图', en:'Atmospheric illustrations', it:'Illustrazioni' },
+    ],
+    tag:      { zh:'风雅', en:'Classics', it:'Classici' },
+    color:    '#FFF8E1',     // 淡金色背景
+    border:   '#C8972A',     // 金色（跟 PoetryAdminTab GOLD 一致）
+    text:     '#6b4c2a',     // 深棕色字
+  },
+
   // ── Future modules — uncomment and adjust as they come online ──
-  //   id:    'poetry', emoji:'🎴',
-  //   name:  { zh:'诗歌', en:'Poetry', it:'Poesia' },
+  // {
+  //   id:    'hsk', emoji:'📚',
+  //   name:  { zh:'HSK考级', en:'HSK Levels', it:'Livelli HSK' },
   //   ...
   // },
 ];
