@@ -17,6 +17,18 @@ const IMAGE_STYLES = [
   { id:'modern',       label:'📚 现代'   },
 ];
 
+// Voice presets — must match VOICE_MAP keys in tts-generate.js + batch-generate-audio-background.js
+const VOICES = [
+  { id:'xiaoxiao-poetry', label:'🎙️ 晓晓·诗朗诵' },
+  { id:'xiaoxiao',        label:'🌸 晓晓·亲切'   },
+  { id:'yunxi-poetry',    label:'🎙️ 云希·诗朗诵' },
+  { id:'yunxi',           label:'☁️ 云希·清亮'   },
+  { id:'xiaoyi',          label:'🌟 晓伊·活泼'   },
+  { id:'yunyang-poetry',  label:'🎙️ 云扬·诗朗诵' },
+  { id:'yunyang',         label:'🍂 云扬·成熟'   },
+  { id:'xiaochen',        label:'🌅 晓辰·温暖'   },
+];
+
 function log_fn(s) { return m => s(p => [`${new Date().toLocaleTimeString()} ${m}`,...p].slice(0,20)); }
 
 // ── PinyinGrid: 占格作业风布局（一字一格，拼音在格子顶部） ───────────────────
@@ -99,8 +111,11 @@ export default function PoetryAdminTab() {
   const [imgLoading, setImgLoading] = useState({});
   const [batchIllustLoading, setBatchIllustLoading] = useState(false);
   const [pinyinRegenLoading, setPinyinRegenLoading] = useState(false);
+  const [audioLoading, setAudioLoading] = useState({});
+  const [batchAudioLoading, setBatchAudioLoading] = useState(false);
   const [imgProvider,setImgProvider]= useState('stability');
   const [imgStyle,   setImgStyle]   = useState('ink');
+  const [voice,      setVoice]      = useState('xiaoxiao-poetry');
   const [textProvider,setTextProvider]= useState('claude');
   const log = log_fn(setGenLog);
 
@@ -259,6 +274,89 @@ export default function PoetryAdminTab() {
     const { data } = await supabase.from('clf_poems').select('*').order('dynasty').order('sort_order');
     setPoems(data||[]);
     setLoading(false);
+  }
+
+  // ── Audio generation (single poem) ────────────────────────────────────────
+  async function generateAudio(p) {
+    setAudioLoading(prev => ({ ...prev, [p.id]: true }));
+    log(`🔊 [${voice}] 生成《${p.title}》朗读…`);
+    try {
+      // Get supabase access_token for admin auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('请重新登录 admin');
+      }
+
+      const res = await fetch('/.netlify/functions/tts-generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ poem_id: p.id, voice }),
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`服务器返回非 JSON: ${text.slice(0, 200)}`); }
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      const cachedNote = data.cached ? '（缓存命中）' : `（${data.duration_seconds}秒）`;
+      log(`✓ 《${p.title}》朗读已生成 ${cachedNote}`);
+
+      // Reflect in local state immediately
+      setPoems(prev => prev.map(x => x.id === p.id
+        ? { ...x, audio_url: data.audio_url, audio_voice: voice, audio_provider: 'azure' }
+        : x));
+    } catch (e) {
+      log(`✗ 朗读生成失败: ${e.message}`);
+    }
+    setAudioLoading(prev => ({ ...prev, [p.id]: false }));
+  }
+
+  // ── Audio batch (calls background backend) ────────────────────────────────
+  async function runBatchAudio() {
+    // Default: poems missing audio OR poems with different voice than currently selected
+    const missing = poems.filter(p =>
+      !p.audio_url || p.audio_voice !== voice || p.audio_provider !== 'azure'
+    );
+    if (missing.length === 0) {
+      log(`所有诗词已有 ${voice} 朗读`);
+      return;
+    }
+    if (!confirm(
+      `将为 ${missing.length} 首诗词批量生成朗读\n` +
+      `Voice: ${voice}\n` +
+      `预计耗时约 ${Math.ceil(missing.length * 0.3)} 分钟。继续？`
+    )) return;
+
+    setBatchAudioLoading(true);
+    log(`📤 提交批量朗读任务 (${missing.length} 首, ${voice})…`);
+    try {
+      const res = await fetch('/.netlify/functions/batch-generate-audio-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poem_ids: missing.map(p => p.id),
+          voice,
+          force: false,
+        }),
+      });
+      if (res.ok || res.status === 202) {
+        log(`✅ 批量朗读任务已提交 (${missing.length} 首)。后台运行约 ${Math.ceil(missing.length * 0.3)} 分钟。`);
+        log(`完成后刷新列表查看 audio_url。`);
+      } else {
+        const t = await res.text().catch(() => '');
+        log(`✗ 批量提交失败 ${res.status}: ${t.slice(0, 160)}`);
+      }
+    } catch (e) {
+      log(`✗ ${e.message}`);
+    }
+    setBatchAudioLoading(false);
   }
 
   // ── AI batch generate ──────────────────────────────────────────────────────
@@ -459,6 +557,13 @@ export default function PoetryAdminTab() {
             title={`批量为缺图诗词生成插图（用当前选中的 ${imgProvider} / ${imgStyle}）`}>
             {batchIllustLoading ? '⏳ 提交中…' : '🎨 批量生图'}
           </button>
+          <button onClick={runBatchAudio} disabled={batchAudioLoading}
+            style={{ padding:'6px 14px', borderRadius:8, border:`1px solid ${GOLD}`,
+              background: batchAudioLoading ? '#eee' : `${GOLD}15`, color:GOLD,
+              fontSize:12, fontWeight:600, cursor: batchAudioLoading ? 'wait' : 'pointer' }}
+            title={`批量为缺朗读诗词或不同 voice 的诗词生成朗读（用当前 voice：${voice}）`}>
+            {batchAudioLoading ? '⏳ 提交中…' : '🔊 批量朗读'}
+          </button>
           <button onClick={()=>setShowAdd(s=>!s)}
             style={{ padding:'6px 14px', borderRadius:8, border:`1px solid ${GOLD}`,
               background:`${GOLD}15`, color:GOLD, fontSize:12, fontWeight:600, cursor:'pointer' }}>
@@ -534,6 +639,22 @@ export default function PoetryAdminTab() {
             </select>
             <div style={{ fontSize:10, color:'#a07850', marginTop:5 }}>
               为每首诗生成水墨风格插图
+            </div>
+          </div>
+
+          {/* Voice picker (TTS) */}
+          <div style={{ background:'#fffaf0', borderRadius:10, padding:'10px 12px',
+            border:`1.5px solid ${GOLD}33` }}>
+            <div style={{ fontSize:10, fontWeight:600, color:GOLD, marginBottom:6 }}>
+              🔊 朗读 voice
+            </div>
+            <select value={voice} onChange={e=>setVoice(e.target.value)}
+              style={{ width:'100%', padding:'6px 8px', borderRadius:8,
+                border:`1px solid ${GOLD}44`, fontSize:12, background:'#fff' }}>
+              {VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+            </select>
+            <div style={{ fontSize:10, color:'#a07850', marginTop:5 }}>
+              单条/批量朗读时使用此 voice
             </div>
           </div>
         </div>
@@ -629,6 +750,14 @@ export default function PoetryAdminTab() {
                       border:`1px solid ${GOLD}44`, background:p.image_url?`${GOLD}22`:`${GOLD}11`,
                       color:GOLD, opacity:imgLoading[p.id]?0.5:1 }}>
                     {imgLoading[p.id]?'…':p.image_url?'🖼️ 重生':'🎨 生图'}
+                  </button>
+                  <button onClick={()=>generateAudio(p)} disabled={audioLoading[p.id]}
+                    title={`生成朗读 (${voice})`}
+                    style={{ padding:'3px 8px', borderRadius:7, fontSize:10, cursor:'pointer',
+                      border:`1px solid ${GOLD}44`,
+                      background:p.audio_url ? `${GOLD}22` : `${GOLD}11`,
+                      color:GOLD, opacity:audioLoading[p.id]?0.5:1 }}>
+                    {audioLoading[p.id] ? '…' : p.audio_url ? '🔊 重朗' : '🔊 朗读'}
                   </button>
                   <button onClick={()=>setPreview(preview?.id===p.id?null:p)}
                     style={{ padding:'3px 8px', borderRadius:7, fontSize:10, cursor:'pointer',
