@@ -19,6 +19,62 @@ const IMAGE_STYLES = [
 
 function log_fn(s) { return m => s(p => [`${new Date().toLocaleTimeString()} ${m}`,...p].slice(0,20)); }
 
+// ── PinyinGrid: 占格作业风布局（一字一格，拼音在格子顶部） ───────────────────
+function PinyinGrid({ line, lineIndex, pinyinArr, onChange }) {
+  // Strip punctuation for character iteration but keep pinyin slots aligned.
+  // Convention: pinyin_map stores ONE pinyin per non-punctuation character,
+  // so we count non-punctuation chars as the grid columns.
+  const PUNCT = /[\s，。！？、；：""''「」『』《》（）()\.\,\!\?\;\:]/u;
+  const chars = Array.from(line || '');
+  const nonPunctChars = chars.filter(c => !PUNCT.test(c));
+
+  // Ensure pinyinArr length matches non-punct chars (pad with empty strings).
+  const pinyins = (pinyinArr || []).slice(0, nonPunctChars.length);
+  while (pinyins.length < nonPunctChars.length) pinyins.push('');
+
+  function setPinyin(i, val) {
+    const next = [...pinyins];
+    next[i] = val;
+    onChange(lineIndex, next);
+  }
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 9, color: '#a07850', marginBottom: 3 }}>第 {lineIndex + 1} 句</div>
+      <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        {nonPunctChars.map((ch, i) => (
+          <div key={i} style={{
+            display: 'flex', flexDirection: 'column',
+            border: '1px solid #d4b88e', borderRadius: 4,
+            background: '#fffef5', minWidth: 56, overflow: 'hidden',
+          }}>
+            <input
+              value={pinyins[i] || ''}
+              onChange={(e) => setPinyin(i, e.target.value)}
+              placeholder="—"
+              spellCheck={false}
+              style={{
+                padding: '4px 2px', fontSize: 11, textAlign: 'center',
+                border: 'none', borderBottom: '1px solid #e8d5b0',
+                background: '#fff8e1', fontFamily: 'ui-monospace, monospace',
+                color: '#6b4c2a', width: '100%', boxSizing: 'border-box',
+                outline: 'none',
+              }}
+            />
+            <div style={{
+              padding: '6px 4px', fontSize: 22, textAlign: 'center',
+              fontFamily: "'STKaiti','KaiTi',serif", color: '#1a0a05',
+              letterSpacing: 0, lineHeight: 1,
+            }}>
+              {ch}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function PoetryAdminTab() {
   const [poems,     setPoems]     = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -39,6 +95,7 @@ export default function PoetryAdminTab() {
   const [preview, setPreview] = useState(null);
   const [imgLoading, setImgLoading] = useState({});
   const [batchIllustLoading, setBatchIllustLoading] = useState(false);
+  const [pinyinRegenLoading, setPinyinRegenLoading] = useState(false);
   const [imgProvider,setImgProvider]= useState('stability');
   const [imgStyle,   setImgStyle]   = useState('ink');
   const [textProvider,setTextProvider]= useState('claude');
@@ -291,6 +348,7 @@ export default function PoetryAdminTab() {
       title:p.title||'', title_en:p.title_en||'', title_it:p.title_it||'', author:p.author||'',
       dynasty:p.dynasty||'唐', type:p.type||'',  difficulty:p.difficulty||2,
       lines:p.lines||['','','',''],
+      pinyin_map: p.pinyin_map || {},
       translation_zh:p.translation_zh||'', translation_en:p.translation_en||'',
       translation_it:p.translation_it||'',
       notes_zh:p.notes_zh||'', notes_en:p.notes_en||'', notes_it:p.notes_it||'',
@@ -342,6 +400,45 @@ export default function PoetryAdminTab() {
       setPoems(prev=>prev.map(x=>x.id===p.id?{...x,...obj}:x));
       log(`✓ 《${p.title}》全部补全完成`);
     } catch(e) { log(`✗ ${e.message}`); }
+  }
+
+  // ── AI regenerate pinyin for a single poem (uses editForm.lines as source) ─
+  async function regenPinyin() {
+    const provDef = TEXT_PROVIDERS.find(x=>x.id===textProvider);
+    const key = localStorage.getItem(`admin_key_${provDef?.keyId||textProvider}`);
+    if (!key) { log(`⚠️ 请先保存 ${provDef?.label} key`); return; }
+    const lines = (editForm.lines||[]).filter(l=>l.trim());
+    if (lines.length === 0) { log('⚠️ 没有诗句，先输入诗句再生成拼音'); return; }
+    setPinyinRegenLoading(true);
+    log(`🤖 [${provDef?.label}] 重新生成拼音 (${lines.length} 句)…`);
+    try {
+      const linesNumbered = lines.map((l,i) => `Line ${i}: ${l}`).join('\n');
+      const prompt = await getPrompt('poem_pinyin_regen', { lines_numbered: linesNumbered });
+      const res = await fetch('/.netlify/functions/ai-gateway', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          action:'generate_text', provider:textProvider, client_key:key, max_tokens:1500, prompt,
+        }),
+      });
+      const bodyText = await res.text();
+      if (!bodyText.trim()) throw new Error('网关返回空响应');
+      const d = JSON.parse(bodyText);
+      if (d.error) throw new Error(d.error);
+      const rawResult = (d.result||d.content||'').trim();
+      if (!rawResult) throw new Error('AI 返回空内容');
+      const newPinyinMap = parseTolerant(rawResult);
+      if (!newPinyinMap || typeof newPinyinMap !== 'object') {
+        throw new Error('返回的不是 object');
+      }
+      // Normalize keys to strings (AI might return number keys)
+      const normalized = {};
+      Object.keys(newPinyinMap).forEach(k => {
+        if (Array.isArray(newPinyinMap[k])) normalized[String(k)] = newPinyinMap[k];
+      });
+      setEditForm(f => ({ ...f, pinyin_map: normalized }));
+      log(`✓ 拼音已重新生成 (${Object.keys(normalized).length} 行)`);
+    } catch(e) { log(`✗ ${e.message}`); }
+    setPinyinRegenLoading(false);
   }
 
   // (Old jgw_poems SQL hint removed — table is now clf_poems, schema lives in clf_schema.sql)
@@ -619,6 +716,41 @@ export default function PoetryAdminTab() {
                     <button onClick={()=>setEditForm(f=>({...f,lines:[...(f.lines||[]),'']}))}
                       style={{ fontSize:11, color:GOLD, background:'none', border:`1px dashed ${GOLD}`,
                         borderRadius:8, padding:'4px 12px', cursor:'pointer', marginTop:4 }}>+ 加一句</button>
+                  </div>
+
+                  {/* ── Pinyin grid (占格作业风) ── */}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:GOLD }}>🔤 拼音 Pinyin</div>
+                    <button onClick={regenPinyin} disabled={pinyinRegenLoading}
+                      style={{ padding:'4px 10px', fontSize:10, borderRadius:6,
+                        border:`1px solid ${GOLD}66`,
+                        background: pinyinRegenLoading ? '#eee' : '#fff8e1',
+                        color: pinyinRegenLoading ? '#999' : GOLD,
+                        cursor: pinyinRegenLoading ? 'wait' : 'pointer', fontWeight:600 }}
+                      title={`用 ${textProvider} 根据当前诗句重新生成拼音`}>
+                      {pinyinRegenLoading ? '⏳ 生成中…' : '✨ AI 重新生成拼音'}
+                    </button>
+                  </div>
+                  <div style={{ marginBottom:14, padding:'10px 12px', background:'#fdf6e3',
+                    border:`1px solid ${V.border}`, borderRadius:8 }}>
+                    {(editForm.lines||[]).filter(l=>l.trim()).length === 0 ? (
+                      <div style={{ fontSize:11, color:V.text3, fontStyle:'italic' }}>
+                        先输入诗句后才能编辑拼音
+                      </div>
+                    ) : (
+                      (editForm.lines||[]).map((line, i) => line.trim() ? (
+                        <PinyinGrid
+                          key={i}
+                          line={line}
+                          lineIndex={i}
+                          pinyinArr={(editForm.pinyin_map||{})[String(i)] || []}
+                          onChange={(idx, arr) => setEditForm(f => ({
+                            ...f,
+                            pinyin_map: { ...(f.pinyin_map||{}), [String(idx)]: arr },
+                          }))}
+                        />
+                      ) : null)
+                    )}
                   </div>
 
                   {/* ── Translations ── */}
