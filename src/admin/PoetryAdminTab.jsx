@@ -24,7 +24,10 @@ function PinyinGrid({ line, lineIndex, pinyinArr, onChange }) {
   // Strip punctuation for character iteration but keep pinyin slots aligned.
   // Convention: pinyin_map stores ONE pinyin per non-punctuation character,
   // so we count non-punctuation chars as the grid columns.
-  const PUNCT = /[\s，。！？、；：""''「」『』《》（）()\.\,\!\?\;\:]/u;
+  // Match all whitespace + Chinese & ASCII punctuation. NOTE: kept simple
+  // (no /u flag) to avoid "Invalid escape" build errors — under /u flag,
+  // ASCII punct (. , ! ? ; :) cannot be backslash-escaped inside char class.
+  const PUNCT = /[\s，。！？、；：""''「」『』《》（）().,!?;:]/;
   const chars = Array.from(line || '');
   const nonPunctChars = chars.filter(c => !PUNCT.test(c));
 
