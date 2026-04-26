@@ -1,6 +1,6 @@
 // netlify/functions/batch-generate-illustrations-background.js
 //
-// 批量为字符 OR 词语生成插画
+// 批量为字符 / 词语 / 诗词生成插画
 // BACKGROUND FUNCTION — 可能运行 10-30 分钟, 取决于条数 + 模型
 //
 // 输入 (POST body):
@@ -19,19 +19,29 @@
 //       target_type: 'word',
 //       word_ids?: [...]              // 直接指定 (优先)
 //       filter?: { theme, limit, only_missing, only_illustratable }
-//       only_missing?: true           // 用于 word_ids 模式
-//       only_illustratable?: true     // 用于 word_ids 模式
+//       only_missing?: true
+//       only_illustratable?: true
 //       provider: 'stability' | 'dalle3'
 //       style: 'flashcard' | 'photo' | 'emoji' | 'cartoon' | 'abstract'
 //     }
 //
-// 流程对两种 target 都一样:
-//   1. 查目标表 (jgw_characters 或 clf_words)
+//   poem batch (target_type === 'poem'):
+//     {
+//       target_type: 'poem',
+//       poem_ids?: [...]              // 直接指定 (优先)
+//       filter?: { dynasty, type, limit, only_missing, active_only }
+//       only_missing?: true
+//       provider: 'stability' | 'dalle3'
+//       style: 'ink' | 'classical' | 'atmospheric' | 'modern'
+//     }
+//
+// 流程对所有 target 都一样:
+//   1. 查目标表 (jgw_characters / clf_words / clf_poems)
 //   2. 创建 batch job (character_extraction_jobs 表, extraction_method 区分)
 //   3. 每条:
-//      - 构造 prompt (char: meaning-centric, word: 从 clf_prompt_templates 读)
+//      - 构造 prompt (从 clf_prompt_templates 读, 代码 fallback 兜底)
 //      - 调生图 API
-//      - 上传到 Storage (illustrations 或 word-illustrations bucket)
+//      - 上传到 Storage (illustrations / word-illustrations / poem-images bucket)
 //      - UPDATE 目标表的 image_url
 //      - 更新 job.total_added (作为进度计数)
 //   4. 完成时 status=complete
@@ -59,6 +69,16 @@ const WORD_DEFAULT_STYLE_PROMPTS = {
   abstract:  'Abstract minimalist illustration evoking the concept of "{meaning_en}". Geometric shapes, muted color palette, flat design, symbolic rather than literal. Suitable for modern educational material. No text.',
 };
 
+// Poem styles — fallback when DB read fails. Should match seed in
+// clf_prompt_templates_poem_migration.sql under keys poem_image_<style>.
+// Variables: {title}, {author}, {dynasty}, {theme_hint}
+const POEM_DEFAULT_STYLE_PROMPTS = {
+  ink:         'Traditional Chinese ink wash painting illustrating the poem "{title}" by {author} ({dynasty} dynasty). Theme: {theme_hint}. Atmospheric, monochrome with subtle color washes, brush stroke texture, vertical scroll composition. No Chinese characters or text.',
+  classical:   'Traditional Chinese gongbi painting illustrating the poem "{title}" by {author} ({dynasty} dynasty). Theme: {theme_hint}. Fine outline, mineral pigments, meticulous detail, decorative composition. No Chinese characters or text.',
+  atmospheric: 'Atmospheric mood-driven illustration evoking the emotional core of "{title}" by {author}. Theme: {theme_hint}. Painterly, cinematic, muted palette, light as main subject. No text.',
+  modern:      'Modern children\'s textbook illustration of the poem "{title}" by {author} ({dynasty} dynasty). Scene: {theme_hint}. Friendly cartoon-illustration style, warm colors, scene-based. No text. White or pastel background.',
+};
+
 const NEGATIVE_PROMPT = 'text, letters, words, writing, calligraphy, Chinese characters, glyphs, symbols, watermark, signature, logo, multiple subjects, collage, blurry, low quality, distorted, deformed';
 
 // ─── Main handler ─────────────────────────────────────────────────────────
@@ -84,10 +104,12 @@ export default async (req, context) => {
   );
 
   // Branch on target_type. Default to 'character' for backwards compatibility.
-  const targetType = body.target_type === 'word' ? 'word' : 'character';
+  const targetType = ['word','poem'].includes(body.target_type) ? body.target_type : 'character';
 
   if (targetType === 'word') {
     return runWordBatch(body, supabase);
+  } else if (targetType === 'poem') {
+    return runPoemBatch(body, supabase);
   } else {
     return runCharacterBatch(body, supabase);
   }
@@ -435,6 +457,190 @@ async function runWordBatch(body, supabase) {
     completed,
     errors: errors.length,
   });
+}
+
+// ─── Poem batch (NEW) ─────────────────────────────────────────────────────
+
+async function runPoemBatch(body, supabase) {
+  const {
+    poem_ids = null,
+    filter = {},
+    only_missing = true,
+    provider = 'stability',
+    style = 'ink',
+  } = body;
+
+  const {
+    dynasty = null,
+    type = null,
+    limit = 50,
+    active_only = true,
+  } = filter;
+
+  const effectiveOnlyMissing = (poem_ids && poem_ids.length > 0)
+    ? only_missing
+    : (filter.only_missing !== false);
+
+  // 1. Query poems
+  let poems;
+
+  if (poem_ids && poem_ids.length > 0) {
+    let query = supabase
+      .from('clf_poems')
+      .select('id, title, author, dynasty, type, lines, background_en, image_prompt, image_url, active')
+      .in('id', poem_ids);
+
+    if (effectiveOnlyMissing) query = query.is('image_url', null);
+
+    const { data, error: qErr } = await query;
+    if (qErr) return json({ error: 'query: ' + qErr.message }, 500);
+    poems = data || [];
+  } else {
+    let query = supabase
+      .from('clf_poems')
+      .select('id, title, author, dynasty, type, lines, background_en, image_prompt, image_url, active')
+      .limit(limit);
+
+    if (dynasty)              query = query.eq('dynasty', dynasty);
+    if (type)                 query = query.eq('type', type);
+    if (effectiveOnlyMissing) query = query.is('image_url', null);
+    if (active_only !== false) query = query.eq('active', true);
+
+    const { data, error: qErr } = await query;
+    if (qErr) return json({ error: 'query: ' + qErr.message }, 500);
+    poems = data || [];
+  }
+
+  if (poems.length === 0) {
+    return json({ error: 'no poems match filter' }, 404);
+  }
+
+  // 2. Resolve prompt template (DB → fallback to code DEFAULT)
+  const promptTpl = await resolvePoemPromptTemplate(style, supabase);
+
+  // 3. Create batch job
+  const jobLabel = (poem_ids && poem_ids.length > 0)
+    ? `Poem illustrations: ${poems.length} selected`
+    : `Poem illustrations: ${dynasty || 'all'}/${type || 'all'}`;
+
+  const { data: job, error: jobErr } = await supabase
+    .from('character_extraction_jobs')
+    .insert({
+      source_type: 'poem_illustration_batch',
+      source_label: jobLabel,
+      extraction_method: 'poem_illustration_batch',
+      status: 'extracting',
+      total_candidates: poems.length,
+      total_added: 0,
+      config: {
+        target_type: 'poem',
+        mode: (poem_ids && poem_ids.length > 0) ? 'selected' : 'filter',
+        poem_count: poem_ids?.length,
+        filter, provider, style,
+      },
+    })
+    .select()
+    .single();
+
+  if (jobErr) return json({ error: 'job: ' + jobErr.message }, 500);
+
+  // 4. Process each poem
+  let completed = 0;
+  const errors = [];
+
+  for (const p of poems) {
+    try {
+      // Build theme hint with same fallback chain as PoetryAdminTab single gen
+      const themeHint = p.image_prompt
+        || p.background_en
+        || (Array.isArray(p.lines) ? p.lines.slice(0, 2).join('. ') : '')
+        || `${p.dynasty || 'classical'} dynasty Chinese poem, atmospheric scene`;
+
+      const prompt = promptTpl
+        .replaceAll('{title}',      p.title || '')
+        .replaceAll('{author}',     p.author || '')
+        .replaceAll('{dynasty}',    p.dynasty || '')
+        .replaceAll('{theme_hint}', themeHint);
+
+      const imageBase64 = await generateImage(provider, prompt);
+      if (!imageBase64) {
+        errors.push({ poem: p.title, error: 'generation returned no image' });
+        continue;
+      }
+
+      const path = `${p.id}_${style}_${Date.now()}.png`;
+      const buffer = Buffer.from(imageBase64, 'base64');
+
+      const { error: upErr } = await supabase.storage
+        .from('poem-images')
+        .upload(path, buffer, { upsert: true, contentType: 'image/png' });
+
+      if (upErr) {
+        errors.push({ poem: p.title, error: 'upload: ' + upErr.message });
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('poem-images')
+        .getPublicUrl(path);
+
+      await supabase
+        .from('clf_poems')
+        .update({ image_url: publicUrl })
+        .eq('id', p.id);
+
+      completed++;
+      console.log(`[batch-illust poem] ${completed}/${poems.length}: ${p.title} -> OK`);
+
+      if (completed % 5 === 0 || completed === poems.length) {
+        await supabase
+          .from('character_extraction_jobs')
+          .update({ total_added: completed })
+          .eq('id', job.id);
+      }
+    } catch (err) {
+      console.error(`[batch-illust poem] ${p.title} error:`, err.message);
+      errors.push({ poem: p.title, error: err.message });
+    }
+  }
+
+  await supabase
+    .from('character_extraction_jobs')
+    .update({
+      status: 'complete',
+      total_added: completed,
+      total_skipped: errors.length,
+      completed_at: new Date().toISOString(),
+      error_message: errors.length > 0
+        ? `${errors.length} errors. First: ${errors[0]?.error || ''}`.substring(0, 500)
+        : null,
+    })
+    .eq('id', job.id);
+
+  return json({
+    target_type: 'poem',
+    job_id: job.id,
+    total: poems.length,
+    completed,
+    errors: errors.length,
+  });
+}
+
+// ─── Poem prompt resolver (DB → fallback) ─────────────────────────────────
+
+async function resolvePoemPromptTemplate(style, supabase) {
+  try {
+    const { data, error } = await supabase
+      .from('clf_prompt_templates')
+      .select('template')
+      .eq('key', `poem_image_${style}`)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.template) return data.template;
+  } catch (e) {
+    console.warn(`[batch-illust] DB fetch failed for poem_image_${style}, using code fallback:`, e.message);
+  }
+  return POEM_DEFAULT_STYLE_PROMPTS[style] || POEM_DEFAULT_STYLE_PROMPTS.ink;
 }
 
 // ─── Word prompt resolver (DB → fallback) ─────────────────────────────────

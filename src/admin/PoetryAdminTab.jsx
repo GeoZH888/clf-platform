@@ -1,11 +1,21 @@
 // src/admin/PoetryAdminTab.jsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { getPrompt } from '../lib/prompts.js';
+import { parseTolerant } from '../lib/json-utils.js';
 
 const V = { bg:'#fdf6e3',card:'#fff',border:'#e8d5b0',text:'#1a0a05',text2:'#6b4c2a',text3:'#a07850',verm:'#8B4513' };
 const GOLD = '#C8972A';
 const DYNASTIES = ['唐','宋','汉','元','明','清','先秦','魏晋','近代'];
 const TYPES = ['五言绝句','七言绝句','五言律诗','七言律诗','词','古风','其他'];
+
+// Image style presets — must match clf_prompt_templates keys: poem_image_<style>
+const IMAGE_STYLES = [
+  { id:'ink',          label:'🖌️ 水墨'   },
+  { id:'classical',    label:'🎨 工笔'   },
+  { id:'atmospheric',  label:'🌫️ 意境'   },
+  { id:'modern',       label:'📚 现代'   },
+];
 
 function log_fn(s) { return m => s(p => [`${new Date().toLocaleTimeString()} ${m}`,...p].slice(0,20)); }
 
@@ -22,12 +32,13 @@ export default function PoetryAdminTab() {
   const [genCount,  setGenCount]  = useState(3);
   const [showAdd,   setShowAdd]   = useState(false);
   const [addForm,   setAddForm]   = useState({
-    title:'', title_en:'', author:'', dynasty:'唐', type:'七言绝句', difficulty:2,
+    title:'', title_en:'', title_it:'', author:'', dynasty:'唐', type:'七言绝句', difficulty:2,
     lines:['','','',''], translation_zh:'', translation_en:'', translation_it:'',
-    notes_zh:'', notes_en:'', background_zh:'', background_en:'', active:true,
+    notes_zh:'', notes_en:'', notes_it:'', background_zh:'', background_en:'', background_it:'', active:true,
   });
   const [preview, setPreview] = useState(null);
   const [imgLoading, setImgLoading] = useState({});
+  const [batchIllustLoading, setBatchIllustLoading] = useState(false);
   const [imgProvider,setImgProvider]= useState('stability');
   const [imgStyle,   setImgStyle]   = useState('ink');
   const [textProvider,setTextProvider]= useState('claude');
@@ -50,49 +61,142 @@ export default function PoetryAdminTab() {
   ];
 
   async function generateImage(p) {
-    const providerKey = { stability:'stability', dalle3:'openai', ideogram:'ideogram' };
-    const key = localStorage.getItem(`admin_key_${providerKey[imgProvider]||imgProvider}`);
-    if (!key) { log(`⚠️ 请先保存 ${imgProvider} key`); return; }
     setImgLoading(prev=>({...prev,[p.id]:true}));
-    log(`🎨 生成《${p.title}》插图…`);
-    const prompt = p.image_prompt ||
-      `Traditional Chinese ink painting, ${p.dynasty} dynasty style, illustrating the poem "${p.title}" by ${p.author}. Atmospheric, serene, classical Chinese art, no text.`;
-    try {
-      const res = await fetch('/.netlify/functions/ai-gateway', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          action:'generate_image', provider:imgProvider==='dalle3'?'openai':imgProvider,
-          prompt, style:imgStyle, client_key:key,
-        }),
-      });
-      if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`${res.status}: ${t.slice(0,80)}`); }
-      const d = JSON.parse(await res.text());
-      if (d.error) throw new Error(d.error);
-      let imageUrl = d.url || (d.base64?`data:image/png;base64,${d.base64}`:'');
+    log(`🎨 [${imgProvider}/${imgStyle}] 生成《${p.title}》插图…`);
 
-      // Upload to Supabase storage bucket 'poem-images'
+    try {
+      // 1. Resolve prompt: if poem has its own image_prompt, use it as theme_hint;
+      //    otherwise fall back to background_en or first line of translation_en.
+      const themeHint = p.image_prompt
+        || p.background_en
+        || (Array.isArray(p.lines) ? p.lines.slice(0,2).join('. ') : '')
+        || `${p.dynasty} dynasty Chinese poem, atmospheric scene`;
+
+      const prompt = await getPrompt(`poem_image_${imgStyle}`, {
+        title:      p.title || '',
+        author:     p.author || '',
+        dynasty:    p.dynasty || '',
+        theme_hint: themeHint,
+      });
+
+      // 2. Generate image via correct provider path
+      let imageBase64 = null;
+      let imageUrl = null;
+
+      if (imgProvider === 'dalle3') {
+        const key = localStorage.getItem('admin_key_openai');
+        if (!key) throw new Error('需要在 🔑 API Keys 设置 OpenAI key');
+        const res = await fetch('https://api.openai.com/v1/images/generations', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
+          body: JSON.stringify({ model:'dall-e-3', prompt, n:1, size:'1024x1024', quality:'standard' }),
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message);
+        imageUrl = d.data?.[0]?.url;
+        if (!imageUrl) throw new Error('DALL-E 未返回图片 URL');
+      } else if (imgProvider === 'stability') {
+        const res = await fetch('/.netlify/functions/stability-proxy', {
+          method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({
+            prompt,
+            negative_prompt: 'text, watermark, blurry, Chinese characters, calligraphy, seal',
+            width: 1024, height: 1024,
+          }),
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
+        imageBase64 = d.image_base64 || null;
+        imageUrl = d.url || (imageBase64 ? `data:image/png;base64,${imageBase64}` : null);
+        if (!imageUrl) throw new Error('Stability 未返回图片');
+      } else {
+        // ideogram / flux / other → ai-gateway
+        const res = await fetch('/.netlify/functions/ai-gateway', {
+          method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ provider: imgProvider, prompt, type:'image' }),
+        });
+        const text = await res.text();
+        let d;
+        try { d = JSON.parse(text); }
+        catch { throw new Error(`服务器返回非 JSON: ${text.slice(0,200)}`); }
+        if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
+        imageUrl = d.url || d.image_url;
+        if (!imageUrl) throw new Error('ai-gateway 未返回图片 URL');
+      }
+
+      // 3. Upload to Supabase Storage (poem-images bucket)
       if (imageUrl.startsWith('http')) {
         const blob = await fetch(imageUrl).then(r=>r.blob());
-        const path = `${p.id}.png`;
+        const path = `${p.id}_${imgStyle}_${Date.now()}.png`;
         const { error:upErr } = await supabase.storage.from('poem-images').upload(path, blob, { upsert:true });
+        if (!upErr) {
+          const { data:{ publicUrl } } = supabase.storage.from('poem-images').getPublicUrl(path);
+          imageUrl = publicUrl;
+        } else {
+          log(`⚠️ 上传失败 (用 source URL 兜底): ${upErr.message.slice(0,60)}`);
+        }
+      } else if (imageBase64) {
+        // Stability returned raw base64 — upload directly
+        const buf = Uint8Array.from(atob(imageBase64), c=>c.charCodeAt(0));
+        const path = `${p.id}_${imgStyle}_${Date.now()}.png`;
+        const { error:upErr } = await supabase.storage.from('poem-images').upload(path, buf, { upsert:true, contentType:'image/png' });
         if (!upErr) {
           const { data:{ publicUrl } } = supabase.storage.from('poem-images').getPublicUrl(path);
           imageUrl = publicUrl;
         }
       }
 
-      await supabase.from('jgw_poems').update({ image_url:imageUrl }).eq('id',p.id);
+      // 4. Update clf_poems (NOT jgw_poems — that table is being deprecated)
+      const { error:updErr } = await supabase.from('clf_poems').update({ image_url: imageUrl }).eq('id', p.id);
+      if (updErr) throw new Error(`保存失败: ${updErr.message}`);
       setPoems(prev=>prev.map(x=>x.id===p.id?{...x,image_url:imageUrl}:x));
       log(`✓ 《${p.title}》插图已生成`);
-    } catch(e) { log(`✗ ${e.message}`); }
+    } catch(e) {
+      log(`✗ ${e.message}`);
+    }
     setImgLoading(prev=>({...prev,[p.id]:false}));
+  }
+
+  // ── Batch illustrate (calls background backend) ──────────────────────────
+  async function runBatchIllust() {
+    const missing = poems.filter(p => !p.image_url);
+    if (missing.length === 0) { log('所有诗词都已有插图'); return; }
+    if (!confirm(`将为 ${missing.length} 首缺图诗词批量生成插图\n` +
+                 `Provider: ${imgProvider}\n风格: ${imgStyle}\n` +
+                 `预计耗时约 ${Math.ceil(missing.length * 0.5)} 分钟。继续？`)) return;
+    setBatchIllustLoading(true);
+    log(`📤 提交批量任务 (${missing.length} 首, ${imgProvider}/${imgStyle})…`);
+    try {
+      const res = await fetch('/.netlify/functions/batch-generate-illustrations-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_type: 'poem',
+          poem_ids: missing.map(p => p.id),
+          provider: imgProvider,
+          style: imgStyle,
+        }),
+      });
+      // Background functions return 202 immediately; only the response body
+      // is meaningful for synchronous (small) batches.
+      if (res.ok || res.status === 202) {
+        log(`✅ 批量任务已提交 (${missing.length} 首)。后台运行约 ${Math.ceil(missing.length * 0.5)} 分钟。`);
+        log(`完成后刷新页面查看图片，或在 character_extraction_jobs 表查询进度。`);
+      } else {
+        const t = await res.text().catch(()=>'');
+        log(`✗ 提交失败 ${res.status}: ${t.slice(0,160)}`);
+      }
+    } catch (e) {
+      log(`✗ ${e.message}`);
+    }
+    setBatchIllustLoading(false);
   }
 
   useEffect(() => { loadPoems(); }, []);
 
   async function loadPoems() {
     setLoading(true);
-    const { data } = await supabase.from('jgw_poems').select('*').order('dynasty').order('sort_order');
+    const { data } = await supabase.from('clf_poems').select('*').order('dynasty').order('sort_order');
     setPoems(data||[]);
     setLoading(false);
   }
@@ -108,44 +212,29 @@ export default function PoetryAdminTab() {
     for (let i = 0; i < genCount; i++) {
       try {
         const existing = poems.map(p=>p.title).join('、');
+        const avoidBlock = existing
+          ? `Do NOT use any of these (already in database): ${existing.slice(0,200)}`
+          : '';
+        const prompt = await getPrompt('poem_text_generate', {
+          dynasty:    genDynasty,
+          type:       genType,
+          avoid_block: avoidBlock,
+          sort_order: poems.length + i + 1,
+        });
+
         const res = await fetch('/.netlify/functions/ai-gateway', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
-            action:'generate_text', provider:textProvider, client_key:key, max_tokens:1500,
-            prompt:`You are a Chinese poetry expert. Generate exactly 1 famous ${genDynasty}代 Chinese ${genType} poem suitable for language learners.
-${existing ? `Do NOT use any of these (already added): ${existing.slice(0,120)}` : ''}
-
-Respond with ONLY a JSON object. No explanation, no markdown, no code fences.
-Fields required:
-- title: poem title in Chinese
-- title_en: English title
-- author: poet name
-- dynasty: "${genDynasty}"
-- type: "${genType}"
-- difficulty: 2
-- lines: array of poem lines (each line as a string)
-- pinyin_map: object where key is line index (string), value is array of pinyin per character
-- translation_zh: modern Chinese translation
-- translation_en: English translation
-- translation_it: Italian translation
-- background_zh: historical context in Chinese, under 60 characters
-- background_en: historical context in English, under 50 words
-- background_it: historical context in Italian, under 50 words
-- notes_zh: vocabulary notes in Chinese, under 30 characters
-- notes_en: brief English notes
-- image_prompt: a concise English description for an ink painting illustration of this poem
-- sort_order: ${poems.length + i + 1}`,
+            action:'generate_text', provider:textProvider, client_key:key, max_tokens:1500, prompt,
           }),
         });
 
-        // Handle gateway errors
         if (!res.ok) {
           const errText = await res.text().catch(()=>'');
           log(`✗ 网关错误 ${res.status}: ${errText.slice(0,120)}`);
           continue;
         }
 
-        // Parse gateway response safely
         let d;
         try {
           const bodyText = await res.text();
@@ -155,43 +244,23 @@ Fields required:
           log(`✗ 网关响应解析失败: ${e.message.slice(0,80)}`);
           continue;
         }
-
         if (d.error) { log(`✗ AI错误: ${String(d.error).slice(0,100)}`); continue; }
 
         const rawText = (d.result || d.content || d.text || '').trim();
         if (!rawText) { log('✗ AI返回空内容'); continue; }
 
-        // Extract JSON — handle markdown code fences and leading text
-        let jsonStr = rawText.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-        // Find the JSON object boundaries
-        const start = jsonStr.indexOf('{');
-        const end   = jsonStr.lastIndexOf('}');
-        if (start === -1) { log('✗ 响应中未找到JSON'); continue; }
-        jsonStr = end > start ? jsonStr.slice(start, end+1) : jsonStr.slice(start);
-
-        // Attempt parse — if fails, try to repair truncated JSON
+        // Use shared tolerant parser (handles markdown fences, Chinese quotes,
+        // unescaped inner quotes, truncated JSON repair, etc.)
         let obj;
         try {
-          obj = JSON.parse(jsonStr);
-        } catch {
-          // Repair: find last complete key:value pair
-          try {
-            let fixed = jsonStr;
-            // Remove any trailing incomplete field
-            fixed = fixed.replace(/,\s*"[^"]*"\s*:\s*"[^"]*$/, '');
-            fixed = fixed.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, '');
-            fixed = fixed.replace(/,\s*$/, '');
-            if (!fixed.endsWith('}')) fixed += '}';
-            obj = JSON.parse(fixed);
-          } catch(e2) {
-            log(`✗ JSON解析失败: ${e2.message.slice(0,60)}`);
-            continue;
-          }
+          obj = parseTolerant(rawText);
+        } catch(e) {
+          log(`✗ JSON解析失败: ${e.message.slice(0,80)}`);
+          continue;
         }
-
         if (!obj?.title) { log('✗ 解析失败：缺少title字段'); continue; }
 
-        const { data: ins, error } = await supabase.from('jgw_poems')
+        const { data: ins, error } = await supabase.from('clf_poems')
           .upsert({ ...obj, active:true }, { onConflict:'title,author' }).select().maybeSingle();
         if (error) { log(`✗ ${error.message}`); continue; }
         if (ins) { setPoems(prev => [...prev.filter(p=>p.id!==ins.id), ins]); }
@@ -208,7 +277,7 @@ Fields required:
   // ── Manual add ─────────────────────────────────────────────────────────────
   async function addPoem() {
     if (!addForm.title.trim()) return;
-    const { data, error } = await supabase.from('jgw_poems')
+    const { data, error } = await supabase.from('clf_poems')
       .insert({ ...addForm, lines:addForm.lines.filter(l=>l.trim()), sort_order:poems.length+1 })
       .select().maybeSingle();
     if (!error && data) { setPoems(prev=>[data,...prev]); setShowAdd(false); }
@@ -219,12 +288,12 @@ Fields required:
   function startEdit(p) {
     setEditId(p.id);
     setEditForm({
-      title:p.title||'', title_en:p.title_en||'', author:p.author||'',
+      title:p.title||'', title_en:p.title_en||'', title_it:p.title_it||'', author:p.author||'',
       dynasty:p.dynasty||'唐', type:p.type||'',  difficulty:p.difficulty||2,
       lines:p.lines||['','','',''],
       translation_zh:p.translation_zh||'', translation_en:p.translation_en||'',
       translation_it:p.translation_it||'',
-      notes_zh:p.notes_zh||'', notes_en:p.notes_en||'',
+      notes_zh:p.notes_zh||'', notes_en:p.notes_en||'', notes_it:p.notes_it||'',
       background_zh:p.background_zh||'', background_en:p.background_en||'',
       background_it:p.background_it||'',
       image_prompt: p.image_prompt||'',
@@ -233,14 +302,14 @@ Fields required:
 
   async function saveEdit(id) {
     setEditSaving(true);
-    await supabase.from('jgw_poems').update(editForm).eq('id',id);
+    await supabase.from('clf_poems').update(editForm).eq('id',id);
     setPoems(prev=>prev.map(p=>p.id===id?{...p,...editForm}:p));
     setEditId(null); setEditSaving(false);
   }
 
   async function deletePoem(id,title) {
     if (!confirm(`删除《${title}》？`)) return;
-    await supabase.from('jgw_poems').delete().eq('id',id);
+    await supabase.from('clf_poems').delete().eq('id',id);
     setPoems(prev=>prev.filter(p=>p.id!==id));
   }
 
@@ -251,81 +320,52 @@ Fields required:
     if (!key) { log(`⚠️ 请先保存 ${provDef?.label} key`); return; }
     log(`🤖 [${provDef?.label}] 补全《${p.title}》翻译+拼音+背景…`);
     try {
+      const prompt = await getPrompt('poem_text_complete', {
+        title:        p.title || '',
+        author:       p.author || '',
+        lines_joined: (p.lines||[]).join(' / '),
+      });
       const res = await fetch('/.netlify/functions/ai-gateway', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          action:'generate_text', provider:textProvider, client_key:key, max_tokens:800,
-          prompt:`For the Chinese poem "${p.title}" by ${p.author}:
-Lines: ${(p.lines||[]).join(' / ')}
-Return ONLY JSON (no markdown):
-{
-  "pinyin_map":{"0":["pinyin","per","char"],"1":["..."]},
-  "translation_zh":"现代汉语逐句译文",
-  "translation_en":"English line-by-line translation",
-  "translation_it":"Traduzione italiana verso per verso",
-  "background_zh":"创作背景故事（100字，生动有趣）",
-  "background_en":"Historical background and story (80 words)",
-  "background_it":"Contesto storico e storia (80 parole)",
-  "notes_zh":"字词注释",
-  "image_prompt":"A traditional Chinese ink painting illustrating this poem, atmospheric, no text"
-}`,
+          action:'generate_text', provider:textProvider, client_key:key, max_tokens:800, prompt,
         }),
       });
       const bodyText = await res.text();
       if (!bodyText.trim()) throw new Error('网关返回空响应');
       const d = JSON.parse(bodyText);
       if (d.error) throw new Error(d.error);
-      const rawResult = (d.result||d.content||'').replace(/```json|```/g,'').trim();
-      const start = rawResult.indexOf('{'), end = rawResult.lastIndexOf('}');
-      if (start === -1 || end === -1) throw new Error('响应中未找到JSON');
-      const obj = JSON.parse(rawResult.slice(start, end+1));
-      await supabase.from('jgw_poems').update(obj).eq('id',p.id);
+      const rawResult = (d.result||d.content||'').trim();
+      if (!rawResult) throw new Error('AI 返回空内容');
+      const obj = parseTolerant(rawResult);
+      await supabase.from('clf_poems').update(obj).eq('id',p.id);
       setPoems(prev=>prev.map(x=>x.id===p.id?{...x,...obj}:x));
       log(`✓ 《${p.title}》全部补全完成`);
     } catch(e) { log(`✗ ${e.message}`); }
   }
 
-  // ── SQL hint ───────────────────────────────────────────────────────────────
-  const SQL = `CREATE TABLE IF NOT EXISTS jgw_poems (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  title text NOT NULL, title_en text, author text,
-  dynasty text, type text, difficulty int DEFAULT 2,
-  lines jsonb DEFAULT '[]',
-  pinyin_map jsonb DEFAULT '{}',
-  translation_zh text, translation_en text, translation_it text,
-  notes_zh text, notes_en text,
-  background_zh text, background_en text, background_it text,
-  image_url text, image_prompt text, audio_url text,
-  active boolean DEFAULT true, sort_order int DEFAULT 0,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(title, author)
-);
-ALTER TABLE jgw_poems ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon read poems" ON jgw_poems FOR SELECT TO anon USING (active=true);
-CREATE POLICY "anon write poems" ON jgw_poems FOR ALL TO anon USING (true) WITH CHECK (true);
-
--- Supabase Storage bucket (run in Supabase Dashboard → Storage):
--- Create bucket: poem-images (public: true)`;
+  // (Old jgw_poems SQL hint removed — table is now clf_poems, schema lives in clf_schema.sql)
 
 
   return (
     <div style={{ maxWidth:960 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
         <div style={{ fontSize:15, fontWeight:600, color:V.text }}>📜 诗歌管理 ({poems.length}首)</div>
-        <button onClick={()=>setShowAdd(s=>!s)}
-          style={{ padding:'6px 14px', borderRadius:8, border:`1px solid ${GOLD}`,
-            background:`${GOLD}15`, color:GOLD, fontSize:12, fontWeight:600, cursor:'pointer' }}>
-          ✏️ 手动添加
-        </button>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button onClick={runBatchIllust} disabled={batchIllustLoading}
+            style={{ padding:'6px 14px', borderRadius:8, border:`1px solid ${GOLD}`,
+              background: batchIllustLoading ? '#eee' : `${GOLD}15`, color:GOLD,
+              fontSize:12, fontWeight:600, cursor: batchIllustLoading ? 'wait' : 'pointer' }}
+            title={`批量为缺图诗词生成插图（用当前选中的 ${imgProvider} / ${imgStyle}）`}>
+            {batchIllustLoading ? '⏳ 提交中…' : '🎨 批量生图'}
+          </button>
+          <button onClick={()=>setShowAdd(s=>!s)}
+            style={{ padding:'6px 14px', borderRadius:8, border:`1px solid ${GOLD}`,
+              background:`${GOLD}15`, color:GOLD, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            ✏️ 手动添加
+          </button>
+        </div>
       </div>
-
-      {/* SQL hint */}
-      <details style={{ marginBottom:14, background:'#fff', border:`1px solid ${V.border}`, borderRadius:10 }}>
-        <summary style={{ padding:'8px 12px', cursor:'pointer', fontSize:12, color:V.text3, fontWeight:600 }}>
-          📋 SQL — 首次使用请创建表
-        </summary>
-        <pre style={{ padding:'0 12px 12px', fontSize:10, color:'#4A148C', overflow:'auto', lineHeight:1.6 }}>{SQL}</pre>
-      </details>
 
       {/* AI generation */}
       <div style={{ background:'#FFF8E1', border:`2px solid ${GOLD}44`, borderRadius:12,
@@ -649,14 +689,7 @@ CREATE POLICY "anon write poems" ON jgw_poems FOR ALL TO anon USING (true) WITH 
                         <label style={{ fontSize:10, color:V.text3, display:'block', marginBottom:3 }}>风格 Style</label>
                         <select value={imgStyle||'ink'} onChange={e=>setImgStyle(e.target.value)}
                           style={{ padding:'6px 8px', borderRadius:8, border:`1px solid ${GOLD}44`, fontSize:12 }}>
-                          {[
-                            {id:'ink',       label:'水墨 · Ink wash'},
-                            {id:'watercolor',label:'水彩 · Watercolor'},
-                            {id:'ukiyo',     label:'浮世绘 · Ukiyo-e'},
-                            {id:'gongbi',    label:'工笔 · Gongbi'},
-                            {id:'minimal',   label:'极简 · Minimal'},
-                            {id:'oil',       label:'油画 · Oil painting'},
-                          ].map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+                          {IMAGE_STYLES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
                         </select>
                       </div>
                       <button onClick={()=>generateImage({...p, image_prompt:editForm.image_prompt||p.image_prompt})}
