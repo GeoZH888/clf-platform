@@ -50,6 +50,7 @@ const MODULE_OPTIONS = [
   { id: 'words',    label: '📝 词语' },
   { id: 'grammar',  label: '📐 语法' },
   { id: 'chengyu',  label: '🐼 成语' },
+  { id: 'poetry',   label: '🪷 诗词' },
 ];
 
 function getKey(id) { return localStorage.getItem(`admin_key_${id}`) || ''; }

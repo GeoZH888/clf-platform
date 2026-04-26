@@ -103,8 +103,8 @@ const MODULES = [
     features: [
       { zh:'基础句式', en:'Basic sentences',     it:'Frasi base' },
       { zh:'讲解例句', en:'Examples & rules',    it:'Esempi e regole' },
-      { zh:'自适应难度', en:'Adaptive difficulty', it:'Difficoltà adattiva' },
-      { zh:'掌握度追踪', en:'Mastery tracking',   it:'Monitoraggio livello' },
+      { zh:'量身练习', en:'Adaptive difficulty', it:'Difficoltà adattiva' },
+      { zh:'进度查看', en:'Mastery tracking',   it:'Monitoraggio livello' },
     ],
     tag:      { zh:'结构', en:'Structure', it:'Struttura' },
     color:    '#F5E8E8',
