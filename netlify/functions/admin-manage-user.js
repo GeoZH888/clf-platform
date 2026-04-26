@@ -92,16 +92,30 @@ export async function handler(event) {
   // ── DELETE_USER ───────────────────────────────────────────────
   if (action === 'delete_user') {
     try {
-      // Delete auth.users (cascades to jgw_registrations.approved_user_id SET NULL
-      //                   and clf_quicklogin_tokens.user_id CASCADE)
+      // FIRST: capture the registration row id BEFORE deleting auth.users.
+      // The FK constraint on jgw_registrations.approved_user_id is
+      // ON DELETE SET NULL, so once we delete the auth user, the link is
+      // nulled and we can no longer find the registration by approved_user_id.
+      // This is what created zombie 'approved' rows in earlier versions.
+      const { data: reg } = await supabase
+        .from('jgw_registrations')
+        .select('id')
+        .eq('approved_user_id', user_id)
+        .maybeSingle();
+
+      // Delete auth.users (cascades to clf_quicklogin_tokens.user_id CASCADE,
+      // sets jgw_registrations.approved_user_id SET NULL)
       const { error: delErr } = await supabase.auth.admin.deleteUser(user_id);
       if (delErr) throw delErr;
 
-      // Also explicitly delete the registration record
-      await supabase
-        .from('jgw_registrations')
-        .delete()
-        .eq('approved_user_id', user_id);
+      // Now delete the registration by its captured id (don't use
+      // approved_user_id — that column is now NULL after the cascade)
+      if (reg?.id) {
+        await supabase
+          .from('jgw_registrations')
+          .delete()
+          .eq('id', reg.id);
+      }
 
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
     } catch (err) {
