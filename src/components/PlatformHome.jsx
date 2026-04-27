@@ -201,16 +201,31 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
 
   // All registered modules are shown. If per-user permissions become a
   // requirement later, re-introduce an allowedModules filter here.
-  const { isEnabled } = useUserModules(userId);
-  const visibleModules = MODULES.filter(m => isEnabled(m.id) || m.id === 'lianzi');
+  const visibleModules = MODULES;
   // Fetch panda assets once per session. For each module:
   //   1. If a row in jgw_panda_assets has module_id matching the module → use it
   //   2. Otherwise, fall back to deterministic hash of module id over all pandas
   // This means admins can pin specific pandas in PandaStudio, but unassigned
   // modules still get a stable random panda.
   const [pandaMap, setPandaMap] = useState(PANDA_CACHE);
+  const [refetchKey, setRefetchKey] = useState(0);
+
+  // Invalidate cache when admin saves a panda assignment elsewhere in the app
   useEffect(() => {
-    if (PANDA_CACHE) return;   // already fetched this session
+    function handleUpdate() {
+      PANDA_CACHE = null;
+      setRefetchKey(k => k + 1);
+    }
+    window.addEventListener('panda-assets-updated', handleUpdate);
+    return () => window.removeEventListener('panda-assets-updated', handleUpdate);
+  }, []);
+
+  useEffect(() => {
+    // Skip fetch only on initial mount when cache is already populated
+    if (PANDA_CACHE && refetchKey === 0) {
+      setPandaMap(PANDA_CACHE);
+      return;
+    }
 
     (async () => {
       try {
@@ -258,7 +273,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refetchKey]);
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 40 }}>

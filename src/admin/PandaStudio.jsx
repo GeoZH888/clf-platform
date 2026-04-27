@@ -210,7 +210,13 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
     const { error } = await supabase.from('jgw_panda_assets')
       .upsert(payload, { onConflict:'emotion' });
     if (error) { setStatus('❌ ' + error.message); }
-    else { setSavedUrl(url); setGenUrl(null); setStatus('✅ 已保存为正式'); onSaved?.(); }
+    else {
+      setSavedUrl(url);
+      setGenUrl(null);
+      setStatus('✅ 已保存为正式');
+      window.dispatchEvent(new Event('panda-assets-updated'));
+      onSaved?.();
+    }
     setLoading(false);
   }
 
@@ -233,6 +239,7 @@ function EmotionCard({ emotion, provider, onSaved, onDeleted }) {
     if (error) { setStatus('❌ ' + error.message); }
     else {
       setStatus(newModuleId ? `✅ 已分配给 ${newModuleId}` : '✅ 已取消分配');
+      window.dispatchEvent(new Event('panda-assets-updated'));
       onSaved?.();
     }
   }
