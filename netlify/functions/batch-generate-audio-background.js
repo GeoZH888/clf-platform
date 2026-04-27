@@ -29,8 +29,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const azureKey       = process.env.AZURE_TTS_KEY;
-const azureRegion    = process.env.AZURE_TTS_REGION || 'westeurope';
+const azureKey       = process.env.AZURE_SPEECH_KEY    || process.env.AZURE_TTS_KEY;
+const azureRegion    = process.env.AZURE_SPEECH_REGION || process.env.AZURE_TTS_REGION || 'westeurope';
 
 // Voice map — must match tts-generate.js
 const VOICE_MAP = {
@@ -110,7 +110,7 @@ export default async (req, context) => {
   }
 
   if (!azureKey) {
-    return json({ error: 'AZURE_TTS_KEY not set in Netlify env vars' }, 500);
+    return json({ error: 'AZURE_SPEECH_KEY (or AZURE_TTS_KEY) not set in Netlify env vars' }, 500);
   }
 
   let body;

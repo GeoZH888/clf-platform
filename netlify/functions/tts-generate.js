@@ -16,8 +16,8 @@
 // Auth: requires admin JWT (same pattern as admin-create-user.js)
 //
 // Env vars needed:
-//   AZURE_TTS_KEY     — your Speech Service key
-//   AZURE_TTS_REGION  — e.g. 'westeurope', 'eastus'
+//   AZURE_SPEECH_KEY (or legacy AZURE_TTS_KEY) — your Speech Service key
+//   AZURE_SPEECH_REGION (or legacy AZURE_TTS_REGION) — e.g. 'westeurope', 'eastus'
 //   VITE_SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
 
@@ -25,8 +25,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const azureKey       = process.env.AZURE_TTS_KEY;
-const azureRegion    = process.env.AZURE_TTS_REGION || 'westeurope';
+const azureKey       = process.env.AZURE_SPEECH_KEY    || process.env.AZURE_TTS_KEY;
+const azureRegion    = process.env.AZURE_SPEECH_REGION || process.env.AZURE_TTS_REGION || 'westeurope';
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -149,7 +149,7 @@ export async function handler(event) {
   // Validate env
   if (!azureKey) {
     return { statusCode: 500, headers, body: JSON.stringify({
-      error: 'AZURE_TTS_KEY not set in Netlify env vars',
+      error: 'AZURE_SPEECH_KEY (or AZURE_TTS_KEY) not set in Netlify env vars',
     })};
   }
 
