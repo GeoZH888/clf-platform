@@ -20,7 +20,7 @@
 //     是   (shì)      → word_shi_4e8b.png
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI providers (matches ai-gateway.js expected `provider` values)
