@@ -1,9 +1,12 @@
 // src/admin/RiddleAdminTab.jsx
 //
-// 灯谜管理 admin tab — review pending AI-generated riddles, see ratings,
+// 灯谜管理 admin tab — review pending AI-generated riddles, manage images,
 // manually trigger generation, edit/approve/reject.
 //
-// Mounts inside AdminApp tab switcher: {tab==='riddles' && <RiddleAdminTab/>}
+// NEW in this version:
+//   - Image preview thumbnails per riddle (illustration + answer)
+//   - 🎨 button to (re)generate images per riddle
+//   - Modal viewer for full-size images
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -21,7 +24,8 @@ export default function RiddleAdminTab() {
   const [tab, setTab]               = useState('pending');
   const [riddles, setRiddles]       = useState([]);
   const [loading, setLoading]       = useState(false);
-  const [editing, setEditing]       = useState(null);  // riddle being edited
+  const [editing, setEditing]       = useState(null);
+  const [imageViewing, setImageViewing] = useState(null); // {riddle, type}
   const [genLevel, setGenLevel]     = useState(1);
   const [genCount, setGenCount]     = useState(3);
   const [generating, setGenerating] = useState(false);
@@ -29,8 +33,18 @@ export default function RiddleAdminTab() {
   const [stats, setStats]           = useState({ pending: 0, approved: 0, rejected: 0, low: 0 });
   const [msg, setMsg]               = useState(null);
 
-  // ── Load on tab change ────────────────────────────────────────────────────
   useEffect(() => { loadRiddles(); loadStats(); }, [tab]);
+
+  // Auto-refresh approved tab every 8s while images are still being generated
+  useEffect(() => {
+    if (tab !== 'approved') return;
+    const hasPending = riddles.some(r =>
+      (!r.illustration_url || !r.answer_image_url) && r.source === 'ai_generated'
+    );
+    if (!hasPending) return;
+    const t = setTimeout(() => loadRiddles(), 8000);
+    return () => clearTimeout(t);
+  }, [riddles, tab]);
 
   async function loadRiddles() {
     setLoading(true);
@@ -40,10 +54,10 @@ export default function RiddleAdminTab() {
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (tab === 'pending')  q = q.eq('status', 'pending');
+    if (tab === 'pending')       q = q.eq('status', 'pending');
     else if (tab === 'approved') q = q.eq('status', 'approved').eq('source', 'ai_generated');
     else if (tab === 'rejected') q = q.eq('status', 'rejected');
-    else if (tab === 'low') q = q.gte('downvotes', 2);
+    else if (tab === 'low')      q = q.gte('downvotes', 2);
 
     const { data, error } = await q;
     if (error) setMsg({ kind: 'error', text: error.message });
@@ -66,7 +80,6 @@ export default function RiddleAdminTab() {
     });
   }
 
-  // ── Approve / reject / delete ─────────────────────────────────────────────
   async function setStatus(id, status) {
     const { error } = await supabase
       .from('clf_riddles')
@@ -107,7 +120,32 @@ export default function RiddleAdminTab() {
     }
   }
 
-  // ── Manual batch generation ───────────────────────────────────────────────
+  async function regenerateImage(riddle, type) {
+    setMsg({ kind: 'info', text: `正在生成 ${type === 'illustration' ? '插图' : '答案图'}...` });
+    try {
+      const res = await fetch('/.netlify/functions/generate-riddle-images', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ riddle_id: riddle.id, type, force: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      setMsg({ kind: 'success', text: `${type === 'illustration' ? '插图' : '答案图'}生成成功` });
+      loadRiddles();
+    } catch (err) {
+      setMsg({ kind: 'error', text: `生成失败: ${err.message}` });
+    }
+  }
+
+  async function regenerateBothImages(riddle) {
+    setMsg({ kind: 'info', text: '正在生成图片...' });
+    await Promise.all([
+      regenerateImage(riddle, 'illustration'),
+      regenerateImage(riddle, 'answer'),
+    ]);
+    loadRiddles();
+  }
+
   async function generateBatch() {
     setGenerating(true);
     setGenLog([]);
@@ -118,19 +156,19 @@ export default function RiddleAdminTab() {
         const res = await fetch('/.netlify/functions/generate-riddle', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ level: genLevel, action: 'generate', force_new: true }),
+          body:    JSON.stringify({ level: genLevel, action: 'generate', force_new: true }),
         });
         const data = await res.json();
 
         if (data.riddle && data.source === 'ai_generated') {
           okCount++;
-          setGenLog(log => [...log, `✓ #${i+1} 已批准: ${data.riddle.riddle_text} → ${data.riddle.answer}`]);
+          setGenLog(log => [...log, `✓ #${i+1} 已批准: ${data.riddle.riddle_text} → ${data.riddle.answer} (图片生成中...)`]);
         } else if (data.rejected) {
           pendingCount++;
           setGenLog(log => [...log, `⚠ #${i+1} 待审核: ${data.rejected.riddle_text} → ${data.rejected.answer}`]);
         } else {
           errCount++;
-          setGenLog(log => [...log, `✗ #${i+1} 失败: ${data.error || data.note || '未知错误'}`]);
+          setGenLog(log => [...log, `✗ #${i+1} 失败 (HTTP ${res.status}): ${data.error || data.note || '未知错误'}`]);
         }
       } catch (err) {
         errCount++;
@@ -140,14 +178,13 @@ export default function RiddleAdminTab() {
 
     setMsg({
       kind: errCount === 0 ? 'success' : 'info',
-      text: `生成完成: ${okCount} 已批准 / ${pendingCount} 待审核 / ${errCount} 失败`,
+      text: `生成完成: ${okCount} 已批准 / ${pendingCount} 待审核 / ${errCount} 失败. 图片正在后台生成 (约15秒)`,
     });
     setGenerating(false);
     loadRiddles();
     loadStats();
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={S.root}>
       <div style={S.titleBar}>
@@ -160,7 +197,6 @@ export default function RiddleAdminTab() {
         </div>
       </div>
 
-      {/* Generation panel */}
       <div style={S.genPanel}>
         <div style={S.genControls}>
           <label style={S.label}>难度</label>
@@ -186,7 +222,6 @@ export default function RiddleAdminTab() {
         )}
       </div>
 
-      {/* Tabs */}
       <div style={S.tabs}>
         {TABS.map(t => (
           <button
@@ -200,10 +235,11 @@ export default function RiddleAdminTab() {
       </div>
 
       {msg && (
-        <div style={msg.kind === 'error' ? S.statusError : S.statusSuccess}>{msg.text}</div>
+        <div style={msg.kind === 'error' ? S.statusError : msg.kind === 'info' ? S.statusInfo : S.statusSuccess}>
+          {msg.text}
+        </div>
       )}
 
-      {/* Riddles list */}
       {loading ? (
         <div style={S.empty}>加载中...</div>
       ) : riddles.length === 0 ? (
@@ -218,12 +254,15 @@ export default function RiddleAdminTab() {
               onReject={()  => setStatus(r.id, 'rejected')}
               onEdit={()    => setEditing({...r})}
               onDelete={()  => deleteRiddle(r.id)}
+              onRegenIllu={() => regenerateImage(r, 'illustration')}
+              onRegenAns={()  => regenerateImage(r, 'answer')}
+              onRegenBoth={() => regenerateBothImages(r)}
+              onViewImg={(type) => setImageViewing({ riddle: r, type })}
             />
           ))}
         </div>
       )}
 
-      {/* Edit modal */}
       {editing && (
         <div style={S.modalBackdrop} onClick={() => setEditing(null)}>
           <div style={S.modal} onClick={(e) => e.stopPropagation()}>
@@ -281,16 +320,32 @@ export default function RiddleAdminTab() {
           </div>
         </div>
       )}
+
+      {/* Full-size image viewer */}
+      {imageViewing && (
+        <ImageViewerModal
+          riddle={imageViewing.riddle}
+          type={imageViewing.type}
+          onClose={() => setImageViewing(null)}
+          onRegenerate={async () => {
+            await regenerateImage(imageViewing.riddle, imageViewing.type);
+            setImageViewing(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ── Row component ────────────────────────────────────────────────────────────
-function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete }) {
+function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onRegenIllu, onRegenAns, onRegenBoth, onViewImg }) {
+  const hasIllu = !!riddle.illustration_url;
+  const hasAns  = !!riddle.answer_image_url;
+
   return (
     <div style={S.row}>
       <div style={S.rowMain}>
-        <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap'}}>
           <span style={S.levelBadge}>{LEVEL_LABELS[riddle.level]}</span>
           {riddle.source === 'ai_generated' && (
             <span style={{...S.tag, background: '#E8F5E9', color: '#2E7D32'}}>AI</span>
@@ -309,7 +364,34 @@ function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete }) {
           {riddle.explanation && <span style={S.rowExpl}> · {riddle.explanation}</span>}
         </div>
       </div>
+
+      {/* Image previews */}
+      <div style={S.imageCol}>
+        <ImageThumb
+          url={riddle.illustration_url}
+          label="插图"
+          onClick={() => hasIllu && onViewImg('illustration')}
+          onGenerate={onRegenIllu}
+        />
+        <ImageThumb
+          url={riddle.answer_image_url}
+          label="答案图"
+          onClick={() => hasAns && onViewImg('answer')}
+          onGenerate={onRegenAns}
+        />
+      </div>
+
       <div style={S.rowActions}>
+        {(!hasIllu || !hasAns) && (
+          <button onClick={onRegenBoth} style={S.btnImage} title="生成所有图片">
+            🎨 生成
+          </button>
+        )}
+        {(hasIllu && hasAns) && (
+          <button onClick={onRegenBoth} style={S.btnImageSubtle} title="重新生成所有图片">
+            🎨 重生
+          </button>
+        )}
         {riddle.status === 'pending' && (
           <>
             <button onClick={onApprove} style={S.btnApprove}>✓ 批准</button>
@@ -329,9 +411,54 @@ function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete }) {
   );
 }
 
+// Small image thumbnail with generate-if-missing fallback
+function ImageThumb({ url, label, onClick, onGenerate }) {
+  if (url) {
+    return (
+      <button onClick={onClick} style={S.thumbBtn} title={`点击查看${label}大图`}>
+        <img src={url} alt={label} style={S.thumbImg} />
+        <span style={S.thumbLabel}>{label}</span>
+      </button>
+    );
+  }
+  return (
+    <button onClick={onGenerate} style={S.thumbEmpty} title={`点击生成${label}`}>
+      <span style={{ fontSize: 16 }}>🎨</span>
+      <span style={S.thumbLabel}>{label}</span>
+    </button>
+  );
+}
+
+// Full-size image viewer modal
+function ImageViewerModal({ riddle, type, onClose, onRegenerate }) {
+  const url = type === 'illustration' ? riddle.illustration_url : riddle.answer_image_url;
+  const label = type === 'illustration' ? '插图 (谜面)' : '答案图 (谜底)';
+  return (
+    <div style={S.modalBackdrop} onClick={onClose}>
+      <div style={{...S.modal, maxWidth: 600}} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 16 }}>{label}</h3>
+          <button onClick={onClose} style={S.btnSecondary}>✕</button>
+        </div>
+        <div style={{ marginBottom: 12, fontSize: 13, color: '#666' }}>
+          <strong>{riddle.riddle_text}</strong> → <strong>{riddle.answer}</strong>
+        </div>
+        {url ? (
+          <img src={url} alt={label} style={{ width: '100%', borderRadius: 8, marginBottom: 12 }} />
+        ) : (
+          <div style={{ ...S.empty, marginBottom: 12 }}>暂无图片</div>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onRegenerate} style={S.btnPrimary}>🎨 重新生成</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Styles ───────────────────────────────────────────────────────────────────
 const S = {
-  root: { padding: 20, maxWidth: 1100, margin: '0 auto' },
+  root: { padding: 20, maxWidth: 1200, margin: '0 auto' },
   titleBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 },
   title: { margin: 0, fontSize: 22, color: '#C62828' },
   statsBar: { display: 'flex', gap: 8, flexWrap: 'wrap' },
@@ -344,20 +471,32 @@ const S = {
   tabBtn: { padding: '10px 18px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', fontSize: 14, color: '#666', fontWeight: 500 },
   tabBtnActive: { fontWeight: 600 },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  row: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: 14, background: '#fff', border: '1px solid #eee', borderRadius: 8, gap: 12 },
-  rowMain: { flex: 1, minWidth: 0 },
+  row: { display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'flex-start', padding: 14, background: '#fff', border: '1px solid #eee', borderRadius: 8 },
+  rowMain: { minWidth: 0 },
   rowText: { fontSize: 15, color: '#333', marginBottom: 4, fontFamily: '"Noto Serif SC", serif' },
   rowAnswer: { fontSize: 13, color: '#666' },
   rowExpl: { color: '#999', fontSize: 12 },
-  rowActions: { display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 },
+  imageCol: { display: 'flex', gap: 6, alignItems: 'flex-start' },
+  rowActions: { display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignSelf: 'center' },
   levelBadge: { padding: '2px 8px', background: '#FFEBEE', color: '#C62828', borderRadius: 10, fontSize: 11, fontWeight: 600 },
   tag:        { padding: '2px 8px', borderRadius: 10, fontSize: 11 },
-  votes:      { fontSize: 12, color: '#888', marginLeft: 'auto' },
+  votes:      { fontSize: 12, color: '#888' },
   empty: { padding: 40, textAlign: 'center', color: '#999' },
 
-  label: { fontSize: 12, fontWeight: 600, color: '#A0522D', marginRight: 6 },
-  select: { padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, fontSize: 14, fontFamily: 'inherit' },
-  textarea: { width: '100%', padding: 10, border: '1px solid #ccc', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', marginBottom: 12 },
+  // Image thumb buttons
+  thumbBtn: {
+    width: 60, height: 60, padding: 0, border: '1px solid #ddd', borderRadius: 6,
+    background: '#fff', cursor: 'pointer', overflow: 'hidden', position: 'relative',
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+  },
+  thumbImg: { width: '100%', height: 44, objectFit: 'cover', display: 'block' },
+  thumbEmpty: {
+    width: 60, height: 60, padding: 0, border: '1px dashed #ccc', borderRadius: 6,
+    background: '#FAFAFA', cursor: 'pointer',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    color: '#999',
+  },
+  thumbLabel: { fontSize: 9, color: '#666', padding: '2px 0', background: '#fafafa', width: '100%', textAlign: 'center' },
 
   btnPrimary:  { padding: '8px 14px', background: '#C62828', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 500 },
   btnSecondary:{ padding: '8px 14px', background: '#fff', color: '#666', border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', fontSize: 13 },
@@ -366,9 +505,16 @@ const S = {
   btnReject:   { padding: '6px 10px', background: '#fff', color: '#F44336', border: '1px solid #F44336', borderRadius: 4, cursor: 'pointer', fontSize: 12 },
   btnEdit:     { padding: '6px 10px', background: '#fff', color: '#1976D2', border: '1px solid #1976D2', borderRadius: 4, cursor: 'pointer', fontSize: 12 },
   btnDelete:   { padding: '6px 10px', background: '#fff', color: '#999', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', fontSize: 12 },
+  btnImage:    { padding: '6px 10px', background: '#FFF3E0', color: '#E65100', border: '1px solid #FFB74D', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 500 },
+  btnImageSubtle: { padding: '6px 10px', background: '#fff', color: '#999', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', fontSize: 12 },
+
+  label: { fontSize: 12, fontWeight: 600, color: '#A0522D', marginRight: 6 },
+  select: { padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, fontSize: 14, fontFamily: 'inherit' },
+  textarea: { width: '100%', padding: 10, border: '1px solid #ccc', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', marginBottom: 12 },
 
   statusSuccess: { padding: 10, background: '#D4EDDA', color: '#155724', borderRadius: 6, fontSize: 13, marginBottom: 12 },
   statusError:   { padding: 10, background: '#F8D7DA', color: '#721C24', borderRadius: 6, fontSize: 13, marginBottom: 12 },
+  statusInfo:    { padding: 10, background: '#D1ECF1', color: '#0C5460', borderRadius: 6, fontSize: 13, marginBottom: 12 },
 
   modalBackdrop: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
   modal: { background: '#fff', borderRadius: 12, padding: 24, maxWidth: 600, width: '100%', maxHeight: '90vh', overflowY: 'auto' },

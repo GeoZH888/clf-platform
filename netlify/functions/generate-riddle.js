@@ -10,13 +10,9 @@
 //   3. Self-check: ask Claude to solve its own riddle. If the answer matches,
 //      mark approved; else mark pending (admin will review).
 //   4. Save to clf_riddles. Return riddle to client.
-//
-// Env vars required:
-//   ANTHROPIC_API_KEY           — Claude API key (already set in Netlify)
-//   SUPABASE_URL                — your project URL
-//   SUPABASE_SERVICE_ROLE_KEY   — service role key (NOT the anon key — service
-//                                 role bypasses RLS so the function can write
-//                                 even when called from anon/student session)
+//   5. NEW: fire off image generation (illustration + answer) in background.
+//      Don't block on this — riddle is returned immediately, images populate
+//      within ~10-20s.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -49,19 +45,20 @@ export default async (req) => {
       user_id     = null,
       session_id  = null,
       force_new   = false,
-      action      = 'play',   // 'play' (cache-first) | 'generate' (always AI)
+      action      = 'play',
+      gen_images  = true,   // NEW: auto-generate images after creation
     } = body;
 
     const targetLevel = Math.max(1, Math.min(6, parseInt(level) || 1));
 
-    // 1. Fast path — pull an approved unseen riddle from the cache
+    // 1. Fast path — pull an approved unseen riddle
     if (action === 'play' && !force_new) {
       const cached = await findUnseen(targetLevel, user_id, session_id);
       if (cached) return json(200, { riddle: cached, source: 'cache' });
     }
 
-    // 2. Cache miss — generate via AI with RAG context
-    const examples = await pullExamples(targetLevel);
+    // 2. Generate via AI with RAG context
+    const examples  = await pullExamples(targetLevel);
     const generated = await generateRiddle(targetLevel, examples);
     if (!generated) return json(500, { error: 'Generation failed (parse error)' });
 
@@ -94,7 +91,19 @@ export default async (req) => {
 
     if (saveErr) return json(500, { error: `DB save failed: ${saveErr.message}` });
 
-    // If self-check failed, don't show this riddle — fall back to cache
+    // 5. NEW: fire off image generation in background — don't await
+    if (gen_images && saved?.id) {
+      const baseUrl = process.env.URL || process.env.DEPLOY_URL || '';
+      // Two parallel fire-and-forget calls (illustration + answer)
+      for (const type of ['illustration', 'answer']) {
+        fetch(`${baseUrl}/.netlify/functions/generate-riddle-images`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ riddle_id: saved.id, type }),
+        }).catch(err => console.warn(`[image-gen ${type}]`, err.message));
+      }
+    }
+
     if (status === 'pending') {
       const fallback = await findUnseen(targetLevel, user_id, session_id);
       return json(200, {
@@ -115,9 +124,7 @@ export default async (req) => {
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
 async function findUnseen(level, user_id, session_id) {
-  // What has this user already seen?
   let seenIds = [];
   if (user_id || session_id) {
     let q = supabase.from('clf_riddle_attempts').select('riddle_id').limit(500);
@@ -127,7 +134,6 @@ async function findUnseen(level, user_id, session_id) {
     seenIds = (attempts || []).map(a => a.riddle_id);
   }
 
-  // Pool of approved riddles at this level
   const { data: pool } = await supabase
     .from('clf_riddles')
     .select('*')
@@ -147,7 +153,6 @@ async function findUnseen(level, user_id, session_id) {
 }
 
 async function pullExamples(level) {
-  // Pull 6-8 seed examples around target level (level ± 1) for in-context learning.
   const { data } = await supabase
     .from('clf_riddles')
     .select('riddle_text, answer, answer_type, category_hint, explanation, level')
@@ -213,7 +218,6 @@ ${examplesText}
 
   try {
     const parsed = JSON.parse(clean);
-    // Minimal validation
     if (!parsed.riddle_text || !parsed.answer) return null;
     return parsed;
   } catch (e) {
@@ -223,7 +227,6 @@ ${examplesText}
 }
 
 async function selfCheck(riddle) {
-  // Ask Claude to solve its own riddle in a fresh context.
   const prompt = `请解答下面的中文灯谜，只需给出谜底（一个字、词或成语），不要解释，不要标点:
 
 谜面: ${riddle.riddle_text}
@@ -243,7 +246,6 @@ ${riddle.category_hint ? `谜目: ${riddle.category_hint}` : ''}
       .replace(/[。，、？！\s"'""\.\?\!,]/g, '')
       .slice(0, 20);
 
-    // Match if either contains the other (handles minor wording variation)
     return normalized.includes(riddle.answer) || riddle.answer.includes(normalized);
   } catch (err) {
     console.error('[self-check]', err);
