@@ -167,7 +167,7 @@ export default function WordIllustrationStudio({ words = [], onClose, onUpdate }
         return;
       }
 
-      const b64 = data.image || data.b64_json || data.images?.[0]?.base64;
+     const b64 = data.base64 || data.image || data.b64_json || data.images?.[0]?.base64;
       if (b64) {
         const mime = data.mimeType || data.mime_type || 'image/png';
         setGeneratedUrl(`data:${mime};base64,${b64}`);
