@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useScreenHistory, useExitConfirm } from './hooks/useScreenHistory.js';
 import { supabase } from './lib/supabase.js';
 import AdminApp       from './admin/AdminApp.jsx';
 import PlatformHome   from './components/PlatformHome.jsx';
@@ -219,7 +220,7 @@ function PWAInstallBanner() {
 function UserApp() {
   const { status, label, expiresAt, daysLeft, expiring, error, logout,
     modules, loginWithPassword } = useDeviceAuth();
-  const [screen,     setScreen]  = useState('platform'); // start at platform hub
+  const [screen,     setScreen]  = useScreenHistory('platform', 'app'); // start at platform hub
   const [activeSet,  setSet]     = useState(null);
   const [charIdx,    setCharIdx] = useState(0);
   const [prevScreen, setPrev]    = useState('platform');
@@ -228,6 +229,10 @@ function UserApp() {
   const [pinyinInitialScreen, setPinyinInitialScreen] = useState(null); // 'home' | 'table' | 'tones' | 'listen' | 'type' | 'speak'
   const { progress, stats, recordPractice, recordQuiz, resetProgress } = useProgress();
   const { sets: SETS, loading: setsLoading } = useCharacters();
+
+  // ── Phone back button: when user is on platform home, intercept the first
+  // back press, show "press again to exit" toast. Second press exits the PWA.
+  useExitConfirm(screen === 'platform', '再按一次退出 · Press again to exit');
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
