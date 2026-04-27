@@ -18,21 +18,6 @@ exports.handler = async (event) => {
 
   // Key: env var takes priority, fallback to key passed in request body (admin use only)
   const STABILITY_API_KEY = process.env.STABILITY_API_KEY || body.api_key;
-
-  // ⚠️ TEMP DEBUG — remove after diagnosis
-  console.log('[stability-proxy] env STABILITY_API_KEY first8:',
-    (process.env.STABILITY_API_KEY || 'NOT_SET').slice(0, 8),
-    'last4:',
-    (process.env.STABILITY_API_KEY || '').slice(-4),
-    'length:',
-    (process.env.STABILITY_API_KEY || '').length);
-  console.log('[stability-proxy] body.api_key first8:',
-    (body.api_key || 'NOT_PASSED').slice(0, 8));
-  console.log('[stability-proxy] using KEY first8:',
-    (STABILITY_API_KEY || 'EMPTY').slice(0, 8),
-    'last4:',
-    (STABILITY_API_KEY || '').slice(-4));
-
   if (!STABILITY_API_KEY) return {
     statusCode:500, headers,
     body: JSON.stringify({ error:'STABILITY_API_KEY not set — add to Netlify env vars OR check API Keys tab in admin panel' }),
