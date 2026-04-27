@@ -188,7 +188,7 @@ export default function PoetryAdminTab() {
         // ideogram / flux / other → ai-gateway
         const res = await fetch('/.netlify/functions/ai-gateway', {
           method:'POST', headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ provider: imgProvider, prompt, type:'image' }),
+          body: JSON.stringify({ action:'generate_image', provider: imgProvider, prompt }),
         });
         const text = await res.text();
         let d;
