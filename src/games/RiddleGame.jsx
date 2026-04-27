@@ -245,7 +245,7 @@ function Loading() {
   return (
     <div style={{ ...S.body, textAlign: 'center', padding: '60px 20px' }}>
       <div style={S.spinner}>🏮</div>
-      <p style={{ marginTop: 16, color: '#888' }}>灯谜生成中...</p>
+      <p style={{ marginTop: 16, color: '#888' }}>灯谜在路上，稍等...</p>
     </div>
   );
 }

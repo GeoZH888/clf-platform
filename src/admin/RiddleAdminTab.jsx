@@ -1,15 +1,16 @@
 // src/admin/RiddleAdminTab.jsx
 //
-// 灯谜管理 admin tab — review pending AI-generated riddles, manage images,
+// 灯谜管理 — review pending AI riddles, manage images via prompt editor,
 // manually trigger generation, edit/approve/reject.
 //
-// NEW in this version:
-//   - Image preview thumbnails per riddle (illustration + answer)
-//   - 🎨 button to (re)generate images per riddle
-//   - Modal viewer for full-size images
+// Image flow (UPDATED):
+//   - Auto-gen on riddle creation: still happens (default prompt, fire-and-forget)
+//   - Manual gen / regen via 🎨 button: opens RiddleImageEditorModal where admin
+//     edits prompt + picks provider before generating
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import RiddleImageEditorModal from './RiddleImageEditorModal.jsx';
 
 const TABS = [
   { id: 'pending',  label: '待审核',   color: '#FF9800' },
@@ -25,7 +26,7 @@ export default function RiddleAdminTab() {
   const [riddles, setRiddles]       = useState([]);
   const [loading, setLoading]       = useState(false);
   const [editing, setEditing]       = useState(null);
-  const [imageViewing, setImageViewing] = useState(null); // {riddle, type}
+  const [imageEditing, setImageEditing] = useState(null);  // { riddle, type } — opens RiddleImageEditorModal
   const [genLevel, setGenLevel]     = useState(1);
   const [genCount, setGenCount]     = useState(3);
   const [generating, setGenerating] = useState(false);
@@ -35,7 +36,7 @@ export default function RiddleAdminTab() {
 
   useEffect(() => { loadRiddles(); loadStats(); }, [tab]);
 
-  // Auto-refresh approved tab every 8s while images are still being generated
+  // Auto-refresh approved tab while images are being auto-generated
   useEffect(() => {
     if (tab !== 'approved') return;
     const hasPending = riddles.some(r =>
@@ -120,30 +121,9 @@ export default function RiddleAdminTab() {
     }
   }
 
-  async function regenerateImage(riddle, type) {
-    setMsg({ kind: 'info', text: `正在生成 ${type === 'illustration' ? '插图' : '答案图'}...` });
-    try {
-      const res = await fetch('/.netlify/functions/generate-riddle-images', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ riddle_id: riddle.id, type, force: true }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      setMsg({ kind: 'success', text: `${type === 'illustration' ? '插图' : '答案图'}生成成功` });
-      loadRiddles();
-    } catch (err) {
-      setMsg({ kind: 'error', text: `生成失败: ${err.message}` });
-    }
-  }
-
-  async function regenerateBothImages(riddle) {
-    setMsg({ kind: 'info', text: '正在生成图片...' });
-    await Promise.all([
-      regenerateImage(riddle, 'illustration'),
-      regenerateImage(riddle, 'answer'),
-    ]);
-    loadRiddles();
+  // Open the prompt editor — replaces the old direct-generation behavior
+  function openImageEditor(riddle, type) {
+    setImageEditing({ riddle, type });
   }
 
   async function generateBatch() {
@@ -254,10 +234,7 @@ export default function RiddleAdminTab() {
               onReject={()  => setStatus(r.id, 'rejected')}
               onEdit={()    => setEditing({...r})}
               onDelete={()  => deleteRiddle(r.id)}
-              onRegenIllu={() => regenerateImage(r, 'illustration')}
-              onRegenAns={()  => regenerateImage(r, 'answer')}
-              onRegenBoth={() => regenerateBothImages(r)}
-              onViewImg={(type) => setImageViewing({ riddle: r, type })}
+              onEditImage={(type) => openImageEditor(r, type)}
             />
           ))}
         </div>
@@ -321,16 +298,13 @@ export default function RiddleAdminTab() {
         </div>
       )}
 
-      {/* Full-size image viewer */}
-      {imageViewing && (
-        <ImageViewerModal
-          riddle={imageViewing.riddle}
-          type={imageViewing.type}
-          onClose={() => setImageViewing(null)}
-          onRegenerate={async () => {
-            await regenerateImage(imageViewing.riddle, imageViewing.type);
-            setImageViewing(null);
-          }}
+      {/* Image prompt editor modal */}
+      {imageEditing && (
+        <RiddleImageEditorModal
+          riddle={imageEditing.riddle}
+          type={imageEditing.type}
+          onClose={() => setImageEditing(null)}
+          onUpdated={() => loadRiddles()}
         />
       )}
     </div>
@@ -338,7 +312,7 @@ export default function RiddleAdminTab() {
 }
 
 // ── Row component ────────────────────────────────────────────────────────────
-function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onRegenIllu, onRegenAns, onRegenBoth, onViewImg }) {
+function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onEditImage }) {
   const hasIllu = !!riddle.illustration_url;
   const hasAns  = !!riddle.answer_image_url;
 
@@ -365,30 +339,36 @@ function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onRegenIllu,
         </div>
       </div>
 
-      {/* Image previews */}
+      {/* Image previews — clicking opens the prompt editor */}
       <div style={S.imageCol}>
         <ImageThumb
           url={riddle.illustration_url}
           label="插图"
-          onClick={() => hasIllu && onViewImg('illustration')}
-          onGenerate={onRegenIllu}
+          onClick={() => onEditImage('illustration')}
         />
         <ImageThumb
           url={riddle.answer_image_url}
           label="答案图"
-          onClick={() => hasAns && onViewImg('answer')}
-          onGenerate={onRegenAns}
+          onClick={() => onEditImage('answer')}
         />
       </div>
 
       <div style={S.rowActions}>
         {(!hasIllu || !hasAns) && (
-          <button onClick={onRegenBoth} style={S.btnImage} title="生成所有图片">
+          <button
+            onClick={() => onEditImage(!hasIllu ? 'illustration' : 'answer')}
+            style={S.btnImage}
+            title="编辑提示词并生成"
+          >
             🎨 生成
           </button>
         )}
         {(hasIllu && hasAns) && (
-          <button onClick={onRegenBoth} style={S.btnImageSubtle} title="重新生成所有图片">
+          <button
+            onClick={() => onEditImage('illustration')}
+            style={S.btnImageSubtle}
+            title="编辑提示词重新生成"
+          >
             🎨 重生
           </button>
         )}
@@ -411,48 +391,21 @@ function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onRegenIllu,
   );
 }
 
-// Small image thumbnail with generate-if-missing fallback
-function ImageThumb({ url, label, onClick, onGenerate }) {
+// Thumbnail — click opens the prompt editor (works whether image exists or not)
+function ImageThumb({ url, label, onClick }) {
   if (url) {
     return (
-      <button onClick={onClick} style={S.thumbBtn} title={`点击查看${label}大图`}>
+      <button onClick={onClick} style={S.thumbBtn} title={`点击编辑${label}提示词`}>
         <img src={url} alt={label} style={S.thumbImg} />
         <span style={S.thumbLabel}>{label}</span>
       </button>
     );
   }
   return (
-    <button onClick={onGenerate} style={S.thumbEmpty} title={`点击生成${label}`}>
+    <button onClick={onClick} style={S.thumbEmpty} title={`点击生成${label}`}>
       <span style={{ fontSize: 16 }}>🎨</span>
       <span style={S.thumbLabel}>{label}</span>
     </button>
-  );
-}
-
-// Full-size image viewer modal
-function ImageViewerModal({ riddle, type, onClose, onRegenerate }) {
-  const url = type === 'illustration' ? riddle.illustration_url : riddle.answer_image_url;
-  const label = type === 'illustration' ? '插图 (谜面)' : '答案图 (谜底)';
-  return (
-    <div style={S.modalBackdrop} onClick={onClose}>
-      <div style={{...S.modal, maxWidth: 600}} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, fontSize: 16 }}>{label}</h3>
-          <button onClick={onClose} style={S.btnSecondary}>✕</button>
-        </div>
-        <div style={{ marginBottom: 12, fontSize: 13, color: '#666' }}>
-          <strong>{riddle.riddle_text}</strong> → <strong>{riddle.answer}</strong>
-        </div>
-        {url ? (
-          <img src={url} alt={label} style={{ width: '100%', borderRadius: 8, marginBottom: 12 }} />
-        ) : (
-          <div style={{ ...S.empty, marginBottom: 12 }}>暂无图片</div>
-        )}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onRegenerate} style={S.btnPrimary}>🎨 重新生成</button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -483,7 +436,6 @@ const S = {
   votes:      { fontSize: 12, color: '#888' },
   empty: { padding: 40, textAlign: 'center', color: '#999' },
 
-  // Image thumb buttons
   thumbBtn: {
     width: 60, height: 60, padding: 0, border: '1px solid #ddd', borderRadius: 6,
     background: '#fff', cursor: 'pointer', overflow: 'hidden', position: 'relative',
