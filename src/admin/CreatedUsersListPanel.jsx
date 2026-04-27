@@ -1,10 +1,12 @@
 // src/admin/CreatedUsersListPanel.jsx
 // Lists all admin-created accounts + their quick-login QR tokens.
-// Supports: view invitation card, regenerate QR, reset password, delete user.
+// Supports: view invitation card, regenerate QR, reset password, delete user,
+//           manage per-user module access (🔐).
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import InvitationCardModal from './InvitationCardModal.jsx';
+import UserModulesButton from './UserModulesButton.jsx';
 
 const V = {
   bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
@@ -267,6 +269,13 @@ function UserRow({ row, onShowCard, onRegen, onReset, onRevoke, onDelete }) {
           {t ? '🔄' : '➕'}
         </IconBtn>
         <IconBtn title="重置密码" onClick={onReset}>🔑</IconBtn>
+        {row.approved_user_id && (
+          <UserModulesButton user={{
+            id: row.approved_user_id,
+            name: row.name,
+            username: row.username,
+          }} />
+        )}
         {t && <IconBtn title="撤销 QR" onClick={onRevoke}>🚫</IconBtn>}
         <IconBtn title="删除账号" danger onClick={onDelete}>🗑</IconBtn>
       </div>
