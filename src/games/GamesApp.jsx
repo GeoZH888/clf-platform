@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
+import { useScreenHistory } from '../hooks/useScreenHistory.js';
 
 // Unity frame — only loaded when a Unity game is actually launched
 const UnityGameFrame = lazy(() => import('./UnityGameFrame.jsx'));
@@ -617,7 +618,7 @@ function ResultScreen({ score, total, max, icon, title, onBack, onReplay, lang, 
 export default function GamesApp({ onBack }) {
   const { lang } = useLang();
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it||en : en;
-  const [game,    setGame]    = useState(null);
+  const [game,    setGame]    = useScreenHistory(null, 'games');
   const [loading, setLoading] = useState(true);
   const [allItems,setAllItems]= useState([]);
 

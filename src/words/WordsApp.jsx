@@ -3,6 +3,7 @@
 // Supports initialScreen prop for deep-linking from PracticeModeScreen.
 
 import { useState, useEffect } from 'react';
+import { useScreenHistory } from '../hooks/useScreenHistory.js';
 import WordsHomeScreen from './WordsHomeScreen';
 import Flashcards      from './Flashcards';
 import WordsListen     from './WordsListen';
@@ -12,7 +13,7 @@ const VALID_SCREENS = new Set(['home','flashcard','listen','fill']);
 
 export default function WordsApp({ onBack, initialScreen }) {
   const start = VALID_SCREENS.has(initialScreen) ? initialScreen : 'home';
-  const [screen, setScreen] = useState(start);
+  const [screen, setScreen] = useScreenHistory(start, 'words');
   const [theme,  setTheme]  = useState('all');    // 'all' | specific theme id
 
   // Sync if parent passes a new initialScreen after mount

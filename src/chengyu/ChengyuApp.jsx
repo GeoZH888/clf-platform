@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
+import { useScreenHistory } from '../hooks/useScreenHistory.js';
 import ModuleTemplate from '../components/ModuleTemplate.jsx';
 import PointsBadge from '../components/PointsBadge.jsx';
 import { usePoints } from '../hooks/usePoints.js';
@@ -56,7 +57,7 @@ function AdaptiveBar({ stats, lang }) {
 export default function ChengyuApp({ onBack }) {
   const { lang } = useLang();
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it||en : en;
-  const [screen, setScreen] = useState('home');
+  const [screen, setScreen] = useScreenHistory('home', 'chengyu');
   const [theme,  setTheme]  = useState('all');
   const [idioms, setIdioms] = useState([]);
   const [loading, setLoading] = useState(true);

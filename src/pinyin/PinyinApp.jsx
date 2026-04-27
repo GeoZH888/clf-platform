@@ -1,6 +1,7 @@
 // src/pinyin/PinyinApp.jsx
 // 拼音 module hub — uses unified ModuleTemplate
 import { useState, useEffect } from 'react';
+import { useScreenHistory } from '../hooks/useScreenHistory.js';
 import ModuleTemplate from '../components/ModuleTemplate.jsx';
 import AdaptiveCard from '../components/AdaptiveCard.jsx';
 import PinyinTable    from './PinyinTable.jsx';
@@ -14,7 +15,7 @@ const VALID_SCREENS = new Set(['home','table','tones','listen','type','speak']);
 
 export default function PinyinApp({ onBack, initialScreen }) {
   const start = VALID_SCREENS.has(initialScreen) ? initialScreen : 'home';
-  const [screen, setScreen] = useState(start);
+  const [screen, setScreen] = useScreenHistory(start, 'pinyin');
   const [lang,   setLang]   = useState(
     () => document.documentElement.lang?.slice(0, 2) || 'zh'
   );

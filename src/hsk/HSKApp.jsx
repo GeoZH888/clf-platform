@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
+import { useScreenHistory } from '../hooks/useScreenHistory.js';
 import AdaptiveCard from '../components/AdaptiveCard.jsx';
 
 const TOKEN_KEY = 'jgw_device_token';
@@ -389,7 +390,7 @@ Include: memory tip, common usage, 1-2 example sentences. Keep it brief and frie
 export default function HSKApp({ onBack }) {
   const { lang } = useLang();
   const t = (zh,en,it) => lang==='zh'?zh:lang==='it'?it||en:en;
-  const [screen,    setScreen]    = useState('home');  // home|learn|quiz|practice|wordlist
+  const [screen,    setScreen]    = useScreenHistory('home', 'hsk');  // home|learn|quiz|practice|wordlist
   const [selLevel,  setSelLevel]  = useState(null);
   const [words,     setWords]     = useState([]);
   const [loadingW,  setLoadingW]  = useState(false);

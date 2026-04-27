@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
+import { useScreenHistory } from '../hooks/useScreenHistory.js';
 import AdaptiveCard from '../components/AdaptiveCard.jsx';
 
 const TOKEN_KEY = 'jgw_device_token';
@@ -540,7 +541,7 @@ function QuizScreen({ poems, lang, onBack }) {
 export default function PoetryApp({ onBack }) {
   const { lang } = useLang();
   const t = (zh,en,it) => lang==='zh'?zh:lang==='it'?it||en:en;
-  const [screen,  setScreen]  = useState('home');
+  const [screen,  setScreen]  = useScreenHistory('home', 'poetry');
   const [poems,   setPoems]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [selPoem, setSelPoem] = useState(null);
