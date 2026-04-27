@@ -133,7 +133,15 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
             {typeof daysLeft === 'number' && ` · ${daysLeft} ${t('天','days','giorni')}`}
           </div>
         )}
-        <button onClick={onLogout} style={{
+        <button onClick={() => {
+          if (window.confirm(t(
+            '确定要退出登录吗？退出后下次需要重新输入账号密码。',
+            'Log out? You will need to enter your username and password again next time.',
+            'Esci? Dovrai inserire nome utente e password al prossimo accesso.'
+          ))) {
+            onLogout();
+          }
+        }} style={{
           marginTop:10, padding:'8px 16px', fontSize:13, cursor:'pointer',
           borderRadius:8, border:'1px solid #c0392b', background:'#fff',
           color:'#c0392b',
