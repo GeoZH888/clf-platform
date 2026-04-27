@@ -1,256 +1,306 @@
 // src/admin/WordIllustrationStudio.jsx
-// Adapted from IllustrationStudio.jsx (which targets jgw_characters).
-// Changes:
-//   - Target table: clf_words (not jgw_characters)
-//   - Target column: image_url (not illustration_url)
-//   - Storage bucket: word-illustrations (not character-illustrations)
-//   - Primary key: word_zh is UNIQUE; we filter by id uuid
-//   - 5 new word-specific style presets + custom
-//   - Same providers as character version (ai-gateway endpoint)
 //
-// Netlify function expectation (BACKEND CHANGE REQUIRED):
-//   /.netlify/functions/ai-gateway with action='generate_image' already works.
-//   We pass {target_type: 'word'} so if you want the backend to store results
-//   you need to branch on that. Alternatively, we save the generated URL
-//   ourselves via uploadToSupabase(), which is what we do here.
+// CLF platform — word illustration studio (single-word generation + manual upload)
+//
+// Targets:
+//   - Table:  clf_words
+//   - Column: image_url
+//   - Bucket: word-illustrations  (public read, authenticated write)
+//
+// Fix vs previous version:
+//   Supabase Storage object keys must be ASCII (no Chinese, no spaces, no slashes
+//   except as path separators). The old code built `word_红色.png` which Supabase
+//   rejects with "Invalid key: word_红色.png". This version builds an ASCII slug
+//   from pinyin (with tone marks stripped) plus a short hash of the Chinese word
+//   to disambiguate homophones.
+//
+//   Examples:
+//     红色 (hóng sè)  → word_hong_se_a3f2.png
+//     苹果 (píng guǒ) → word_ping_guo_b71d.png
+//     是   (shì)      → word_shi_4e8b.png
 
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase.js';
-import { getPrompt } from '../lib/prompts.js';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
-// Image generation providers (mirrors ChengyuAdminTab IMG_PROVIDERS).
-// dalle3   → direct OpenAI call (needs admin_key_openai in localStorage)
-// stability→ /.netlify/functions/stability-proxy
-// flux     → /.netlify/functions/ai-gateway with type='image'
-const IMG_PROVIDERS = [
-  { id: 'dalle3',    label: 'DALL-E 3',     keyId: 'openai' },
-  { id: 'stability', label: 'Stability AI', keyId: null     },
-  { id: 'flux',      label: 'Flux (JINAN)',  keyId: null     },
+// ─────────────────────────────────────────────────────────────────────────────
+// AI providers (matches ai-gateway.js expected `provider` values)
+// ─────────────────────────────────────────────────────────────────────────────
+const AI_PROVIDERS = [
+  { id: 'dalle',     label: 'DALL-E 3' },
+  { id: 'stability', label: 'Stability AI' },
+  { id: 'flux',      label: 'Flux (JINAN)' },
 ];
 
-// Style preset ids — must match clf_prompt_templates keys: word_image_<id>
-// Custom doesn't go through getPrompt; user types prompt directly.
+// ─────────────────────────────────────────────────────────────────────────────
+// Style presets — keys match clf_prompt_templates rows
+// ─────────────────────────────────────────────────────────────────────────────
 const STYLE_PRESETS = [
-  { id: 'flashcard', label: '📚 闪卡风' },
-  { id: 'photo',     label: '📷 实景照' },
-  { id: 'emoji',     label: '😀 表情符' },
-  { id: 'cartoon',   label: '🎨 卡通画' },
-  { id: 'abstract',  label: '🌀 抽象画' },
-  { id: 'custom',    label: '✏️ 自定义' },
+  {
+    id: 'flashcard',
+    label: '🎴 闪卡风',
+    prompt: ({ word_zh, meaning_en }) =>
+      `Clean educational flashcard illustration of "${meaning_en}" (Chinese: ${word_zh}) for vocabulary learners. Single central subject, white background, bright primary colors, bold clean shapes, no text, suitable for language-learning app. Simple and instantly recognizable.`,
+  },
+  {
+    id: 'photo',
+    label: '📷 实景照',
+    prompt: ({ word_zh, meaning_en }) =>
+      `High-quality educational photograph of "${meaning_en}" (Chinese: ${word_zh}). Clear focus, neutral background, well-lit studio style, single subject. Suitable for language-learning flashcard. Photorealistic, no text.`,
+  },
+  {
+    id: 'emoji',
+    label: '😀 表情符',
+    prompt: ({ meaning_en }) =>
+      `Large emoji-style illustration of "${meaning_en}" on a plain white background. Round, friendly, glossy aesthetic similar to Apple/Google emoji design. Single centered subject, bright colors, soft shadow, no text.`,
+  },
+  {
+    id: 'cartoon',
+    label: '🎨 卡通画',
+    prompt: ({ word_zh, meaning_en }) =>
+      `Cute cartoon illustration of "${meaning_en}" (Chinese: ${word_zh}) for children's Chinese textbook. Friendly characters or objects, pastel colors, rounded shapes, playful style, white background, no text. Evokes warmth and fun.`,
+  },
+  {
+    id: 'abstract',
+    label: '🌀 抽象画',
+    prompt: ({ meaning_en }) =>
+      `Abstract minimalist illustration evoking the concept of "${meaning_en}". Geometric shapes, muted color palette, flat design, symbolic rather than literal. Suitable for modern educational material.`,
+  },
+  {
+    id: 'custom',
+    label: '✏️ 自定义',
+    prompt: null, // user supplies prompt
+  },
 ];
 
-// Sanitize word_zh for Supabase Storage key — Chinese chars are allowed,
-// but we strip anything weird that could break URL encoding
-function wordFilename(word_zh, ext = 'png') {
-  const safe = (word_zh || '').replace(/[^\p{L}\p{N}_-]/gu, '_');
-  return `word_${safe}.${ext}`;
+// ─────────────────────────────────────────────────────────────────────────────
+// Filename utilities — produce ASCII-only Supabase Storage keys
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Strip tone marks from pinyin: hóng → hong, lǜ → lv */
+function stripPinyinTones(pinyin) {
+  if (!pinyin) return '';
+  return pinyin
+    .normalize('NFD')                    // decompose accented chars
+    .replace(/[\u0300-\u036f]/g, '')     // strip combining tone marks
+    .replace(/ü/g, 'v')                  // ü → v
+    .replace(/Ü/g, 'V')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '_')                // spaces → underscore
+    .replace(/[^a-z0-9_]/g, '');         // drop anything still non-ASCII
 }
 
-export default function WordIllustrationStudio({ words = [], initialWord = null, onUpdate, onClose }) {
-  const [selectedWord,  setSelectedWord]  = useState(initialWord);
-  const [provider,      setProvider]      = useState('stability');
-  const [stylePreset,   setStylePreset]   = useState('flashcard');
-  const [customPrompt,  setCustomPrompt]  = useState('');
-  const [generatedUrl,  setGeneratedUrl]  = useState(null);
-  const [isGenerating,  setIsGenerating]  = useState(false);
-  const [isUploading,   setIsUploading]   = useState(false);
-  const [status,        setStatus]        = useState(null);
-  const [promptPreview, setPromptPreview] = useState('');
-  const fileInputRef = useRef(null);
+/** Tiny stable hash to disambiguate homophones (是 vs 十 vs 事 → all "shi") */
+function shortHash(str) {
+  if (!str) return '0000';
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36).slice(0, 4).padStart(4, '0');
+}
 
-  const setMsg   = (type, message) => setStatus({ type, message });
-  const clearMsg = () => setStatus(null);
+/**
+ * Build a safe ASCII storage key for a word.
+ *   { word_zh: '红色', pinyin: 'hóng sè' } → 'word_hong_se_a3f2.png'
+ *   { word_zh: '是',  pinyin: 'shì' }      → 'word_shi_4e8b.png'
+ */
+function wordFilename(word, ext = 'png') {
+  const slug = stripPinyinTones(word?.pinyin) || 'word';
+  const hash = shortHash(word?.word_zh || '');
+  const safeExt = String(ext).toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+  return `word_${slug}_${hash}.${safeExt}`;
+}
 
-  // ── Async fetch + cache the resolved prompt for preview ─────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────────────────
+export default function WordIllustrationStudio({ words = [], onClose, onUpdate }) {
+  const [selectedWord, setSelectedWord] = useState(null);
+  const [provider, setProvider]         = useState('stability');
+  const [styleId, setStyleId]           = useState('emoji');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [generatedUrl, setGeneratedUrl] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading]   = useState(false);
+  const [msg, setMsgState]              = useState(null); // {kind, text}
+
+  const setMsg   = (kind, text) => setMsgState({ kind, text });
+  const clearMsg = () => setMsgState(null);
+
+  // Reset when word changes
   useEffect(() => {
-    if (!selectedWord || stylePreset === 'custom') {
-      setPromptPreview('');
+    setGeneratedUrl(null);
+    clearMsg();
+  }, [selectedWord?.id]);
+
+  // ── Build prompt for current selection ────────────────────────────────────
+  const buildPrompt = () => {
+    if (!selectedWord) return '';
+    if (styleId === 'custom') return customPrompt.trim();
+    const preset = STYLE_PRESETS.find(s => s.id === styleId);
+    if (!preset?.prompt) return '';
+    return preset.prompt({
+      word_zh:    selectedWord.word_zh    || '',
+      meaning_en: selectedWord.meaning_en || selectedWord.meaning_zh || '',
+    });
+  };
+
+  const previewPrompt = buildPrompt();
+
+  // ── AI generation via ai-gateway ──────────────────────────────────────────
+  const handleGenerate = async () => {
+    if (!selectedWord) {
+      setMsg('error', '请先选择词语');
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const p = await getPrompt(`word_image_${stylePreset}`, {
-          word_zh:    selectedWord.word_zh    || '',
-          meaning_en: selectedWord.meaning_en || selectedWord.meaning_zh || '',
-        });
-        if (!cancelled) setPromptPreview(p);
-      } catch (e) {
-        if (!cancelled) setPromptPreview(`(prompt 加载失败: ${e.message})`);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [selectedWord, stylePreset]);
-
-  // Returns the actual prompt to send (may differ from preview if user
-  // is on 'custom' style — preview is empty in that case)
-  async function resolvePrompt() {
-    if (stylePreset === 'custom') return customPrompt;
-    return await getPrompt(`word_image_${stylePreset}`, {
-      word_zh:    selectedWord?.word_zh    || '',
-      meaning_en: selectedWord?.meaning_en || selectedWord?.meaning_zh || '',
-    });
-  }
-
-  // ── Generate via correct image-generation provider ─────────────────
-  const handleGenerate = async () => {
-    if (!selectedWord) return setMsg('error', '请先选择一个词语。');
-    let prompt;
-    try {
-      prompt = await resolvePrompt();
-    } catch (e) {
-      return setMsg('error', `Prompt 解析失败: ${e.message}`);
+    const prompt = buildPrompt();
+    if (!prompt) {
+      setMsg('error', '提示词为空');
+      return;
     }
-    if (!prompt.trim()) return setMsg('error', '请输入提示词。');
 
     setIsGenerating(true);
     clearMsg();
     setGeneratedUrl(null);
 
     try {
-      let imageUrl;
+      const res = await fetch('/.netlify/functions/ai-gateway', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action:      'generate_image',
+          provider,
+          prompt,
+          target_type: 'word',
+          word_id:     selectedWord.id,
+        }),
+      });
 
-      if (provider === 'dalle3') {
-        const key = localStorage.getItem('admin_key_openai');
-        if (!key) throw new Error('需要在 🔑 API Keys 设置 OpenAI key');
-        const res = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            model: 'dall-e-3',
-            prompt,
-            n: 1,
-            size: '1024x1024',
-            quality: 'standard',
-          }),
-        });
-        const d = await res.json();
-        if (d.error) throw new Error(d.error.message);
-        imageUrl = d.data?.[0]?.url;
-        if (!imageUrl) throw new Error('DALL-E 未返回图片 URL');
-      } else if (provider === 'stability') {
-        const res = await fetch('/.netlify/functions/stability-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt,
-            negative_prompt: 'text, watermark, blurry',
-            width: 1024,
-            height: 1024,
-          }),
-        });
-        const d = await res.json();
-        if (d.error) throw new Error(d.error);
-        imageUrl = d.image_base64
-          ? `data:image/png;base64,${d.image_base64}`
-          : d.url;
-        if (!imageUrl) throw new Error('Stability 未返回图片');
-      } else {
-        // flux (or any other) via ai-gateway
-        const res = await fetch('/.netlify/functions/ai-gateway', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            provider,
-            prompt,
-            type: 'image',
-          }),
-        });
-        const text = await res.text();
-        let d;
-        try { d = JSON.parse(text); }
-        catch { throw new Error(`服务器返回非 JSON: ${text.slice(0, 200)}`); }
-        if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
-        imageUrl = d.url || d.image_url;
-        if (!imageUrl) throw new Error('ai-gateway 未返回图片 URL');
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`AI gateway ${res.status}: ${errText.slice(0, 200)}`);
       }
 
-      setGeneratedUrl(imageUrl);
-      setMsg('success', '✅ 图片生成成功！点击「上传到 Supabase」保存。');
+      const data = await res.json();
+      const url = data.url || data.image_url || data.data?.[0]?.url;
+      if (!url) throw new Error('AI gateway 未返回 URL');
+
+      setGeneratedUrl(url);
+      setMsg('success', '✨ 生成成功，可点「上传到 Supabase」保存');
     } catch (err) {
+      console.error(err);
       setMsg('error', `生成失败: ${err.message}`);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // ── Upload to Supabase Storage + update clf_words.image_url ──────
-  const uploadToSupabase = async (source, filenameOverride) => {
+  // ── Upload blob → Supabase Storage → write image_url to clf_words ─────────
+  const uploadToSupabase = async (source, filename) => {
+    if (!selectedWord) {
+      setMsg('error', '请先选择词语');
+      return;
+    }
+
     setIsUploading(true);
-    setMsg('info', '⏳ 上传中…');
+    clearMsg();
 
     try {
+      // Normalize source → Blob
       let blob;
       if (source instanceof Blob) {
         blob = source;
       } else if (typeof source === 'string' && source.startsWith('data:')) {
-        const [header, base64] = source.split(',');
-        const mime = header.match(/:(.*?);/)[1];
-        const binary = atob(base64);
-        const arr = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+        // data: URL
+        const [meta, b64] = source.split(',');
+        const mime = meta.match(/data:([^;]+)/)?.[1] || 'image/png';
+        const bin  = atob(b64);
+        const arr  = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
         blob = new Blob([arr], { type: mime });
-      } else {
+      } else if (typeof source === 'string') {
+        // remote URL — fetch through CORS proxy if needed
         const r = await fetch(source);
+        if (!r.ok) throw new Error(`Fetch ${r.status}`);
         blob = await r.blob();
+      } else {
+        throw new Error('不支持的图片来源');
       }
 
-      const ext = blob.type.includes('png') ? 'png'
-                : blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'jpg'
-                : blob.type.includes('webp') ? 'webp'
-                : 'png';
-      const path = filenameOverride || wordFilename(selectedWord.word_zh, ext);
+      const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+      const key = filename || wordFilename(selectedWord, ext);
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      // Sanity check — should never trigger after the slug fix, but cheap insurance
+      if (!/^[\x20-\x7E]+$/.test(key)) {
+        throw new Error(`生成的文件名仍含非 ASCII 字符: ${key}`);
+      }
+
+      const { data: up, error: upErr } = await supabase.storage
         .from('word-illustrations')
-        .upload(path, blob, { upsert: true, contentType: blob.type });
-      if (uploadError) throw uploadError;
+        .upload(key, blob, {
+          upsert:       true,
+          contentType:  blob.type || 'image/png',
+          cacheControl: '3600',
+        });
+
+      if (upErr) throw upErr;
 
       const { data: urlData } = supabase.storage
         .from('word-illustrations')
-        .getPublicUrl(uploadData.path);
+        .getPublicUrl(up.path);
 
-      // Cache-bust so re-uploads appear immediately
+      // Cache-bust so the UI refreshes immediately
       const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
-      const { error: dbError } = await supabase
+      const { error: dbErr } = await supabase
         .from('clf_words')
         .update({ image_url: publicUrl })
         .eq('id', selectedWord.id);
-      if (dbError) throw dbError;
 
-      setMsg('success', '✅ 已上传并保存！');
+      if (dbErr) throw dbErr;
+
+      setMsg('success', '✅ 已上传并保存');
+      setGeneratedUrl(null);
       if (onUpdate) onUpdate({ ...selectedWord, image_url: publicUrl });
     } catch (err) {
-      setMsg('error', `上传失败: ${err.message}`);
+      console.error(err);
+      setMsg('error', `上传失败: ${err.message || err}`);
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // ── Handlers for AI-generated and manual file uploads ─────────────────────
+  const handleSaveGenerated = async () => {
+    if (!generatedUrl || !selectedWord) return;
+    await uploadToSupabase(generatedUrl, wordFilename(selectedWord, 'png'));
   };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !selectedWord) return;
     const ext = file.name.split('.').pop() || 'png';
-    await uploadToSupabase(file, wordFilename(selectedWord.word_zh, ext));
+    await uploadToSupabase(file, wordFilename(selectedWord, ext));
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = '';
   };
 
-  // Clear image
+  // ── Delete current illustration ───────────────────────────────────────────
   const handleClearImage = async () => {
     if (!selectedWord?.image_url) return;
     if (!confirm(`删除 "${selectedWord.word_zh}" 的插图？`)) return;
+
     try {
-      // Try to remove from storage too (best effort)
-      const urlParts = selectedWord.image_url.split('/word-illustrations/');
-      if (urlParts[1]) {
-        const path = urlParts[1].split('?')[0];
-        await supabase.storage.from('word-illustrations').remove([path]);
+      // Best-effort storage delete
+      const m = selectedWord.image_url.match(/\/word-illustrations\/([^?]+)/);
+      if (m?.[1]) {
+        await supabase.storage.from('word-illustrations').remove([m[1]]);
       }
       const { error } = await supabase
-        .from('clf_words').update({ image_url: null }).eq('id', selectedWord.id);
+        .from('clf_words')
+        .update({ image_url: null })
+        .eq('id', selectedWord.id);
       if (error) throw error;
       setMsg('success', '已删除插图');
       if (onUpdate) onUpdate({ ...selectedWord, image_url: null });
@@ -259,17 +309,20 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
     }
   };
 
-  const filteredWords = words.filter(w => w.illustratable !== false);
+  // ─────────────────────────────────────────────────────────────────────────
+  const filteredWords  = words.filter(w => w.illustratable !== false);
   const currentImageUrl = selectedWord?.image_url;
+  const previewKey     = selectedWord ? wordFilename(selectedWord, 'png') : '';
 
   return (
     <div style={S.root}>
+      {/* Header */}
       <div style={S.header}>
         <h2 style={{ margin: 0, fontSize: 18, color: '#2E7D32' }}>
           🎨 词语插图工作室
         </h2>
         {onClose && (
-          <button onClick={onClose} style={S.closeBtn}>✕</button>
+          <button onClick={onClose} style={S.closeBtn} aria-label="Close">✕</button>
         )}
       </div>
 
@@ -283,10 +336,9 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
             onChange={(e) => {
               const w = words.find(x => String(x.id) === e.target.value);
               setSelectedWord(w || null);
-              setGeneratedUrl(null);
-              clearMsg();
             }}
-            style={S.select}>
+            style={S.select}
+          >
             <option value="">-- 选择 --</option>
             {filteredWords.map(w => (
               <option key={w.id} value={w.id}>
@@ -299,16 +351,24 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
               ⚠ 此词已标记为「不需要插图」。可在词语列表里修改。
             </div>
           )}
+          {selectedWord && (
+            <div style={S.hint}>
+              📁 文件名: <code>{previewKey}</code>
+            </div>
+          )}
         </section>
 
         {/* Provider */}
         <section style={S.section}>
           <label style={S.label}>AI 提供商 Provider</label>
           <div style={S.pills}>
-            {IMG_PROVIDERS.map(p => (
-              <button key={p.id} type="button"
+            {AI_PROVIDERS.map(p => (
+              <button
+                key={p.id}
+                type="button"
                 onClick={() => setProvider(p.id)}
-                style={provider === p.id ? S.pillActive : S.pill}>
+                style={provider === p.id ? S.pillActive : S.pill}
+              >
                 {p.label}
               </button>
             ))}
@@ -320,81 +380,92 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
           <label style={S.label}>风格 Style</label>
           <div style={S.pills}>
             {STYLE_PRESETS.map(s => (
-              <button key={s.id} type="button"
-                onClick={() => setStylePreset(s.id)}
-                style={stylePreset === s.id ? S.pillActive : S.pill}>
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStyleId(s.id)}
+                style={styleId === s.id ? S.pillActive : S.pill}
+              >
                 {s.label}
               </button>
             ))}
           </div>
 
-          {stylePreset === 'custom' ? (
-            <textarea rows={3}
-              placeholder="自定义提示词..."
+          {styleId === 'custom' ? (
+            <textarea
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              style={S.textarea}/>
-          ) : selectedWord && promptPreview && (
+              placeholder="自定义提示词（英文效果最好）..."
+              rows={3}
+              style={S.textarea}
+            />
+          ) : previewPrompt ? (
             <div style={S.promptPreview}>
-              <em style={{ fontSize: 12, color: '#666' }}>{promptPreview}</em>
+              <em>{previewPrompt}</em>
             </div>
-          )}
-        </section>
-
-        {/* Action buttons */}
-        <section style={S.actions}>
-          <button onClick={handleGenerate}
-            disabled={isGenerating || !selectedWord}
-            style={S.btnPrimary}>
-            {isGenerating ? '⏳ 生成中…' : '✨ AI 生成插图'}
-          </button>
-          <span style={S.divider}>或</span>
-          <button onClick={() => fileInputRef.current?.click()}
-            disabled={!selectedWord}
-            style={S.btnSecondary}>
-            📁 手动上传
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*"
-            style={{ display: 'none' }} onChange={handleFileUpload}/>
+          ) : null}
         </section>
 
         {/* Status */}
-        {status && (
-          <div style={{
-            ...S.statusBanner,
-            background: status.type === 'success' ? '#d4edda'
-                      : status.type === 'error'   ? '#f8d7da' : '#d1ecf1',
-            color:      status.type === 'success' ? '#155724'
-                      : status.type === 'error'   ? '#721c24' : '#0c5460',
-          }}>
-            {status.message}
+        {msg && (
+          <div style={msg.kind === 'error' ? S.statusError : msg.kind === 'success' ? S.statusSuccess : S.statusInfo}>
+            {msg.text}
           </div>
         )}
 
-        {/* Preview of generated image */}
+        {/* Actions */}
+        <section style={S.actions}>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={!selectedWord || isGenerating || (styleId === 'custom' && !customPrompt.trim())}
+            style={isGenerating ? S.btnPrimaryDisabled : S.btnPrimary}
+          >
+            {isGenerating ? '⏳ 生成中…' : '✨ AI 生成插图'}
+          </button>
+
+          <span style={S.divider}>或</span>
+
+          <label style={S.btnSecondary}>
+            📁 手动上传
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+              disabled={!selectedWord || isUploading}
+            />
+          </label>
+        </section>
+
+        {/* Generated preview + save */}
         {generatedUrl && (
           <section style={S.preview}>
-            <img src={generatedUrl} alt={selectedWord?.word_zh}
-              style={S.previewImg}/>
-            <button onClick={() => uploadToSupabase(generatedUrl)}
+            <p style={S.previewLabel}>AI 生成预览 (尚未保存):</p>
+            <img src={generatedUrl} alt="generated" style={S.previewImg} />
+            <button
+              type="button"
+              onClick={handleSaveGenerated}
               disabled={isUploading}
-              style={S.btnPrimary}>
+              style={isUploading ? S.btnPrimaryDisabled : S.btnPrimary}
+            >
               {isUploading ? '⏳ 上传中…' : '☁️ 上传到 Supabase'}
             </button>
           </section>
         )}
 
-        {/* Current image (if not currently previewing a new one) */}
+        {/* Current saved image */}
         {currentImageUrl && !generatedUrl && (
           <section style={S.preview}>
-            <div style={S.previewLabel}>
-              当前插图 Current illustration:
-              <button onClick={handleClearImage} style={S.btnTextDanger}>
-                🗑 删除
-              </button>
-            </div>
-            <img src={currentImageUrl} alt={selectedWord?.word_zh}
-              style={S.previewImg}/>
+            <p style={S.previewLabel}>当前插图 Current illustration:</p>
+            <img src={currentImageUrl} alt={selectedWord.word_zh} style={S.previewImg} />
+            <button
+              type="button"
+              onClick={handleClearImage}
+              style={S.btnDanger}
+            >
+              🗑 删除插图
+            </button>
           </section>
         )}
       </div>
@@ -402,90 +473,198 @@ export default function WordIllustrationStudio({ words = [], initialWord = null,
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Styles (inline, kept identical to original for visual continuity)
+// ─────────────────────────────────────────────────────────────────────────────
 const S = {
   root: {
-    padding: '1.5rem', maxWidth: 640, background: '#fff',
-    borderRadius: 12, border: '1px solid #e8d5b0',
+    background: '#fff',
+    borderRadius: 12,
+    boxShadow: '0 8px 32px rgba(0,0,0,.12)',
+    maxWidth: 720,
+    width: '100%',
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
   header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #e8d5b0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 20px',
+    borderBottom: '1px solid #eee',
   },
   closeBtn: {
-    background: 'none', border: 'none', fontSize: 22, cursor: 'pointer',
-    color: '#999',
+    background: 'transparent',
+    border: 'none',
+    fontSize: 20,
+    cursor: 'pointer',
+    color: '#888',
   },
-  body: { display: 'flex', flexDirection: 'column', gap: 16 },
-  section: { marginBottom: 4 },
+  body: {
+    padding: 20,
+    overflowY: 'auto',
+    flex: 1,
+  },
+  section: { marginBottom: 18 },
   label: {
-    display: 'block', fontWeight: 600, marginBottom: 6,
-    fontSize: 13, color: '#5D2E0C',
+    display: 'block',
+    fontWeight: 600,
+    marginBottom: 6,
+    color: '#A0522D',
+    fontSize: 14,
   },
   select: {
-    width: '100%', padding: 8, border: '1px solid #e8d5b0',
-    borderRadius: 6, fontSize: 14,
+    width: '100%',
+    padding: '8px 10px',
+    border: '1px solid #ddd',
+    borderRadius: 6,
+    fontSize: 14,
+    boxSizing: 'border-box',
   },
-  pills: { display: 'flex', flexWrap: 'wrap', gap: 6 },
+  pills: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   pill: {
-    padding: '6px 12px', borderRadius: 16, border: '1px solid #e8d5b0',
-    background: '#fff', cursor: 'pointer', fontSize: 12,
-    transition: 'all 0.15s',
+    padding: '6px 14px',
+    borderRadius: 20,
+    border: '1px solid #ccc',
+    background: '#fff',
+    cursor: 'pointer',
+    fontSize: 13,
+    transition: 'all .15s',
   },
   pillActive: {
-    padding: '6px 12px', borderRadius: 16, border: '1px solid #2E7D32',
-    background: '#2E7D32', color: '#fff', cursor: 'pointer', fontSize: 12,
-    fontWeight: 500,
+    padding: '6px 14px',
+    borderRadius: 20,
+    border: '1px solid #2E7D32',
+    background: '#2E7D32',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 13,
   },
   textarea: {
-    width: '100%', padding: 8, border: '1px solid #e8d5b0',
-    borderRadius: 6, fontSize: 13, marginTop: 6,
-    fontFamily: 'inherit', boxSizing: 'border-box',
+    width: '100%',
+    padding: 10,
+    border: '1px solid #ddd',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    marginTop: 8,
+    resize: 'vertical',
   },
   promptPreview: {
-    marginTop: 8, padding: '8px 10px', background: '#f5ede0',
-    borderRadius: 6, fontSize: 12, lineHeight: 1.5,
+    background: '#FAF3E0',
+    padding: 10,
+    borderRadius: 6,
+    marginTop: 8,
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 1.5,
   },
-  actions: {
-    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-    paddingTop: 6,
-  },
-  divider: { color: '#999', fontSize: 12 },
-  btnPrimary: {
-    padding: '9px 18px', background: '#2E7D32', color: '#fff',
-    border: 'none', borderRadius: 8, cursor: 'pointer',
-    fontSize: 13, fontWeight: 500,
-  },
-  btnSecondary: {
-    padding: '9px 18px', background: '#fff', color: '#2E7D32',
-    border: '1.5px solid #2E7D32', borderRadius: 8, cursor: 'pointer',
-    fontSize: 13, fontWeight: 500,
-  },
-  btnTextDanger: {
-    background: 'none', border: 'none', color: '#c0392b',
-    fontSize: 11, cursor: 'pointer', padding: 0,
+  hint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: '#888',
+    fontFamily: 'monospace',
   },
   warnBanner: {
-    marginTop: 8, padding: '8px 10px', background: '#FFF3CD',
-    borderRadius: 6, fontSize: 12, color: '#8B6914',
-    border: '1px solid #FFE082',
+    marginTop: 8,
+    padding: '8px 12px',
+    background: '#FFF3CD',
+    border: '1px solid #FFE69C',
+    borderRadius: 6,
+    fontSize: 13,
+    color: '#664D03',
   },
-  statusBanner: {
-    padding: '10px 14px', borderRadius: 8, fontSize: 13,
-    whiteSpace: 'pre-wrap',
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    margin: '14px 0',
+    flexWrap: 'wrap',
+  },
+  divider: { color: '#999', fontSize: 13 },
+  btnPrimary: {
+    padding: '10px 18px',
+    background: '#2E7D32',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 500,
+  },
+  btnPrimaryDisabled: {
+    padding: '10px 18px',
+    background: '#999',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'not-allowed',
+    fontSize: 14,
+    fontWeight: 500,
+  },
+  btnSecondary: {
+    padding: '10px 18px',
+    background: '#fff',
+    color: '#2E7D32',
+    border: '2px solid #2E7D32',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 500,
+    display: 'inline-block',
+  },
+  btnDanger: {
+    padding: '8px 14px',
+    background: '#fff',
+    color: '#c62828',
+    border: '1px solid #c62828',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontSize: 13,
+    marginTop: 8,
+  },
+  statusSuccess: {
+    padding: '10px 12px',
+    borderRadius: 6,
+    marginBottom: 12,
+    fontSize: 13,
+    background: '#D4EDDA',
+    color: '#155724',
+  },
+  statusError: {
+    padding: '10px 12px',
+    borderRadius: 6,
+    marginBottom: 12,
+    fontSize: 13,
+    background: '#F8D7DA',
+    color: '#721C24',
+  },
+  statusInfo: {
+    padding: '10px 12px',
+    borderRadius: 6,
+    marginBottom: 12,
+    fontSize: 13,
+    background: '#D1ECF1',
+    color: '#0C5460',
   },
   preview: {
-    display: 'flex', flexDirection: 'column', gap: 10,
-    alignItems: 'flex-start', paddingTop: 6,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTop: '1px solid #eee',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    alignItems: 'flex-start',
   },
-  previewLabel: {
-    fontSize: 12, color: '#6b4c2a',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    width: '100%',
-  },
+  previewLabel: { color: '#888', fontSize: 13, margin: 0 },
   previewImg: {
-    maxWidth: '100%', width: 300, borderRadius: 10,
-    border: '1px solid #e8d5b0',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    maxWidth: 280,
+    width: '100%',
+    borderRadius: 10,
+    border: '1px solid #eee',
+    boxShadow: '0 2px 8px rgba(0,0,0,.08)',
   },
 };
