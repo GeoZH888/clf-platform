@@ -6,24 +6,31 @@
 //   {
 //     riddle_id: uuid (required),
 //     type:      'illustration' | 'answer'  (required),
-//     provider?: 'stability' | 'openai' | 'ideogram'  (optional, default 'stability'),
-//     prompt?:   string  (optional — if omitted, default is computed from the riddle),
-//     force?:    bool    (optional — regenerate even if an image already exists)
+//     provider?: 'stability' | 'openai' | 'ideogram'  (default 'stability'),
+//     prompt?:   string  (optional — if omitted, default is computed),
+//     force?:    bool    (regenerate even if image exists)
 //   }
 //
-// Persistence rule (the user's explicit choice):
-//   The custom prompt is saved to clf_riddles.{type}_prompt ONLY if image
-//   generation succeeds. Failed prompts never persist. This guarantees
-//   that whatever's in the DB is a known-good starting point for future
-//   regenerations.
+// LANGUAGE HANDLING:
+//   - Admin prompts are in Chinese (per user request — easy to edit/read)
+//   - Stability AI v1 only accepts English → we auto-translate via Claude
+//     before sending. The translation is transparent to the admin.
+//   - DALL-E 3 and Ideogram handle Chinese natively → no translation
+//   - The SAVED prompt is always the Chinese original. Admin sees their
+//     original prompt on next open, not the English translation.
+//
+// Persistence rule: prompt+provider saved to clf_riddles ONLY on success.
 
 import { createClient } from '@supabase/supabase-js';
+import Anthropic from '@anthropic-ai/sdk';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { persistSession: false } }
 );
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -33,6 +40,12 @@ const HEADERS = {
 };
 
 const BUCKET = 'riddle-illustrations';
+
+// Providers that only accept English prompts → need translation
+const ENGLISH_ONLY_PROVIDERS = new Set(['stability']);
+
+// Detect any CJK ideograph
+const HAS_CHINESE = /[\u4e00-\u9fff]/;
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default async (req) => {
@@ -61,18 +74,35 @@ export default async (req) => {
       .single();
     if (rErr || !riddle) return json(404, { error: 'Riddle not found' });
 
-    // Skip if image exists and not forcing (only relevant for auto-fire path)
+    // Skip if image exists and not forcing (auto-fire path)
     const existingUrl = type === 'illustration' ? riddle.illustration_url : riddle.answer_image_url;
     if (existingUrl && !force) {
       return json(200, { url: existingUrl, skipped: true });
     }
 
-    // 2. Build prompt — use admin-supplied if given, else default
+    // 2. Build prompt — use admin-supplied if given, else default (always Chinese)
     const finalPrompt = customPrompt && customPrompt.trim()
       ? customPrompt.trim()
       : buildDefaultPrompt(riddle, type);
 
-    // 3. Generate via ai-gateway
+    // 3. Translate if needed for English-only providers
+    let promptToSend = finalPrompt;
+    let translationUsed = false;
+    if (ENGLISH_ONLY_PROVIDERS.has(provider) && HAS_CHINESE.test(finalPrompt)) {
+      try {
+        promptToSend = await translateToEnglish(finalPrompt);
+        translationUsed = true;
+      } catch (err) {
+        console.warn('[translation failed]', err.message);
+        // Don't block — let provider reject if it must, admin sees clear error
+        return json(500, {
+          error: `中译英失败: ${err.message}. 请改用 DALL-E 3 或 Ideogram，或手动写英文 prompt。`,
+          prompt_used: finalPrompt,
+        });
+      }
+    }
+
+    // 4. Generate via ai-gateway (using translated prompt for Stability)
     const baseUrl = process.env.URL || process.env.DEPLOY_URL || '';
     const aiRes = await fetch(`${baseUrl}/.netlify/functions/ai-gateway`, {
       method:  'POST',
@@ -80,7 +110,7 @@ export default async (req) => {
       body:    JSON.stringify({
         action:  'generate_image',
         provider,
-        prompt:  finalPrompt,
+        prompt:  promptToSend,
       }),
     });
 
@@ -89,6 +119,7 @@ export default async (req) => {
       return json(500, {
         error: `AI gateway ${aiRes.status}: ${errText.slice(0, 300)}`,
         prompt_used: finalPrompt,
+        prompt_sent: translationUsed ? promptToSend : undefined,
         provider,
       });
     }
@@ -97,6 +128,7 @@ export default async (req) => {
     if (aiData.error) return json(500, {
       error: aiData.error,
       prompt_used: finalPrompt,
+      prompt_sent: translationUsed ? promptToSend : undefined,
       provider,
     });
 
@@ -108,7 +140,7 @@ export default async (req) => {
       prompt_used: finalPrompt,
     });
 
-    // 4. Upload to Supabase Storage
+    // 5. Upload to Supabase Storage
     const key = `riddle_${riddle.id.slice(0, 8)}_${type}.png`;
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
@@ -125,7 +157,7 @@ export default async (req) => {
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(key);
     const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
-    // 5. Update riddle — including the prompt that worked (success-only persistence)
+    // 6. Update riddle — saving the ORIGINAL Chinese prompt (not the translation)
     const update = type === 'illustration'
       ? {
           illustration_url:      publicUrl,
@@ -138,7 +170,6 @@ export default async (req) => {
           answer_provider:       provider,
         };
 
-    // Mark images_generated_at if both are now present
     const otherUrl = type === 'illustration'
       ? riddle.answer_image_url
       : riddle.illustration_url;
@@ -154,10 +185,12 @@ export default async (req) => {
     });
 
     return json(200, {
-      url:         publicUrl,
+      url:               publicUrl,
       type,
       riddle_id,
-      prompt_used: finalPrompt,
+      prompt_used:       finalPrompt,
+      prompt_sent:       translationUsed ? promptToSend : undefined,
+      translation_used:  translationUsed,
       provider,
     });
   } catch (err) {
@@ -167,8 +200,32 @@ export default async (req) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Default prompt — based on 谜面字面意思 + 解释 (per user's request)
-// Returns a Chinese prompt that's easy to read and edit in the modal.
+// Translate Chinese prompt → English via Claude Haiku
+// Fast (~500ms) and cheap (~$0.001 per call).
+// ─────────────────────────────────────────────────────────────────────────────
+async function translateToEnglish(chinesePrompt) {
+  const resp = await anthropic.messages.create({
+    model:      'claude-haiku-4-5-20251001',
+    max_tokens: 1500,
+    messages: [{
+      role: 'user',
+      content:
+        `Translate the following image generation prompt from Chinese to English. ` +
+        `Preserve ALL instructions, styles, and constraints exactly — including any ` +
+        `negative instructions like "do NOT show X". Keep proper nouns and quoted ` +
+        `Chinese characters in their original form (e.g. 「茶」 stays as 「茶」). ` +
+        `Return ONLY the English translation, with no preamble, no commentary, no markdown.\n\n` +
+        `Chinese prompt:\n${chinesePrompt}`,
+    }],
+  });
+
+  const text = resp.content?.[0]?.text?.trim();
+  if (!text) throw new Error('Empty translation response');
+  return text;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Default prompt — based on 谜面字面意思 + 解释 (in Chinese, easy to edit)
 // ─────────────────────────────────────────────────────────────────────────────
 export function buildDefaultPrompt(riddle, type) {
   const { riddle_text, answer, answer_type, category_hint, explanation } = riddle;
@@ -191,7 +248,6 @@ export function buildDefaultPrompt(riddle, type) {
     ].filter(Boolean).join('\n');
   }
 
-  // type === 'illustration' — based on 谜面字面意思 + 解释
   const lines = [
     `中国传统装饰插画，基于谜面的字面意思创作。`,
     `谜面：${riddle_text}`,
@@ -209,7 +265,7 @@ export function buildDefaultPrompt(riddle, type) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Convert ai-gateway response → Blob, handling multiple shapes
+// Convert ai-gateway response → Blob
 // ─────────────────────────────────────────────────────────────────────────────
 async function extractImageBlob(data) {
   const directUrl = data.url || data.imageUrl || data.image_url
