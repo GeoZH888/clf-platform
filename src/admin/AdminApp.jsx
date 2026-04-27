@@ -28,6 +28,7 @@ import PandaStudio    from './PandaStudio.jsx';
 import AIAnalyticsTab from './AIAnalyticsTab.jsx';
 import CorpusTab      from './CorpusTab.jsx';
 import PromptTemplatesTab from './PromptTemplatesTab.jsx';
+import RiddleAdminTab from './RiddleAdminTab';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -1202,6 +1203,7 @@ export default function AdminApp() {
     { id:'words',      label:'📝 词语' },
     { id:'hsk',        label:'🎓 HSK' },
     { id:'poetry',     label:'📜 诗歌' },
+    { id: 'riddles', label: '🏮 灯谜', component: RiddleAdminTab },
     { id:'register-invites', label:'📬 邀请注册' },
     { id:'pinyin',       label:'🔤 拼音' },
     { id:'pinyin-audio', label:'🎤 拼音音库' },
@@ -1580,6 +1582,7 @@ export default function AdminApp() {
         {tab==='pinyin'       && <PinyinAdminTab/>}
         {tab==='pinyin-audio' && <AdminPinyinAudio/>}
         {tab==='words'     && <CLFWordsAdminTab/>}
+        {tab==='riddles'   && <RiddleAdminTab/>}
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
         {tab==='grammar'   && <GrammarAdminTab/>}

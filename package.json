@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.3",
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@supabase/supabase-js": "^2.105.0",
     "adm-zip": "^0.5.17",
     "bcryptjs": "^3.0.3",
     "hanzi-writer": "^3.7.3",
