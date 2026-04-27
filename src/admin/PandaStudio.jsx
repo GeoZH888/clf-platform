@@ -51,6 +51,7 @@ const MODULE_OPTIONS = [
   { id: 'grammar',  label: '📐 语法' },
   { id: 'chengyu',  label: '🐼 成语' },
   { id: 'poetry',   label: '🪷 诗词' },
+  { id: 'riddles',   label: '🏮 灯谜' },
 ];
 
 function getKey(id) { return localStorage.getItem(`admin_key_${id}`) || ''; }
