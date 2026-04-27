@@ -1,12 +1,11 @@
 // src/admin/RiddleAdminTab.jsx
 //
-// 灯谜管理 — review pending AI riddles, manage images via prompt editor,
-// manually trigger generation, edit/approve/reject.
+// 灯谜管理 — review pending AI riddles, manage ONE illustration per
+// riddle, manually trigger generation, edit/approve/reject.
 //
-// Image flow (UPDATED):
-//   - Auto-gen on riddle creation: still happens (default prompt, fire-and-forget)
-//   - Manual gen / regen via 🎨 button: opens RiddleImageEditorModal where admin
-//     edits prompt + picks provider before generating
+// Simplified from earlier version: only one image per riddle (the
+// illustration). The answer is shown as bold text on the reveal screen,
+// so a separate answer image was redundant.
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -26,7 +25,7 @@ export default function RiddleAdminTab() {
   const [riddles, setRiddles]       = useState([]);
   const [loading, setLoading]       = useState(false);
   const [editing, setEditing]       = useState(null);
-  const [imageEditing, setImageEditing] = useState(null);  // { riddle, type } — opens RiddleImageEditorModal
+  const [imageEditing, setImageEditing] = useState(null);  // riddle | null
   const [genLevel, setGenLevel]     = useState(1);
   const [genCount, setGenCount]     = useState(3);
   const [generating, setGenerating] = useState(false);
@@ -36,11 +35,11 @@ export default function RiddleAdminTab() {
 
   useEffect(() => { loadRiddles(); loadStats(); }, [tab]);
 
-  // Auto-refresh approved tab while images are being auto-generated
+  // Auto-refresh while images are being auto-generated
   useEffect(() => {
     if (tab !== 'approved') return;
     const hasPending = riddles.some(r =>
-      (!r.illustration_url || !r.answer_image_url) && r.source === 'ai_generated'
+      !r.illustration_url && r.source === 'ai_generated'
     );
     if (!hasPending) return;
     const t = setTimeout(() => loadRiddles(), 8000);
@@ -121,11 +120,6 @@ export default function RiddleAdminTab() {
     }
   }
 
-  // Open the prompt editor — replaces the old direct-generation behavior
-  function openImageEditor(riddle, type) {
-    setImageEditing({ riddle, type });
-  }
-
   async function generateBatch() {
     setGenerating(true);
     setGenLog([]);
@@ -142,7 +136,7 @@ export default function RiddleAdminTab() {
 
         if (data.riddle && data.source === 'ai_generated') {
           okCount++;
-          setGenLog(log => [...log, `✓ #${i+1} 已批准: ${data.riddle.riddle_text} → ${data.riddle.answer} (图片生成中...)`]);
+          setGenLog(log => [...log, `✓ #${i+1} 已批准: ${data.riddle.riddle_text} → ${data.riddle.answer} (插图生成中...)`]);
         } else if (data.rejected) {
           pendingCount++;
           setGenLog(log => [...log, `⚠ #${i+1} 待审核: ${data.rejected.riddle_text} → ${data.rejected.answer}`]);
@@ -158,7 +152,7 @@ export default function RiddleAdminTab() {
 
     setMsg({
       kind: errCount === 0 ? 'success' : 'info',
-      text: `生成完成: ${okCount} 已批准 / ${pendingCount} 待审核 / ${errCount} 失败. 图片正在后台生成 (约15秒)`,
+      text: `生成完成: ${okCount} 已批准 / ${pendingCount} 待审核 / ${errCount} 失败. 插图正在后台生成 (约15秒)`,
     });
     setGenerating(false);
     loadRiddles();
@@ -234,7 +228,7 @@ export default function RiddleAdminTab() {
               onReject={()  => setStatus(r.id, 'rejected')}
               onEdit={()    => setEditing({...r})}
               onDelete={()  => deleteRiddle(r.id)}
-              onEditImage={(type) => openImageEditor(r, type)}
+              onEditImage={() => setImageEditing(r)}
             />
           ))}
         </div>
@@ -298,11 +292,9 @@ export default function RiddleAdminTab() {
         </div>
       )}
 
-      {/* Image prompt editor modal */}
       {imageEditing && (
         <RiddleImageEditorModal
-          riddle={imageEditing.riddle}
-          type={imageEditing.type}
+          riddle={imageEditing}
           onClose={() => setImageEditing(null)}
           onUpdated={() => loadRiddles()}
         />
@@ -311,10 +303,9 @@ export default function RiddleAdminTab() {
   );
 }
 
-// ── Row component ────────────────────────────────────────────────────────────
+// ── Row ──────────────────────────────────────────────────────────────────────
 function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onEditImage }) {
-  const hasIllu = !!riddle.illustration_url;
-  const hasAns  = !!riddle.answer_image_url;
+  const hasImage = !!riddle.illustration_url;
 
   return (
     <div style={S.row}>
@@ -339,39 +330,27 @@ function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onEditImage 
         </div>
       </div>
 
-      {/* Image previews — clicking opens the prompt editor */}
-      <div style={S.imageCol}>
-        <ImageThumb
-          url={riddle.illustration_url}
-          label="插图"
-          onClick={() => onEditImage('illustration')}
-        />
-        <ImageThumb
-          url={riddle.answer_image_url}
-          label="答案图"
-          onClick={() => onEditImage('answer')}
-        />
-      </div>
+      {/* Single illustration thumbnail — clicking opens prompt editor */}
+      <button
+        onClick={onEditImage}
+        style={hasImage ? S.thumbBtn : S.thumbEmpty}
+        title={hasImage ? '点击编辑提示词重生' : '点击生成插图'}
+      >
+        {hasImage ? (
+          <img src={riddle.illustration_url} alt="插图" style={S.thumbImg} />
+        ) : (
+          <span style={{ fontSize: 18, color: '#999' }}>🎨</span>
+        )}
+      </button>
 
       <div style={S.rowActions}>
-        {(!hasIllu || !hasAns) && (
-          <button
-            onClick={() => onEditImage(!hasIllu ? 'illustration' : 'answer')}
-            style={S.btnImage}
-            title="编辑提示词并生成"
-          >
-            🎨 生成
-          </button>
-        )}
-        {(hasIllu && hasAns) && (
-          <button
-            onClick={() => onEditImage('illustration')}
-            style={S.btnImageSubtle}
-            title="编辑提示词重新生成"
-          >
-            🎨 重生
-          </button>
-        )}
+        <button
+          onClick={onEditImage}
+          style={hasImage ? S.btnImageSubtle : S.btnImage}
+          title={hasImage ? '编辑提示词重新生成' : '编辑提示词并生成'}
+        >
+          🎨 {hasImage ? '重生' : '生成'}
+        </button>
         {riddle.status === 'pending' && (
           <>
             <button onClick={onApprove} style={S.btnApprove}>✓ 批准</button>
@@ -391,24 +370,6 @@ function RiddleRow({ riddle, onApprove, onReject, onEdit, onDelete, onEditImage 
   );
 }
 
-// Thumbnail — click opens the prompt editor (works whether image exists or not)
-function ImageThumb({ url, label, onClick }) {
-  if (url) {
-    return (
-      <button onClick={onClick} style={S.thumbBtn} title={`点击编辑${label}提示词`}>
-        <img src={url} alt={label} style={S.thumbImg} />
-        <span style={S.thumbLabel}>{label}</span>
-      </button>
-    );
-  }
-  return (
-    <button onClick={onClick} style={S.thumbEmpty} title={`点击生成${label}`}>
-      <span style={{ fontSize: 16 }}>🎨</span>
-      <span style={S.thumbLabel}>{label}</span>
-    </button>
-  );
-}
-
 // ── Styles ───────────────────────────────────────────────────────────────────
 const S = {
   root: { padding: 20, maxWidth: 1200, margin: '0 auto' },
@@ -424,31 +385,27 @@ const S = {
   tabBtn: { padding: '10px 18px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', fontSize: 14, color: '#666', fontWeight: 500 },
   tabBtnActive: { fontWeight: 600 },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  row: { display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'flex-start', padding: 14, background: '#fff', border: '1px solid #eee', borderRadius: 8 },
+  row: { display: 'grid', gridTemplateColumns: '1fr 80px auto', gap: 12, alignItems: 'center', padding: 14, background: '#fff', border: '1px solid #eee', borderRadius: 8 },
   rowMain: { minWidth: 0 },
   rowText: { fontSize: 15, color: '#333', marginBottom: 4, fontFamily: '"Noto Serif SC", serif' },
   rowAnswer: { fontSize: 13, color: '#666' },
   rowExpl: { color: '#999', fontSize: 12 },
-  imageCol: { display: 'flex', gap: 6, alignItems: 'flex-start' },
-  rowActions: { display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignSelf: 'center' },
+  rowActions: { display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 },
   levelBadge: { padding: '2px 8px', background: '#FFEBEE', color: '#C62828', borderRadius: 10, fontSize: 11, fontWeight: 600 },
   tag:        { padding: '2px 8px', borderRadius: 10, fontSize: 11 },
   votes:      { fontSize: 12, color: '#888' },
   empty: { padding: 40, textAlign: 'center', color: '#999' },
 
   thumbBtn: {
-    width: 60, height: 60, padding: 0, border: '1px solid #ddd', borderRadius: 6,
-    background: '#fff', cursor: 'pointer', overflow: 'hidden', position: 'relative',
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    width: 80, height: 80, padding: 0, border: '1px solid #ddd', borderRadius: 6,
+    background: '#fff', cursor: 'pointer', overflow: 'hidden',
   },
-  thumbImg: { width: '100%', height: 44, objectFit: 'cover', display: 'block' },
+  thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   thumbEmpty: {
-    width: 60, height: 60, padding: 0, border: '1px dashed #ccc', borderRadius: 6,
+    width: 80, height: 80, padding: 0, border: '1px dashed #ccc', borderRadius: 6,
     background: '#FAFAFA', cursor: 'pointer',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    color: '#999',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  thumbLabel: { fontSize: 9, color: '#666', padding: '2px 0', background: '#fafafa', width: '100%', textAlign: 'center' },
 
   btnPrimary:  { padding: '8px 14px', background: '#C62828', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 500 },
   btnSecondary:{ padding: '8px 14px', background: '#fff', color: '#666', border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', fontSize: 13 },

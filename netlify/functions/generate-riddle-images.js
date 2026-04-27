@@ -1,24 +1,21 @@
 // netlify/functions/generate-riddle-images.js
 //
-// Two modes:
-//   1. Generation mode (default): generate image, save to storage + DB
-//   2. Translate-only mode (translate_only: true): just translate Chinese
-//      prompt to English. Used by the admin modal's English preview panel.
+// Generates ONE illustration for a riddle and stores it.
+//
+// (The answer image was removed — the answer character is already shown
+// clearly in the reveal screen, so a separate AI image was redundant.)
 //
 // Body:
 //   {
-//     riddle_id: uuid,
-//     type:      'illustration' | 'answer',
-//     provider?: 'stability' | 'openai' | 'ideogram',
+//     riddle_id: uuid (required),
+//     provider?: 'stability' | 'openai' | 'ideogram'  (default 'stability'),
 //     prompt?:   string  (Chinese, what admin typed),
-//     prompt_en?: string  (English, optional override — used directly for
-//                          English-only providers if provided),
-//     force?:    bool,
-//     translate_only?: bool  (NEW — return translation without generating)
+//     prompt_en?: string  (English override; used directly if provided),
+//     force?:    bool    (regenerate even if image exists),
+//     translate_only?: bool  (just translate, no image — for modal preview)
 //   }
 //
-// Persistence: prompt+provider saved to clf_riddles ONLY on successful
-// image generation. Translation never persisted.
+// Persistence: prompt+provider saved to clf_riddles ONLY on success.
 
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -50,7 +47,6 @@ export default async (req) => {
     const body = await req.json().catch(() => ({}));
     const {
       riddle_id,
-      type      = 'answer',
       provider  = 'stability',
       prompt:   customPrompt    = null,
       prompt_en: customPromptEn = null,
@@ -59,10 +55,8 @@ export default async (req) => {
     } = body;
 
     if (!riddle_id) return json(400, { error: 'riddle_id required' });
-    if (!['illustration', 'answer'].includes(type))
-      return json(400, { error: 'type must be illustration or answer' });
 
-    // Translate-only mode — skip everything else
+    // Translate-only mode — for modal preview
     if (translate_only) {
       const text = (customPrompt || '').trim();
       if (!text) return json(400, { error: 'prompt required for translate_only' });
@@ -80,17 +74,16 @@ export default async (req) => {
     if (rErr || !riddle) return json(404, { error: 'Riddle not found' });
 
     // Skip if image exists and not forcing
-    const existingUrl = type === 'illustration' ? riddle.illustration_url : riddle.answer_image_url;
-    if (existingUrl && !force) return json(200, { url: existingUrl, skipped: true });
+    if (riddle.illustration_url && !force) {
+      return json(200, { url: riddle.illustration_url, skipped: true });
+    }
 
-    // 2. Resolve Chinese prompt (what gets saved)
+    // 2. Resolve Chinese prompt (saved on success)
     const finalPrompt = customPrompt && customPrompt.trim()
       ? customPrompt.trim()
-      : buildDefaultPrompt(riddle, type);
+      : buildDefaultPrompt(riddle);
 
-    // 3. Resolve what gets sent to the provider
-    //    - English-only provider: use admin's manual English if given, else translate
-    //    - Other providers: use Chinese as-is (or English if admin overrode)
+    // 3. Resolve what to send to provider
     let promptToSend = finalPrompt;
     let translationUsed = false;
 
@@ -109,7 +102,6 @@ export default async (req) => {
         }
       }
     } else if (customPromptEn && customPromptEn.trim()) {
-      // Admin provided English override even for non-English-only provider
       promptToSend = customPromptEn.trim();
     }
 
@@ -143,7 +135,7 @@ export default async (req) => {
     });
 
     // 5. Upload to storage
-    const key = `riddle_${riddle.id.slice(0, 8)}_${type}.png`;
+    const key = `riddle_${riddle.id.slice(0, 8)}_illustration.png`;
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
       .upload(key, blob, { upsert: true, contentType: 'image/png', cacheControl: '3600' });
@@ -152,20 +144,20 @@ export default async (req) => {
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(key);
     const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
-    // 6. Update riddle — saving Chinese original (not translation)
-    const update = type === 'illustration'
-      ? { illustration_url: publicUrl, illustration_prompt: finalPrompt, illustration_provider: provider }
-      : { answer_image_url: publicUrl, answer_prompt:       finalPrompt, answer_provider:       provider };
-
-    const otherUrl = type === 'illustration' ? riddle.answer_image_url : riddle.illustration_url;
-    if (otherUrl) update.images_generated_at = new Date().toISOString();
-
-    const { error: dbErr } = await supabase.from('clf_riddles').update(update).eq('id', riddle_id);
+    // 6. Update riddle — saving the original Chinese prompt
+    const { error: dbErr } = await supabase
+      .from('clf_riddles')
+      .update({
+        illustration_url:      publicUrl,
+        illustration_prompt:   finalPrompt,
+        illustration_provider: provider,
+        images_generated_at:   new Date().toISOString(),
+      })
+      .eq('id', riddle_id);
     if (dbErr) return json(500, { error: `DB update: ${dbErr.message}`, prompt_used: finalPrompt });
 
     return json(200, {
       url:              publicUrl,
-      type,
       riddle_id,
       prompt_used:      finalPrompt,
       prompt_sent:      promptToSend,
@@ -200,25 +192,8 @@ async function translateToEnglish(chinesePrompt) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function buildDefaultPrompt(riddle, type) {
+export function buildDefaultPrompt(riddle) {
   const { riddle_text, answer, answer_type, category_hint, explanation } = riddle;
-
-  if (type === 'answer') {
-    const subjectKind =
-      answer_type === 'idiom'   ? '成语' :
-      answer_type === 'word'    ? '词语' :
-      answer_type === 'object'  ? '事物' :
-      '汉字';
-    return [
-      `中国传统插画，表现「${answer}」这个${subjectKind}的含义。`,
-      `谜面背景：${riddle_text}。`,
-      explanation ? `含义解释：${explanation}。` : '',
-      `风格：温暖喜庆的中国节日艺术，红金色调，工笔或水彩风格。`,
-      `单一中心主体，简洁背景。`,
-      `重要：图中不要出现任何中文字符或汉字。`,
-      `适合作为灯谜揭晓时的展示图。`,
-    ].filter(Boolean).join('\n');
-  }
 
   const lines = [
     `中国传统装饰插画，基于谜面的字面意思创作。`,
