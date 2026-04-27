@@ -161,10 +161,10 @@ const MODULES = [
                 en:'Wordplay · puns · cultural allusions',
                 it:'Indovinelli classici · giochi di parole' },
     features: [
-      { zh:'AI 即兴生成', en:'AI-generated',         it:'Generati da AI' },
-      { zh:'分级难度',     en:'Adaptive difficulty',  it:'Difficoltà adattiva' },
-      { zh:'渐进提示',     en:'Progressive hints',    it:'Suggerimenti graduali' },
-      { zh:'谜底解析',     en:'Answer explanations',  it:'Spiegazioni' },
+      { zh:'因人而异',     en:'Tailored to your level',   it:'Su misura per te' },
+      { zh:'拆字 · 谐音',   en:'Wordplay & decomposition', it:'Giochi di parole' },
+      { zh:'渐进提示',     en:'Progressive hints',        it:'Suggerimenti graduali' },
+      { zh:'谜底解析',     en:'Answer explanations',      it:'Spiegazioni' },
     ],
     tag:      { zh:'文化', en:'Culture', it:'Cultura' },
     color:    '#FFEBEE',     // 浅红背景，呼应灯笼喜庆
@@ -201,8 +201,8 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
 
   // All registered modules are shown. If per-user permissions become a
   // requirement later, re-introduce an allowedModules filter here.
-  const visibleModules = MODULES;
-
+  const { isEnabled } = useUserModules(userId);
+  const visibleModules = MODULES.filter(m => isEnabled(m.id) || m.id === 'lianzi');
   // Fetch panda assets once per session. For each module:
   //   1. If a row in jgw_panda_assets has module_id matching the module → use it
   //   2. Otherwise, fall back to deterministic hash of module id over all pandas
