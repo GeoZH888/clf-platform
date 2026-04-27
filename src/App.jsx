@@ -16,6 +16,7 @@ import GrammarApp     from './grammar/GrammarApp.jsx';
 import HSKApp         from './hsk/HSKApp.jsx';
 import PoetryApp      from './poetry/PoetryApp.jsx';
 import GamesApp       from './games/GamesApp.jsx';
+import RiddleGame     from './games/RiddleGame.jsx';
 import ChengyuApp     from './chengyu/ChengyuApp.jsx';
 import BottomNav      from './components/BottomNav.jsx';
 import GameHub        from './components/game/GameHub.jsx';
@@ -316,7 +317,7 @@ function UserApp() {
           {screen === 'platform' && (
             <PlatformHome
               onSelect={mod => setScreen(mod==='lianzi'?'home':mod)}
-              allowedModules={modules || ['lianzi','pinyin','words','chengyu','grammar','hsk','poetry','games']}
+              aallowedModules={modules || ['lianzi','pinyin','words','chengyu','grammar','hsk','poetry','games','riddles']}
               onSettings={() => setScreen('settings')}
               onLogout={logout}
               userLabel={label}/>
@@ -410,6 +411,9 @@ function UserApp() {
           )}
           {screen === 'games' && (
             <GameHub onBack={()=>setScreen('home')}/>
+          )}
+          {screen === 'riddles' && (
+            <RiddleGame onClose={()=>setScreen('platform')}/>
           )}
           {screen === 'search' && (
             <SearchScreen onPractice={practiceChar}/>

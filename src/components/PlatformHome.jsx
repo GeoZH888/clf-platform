@@ -152,6 +152,27 @@ const MODULES = [
     text:     '#6b4c2a',     // 深棕色字
   },
 
+  {
+    id:       'riddles',
+    emoji:    '🏮',
+    iconImage: null,
+    name:     { zh:'灯谜', en:'Riddles', it:'Indovinelli' },
+    desc:     { zh:'拆字 · 谐音 · 文化典故',
+                en:'Wordplay · puns · cultural allusions',
+                it:'Indovinelli classici · giochi di parole' },
+    features: [
+      { zh:'AI 即兴生成', en:'AI-generated',         it:'Generati da AI' },
+      { zh:'分级难度',     en:'Adaptive difficulty',  it:'Difficoltà adattiva' },
+      { zh:'渐进提示',     en:'Progressive hints',    it:'Suggerimenti graduali' },
+      { zh:'谜底解析',     en:'Answer explanations',  it:'Spiegazioni' },
+    ],
+    tag:      { zh:'文化', en:'Culture', it:'Cultura' },
+    color:    '#FFEBEE',     // 浅红背景，呼应灯笼喜庆
+    border:   '#C62828',     // 喜庆红
+    text:     '#5D1010',     // 深红字
+  },
+
+
   // ── Future modules — uncomment and adjust as they come online ──
   // {
   //   id:    'hsk', emoji:'📚',
