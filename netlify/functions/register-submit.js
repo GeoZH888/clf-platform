@@ -82,9 +82,6 @@ export async function handler(event) {
   const fakeEmail = `${cleanUsername}@${FAKE_EMAIL_DOMAIN}`;
 
   // ── Check username uniqueness in registrations ──
-  // Note: this is a best-effort fast-fail check. The DB has a UNIQUE constraint
-  // on jgw_registrations.username so even under TOCTOU race the duplicate
-  // insert will fail at INSERT time. This check just gives a nicer error.
   const { data: existingReg } = await supabase
     .from('jgw_registrations')
     .select('id, status')
@@ -97,11 +94,17 @@ export async function handler(event) {
     };
   }
 
-  // Note: we used to scan auth.users via listUsers() here as a second check,
-  // but (a) listUsers caps at 1000 and silently truncates beyond that,
-  // (b) auth.users itself enforces email uniqueness, so any conflict will
-  // surface from supabase.auth.admin.createUser() with a clear error message.
-  // Removed for correctness + performance.
+  // ── Check auth.users for fake-email conflict ──
+  // Note: listUsers doesn't support email filter in JS SDK, so we query all.
+  // For <1000 users this is fine; paginate when growing larger.
+  const { data: userList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const conflict = userList?.users?.find(u => u.email?.toLowerCase() === fakeEmail);
+  if (conflict) {
+    return {
+      statusCode: 409, headers,
+      body: JSON.stringify({ error: '此用户名已被占用' }),
+    };
+  }
 
   // ── Validate invite if provided ──
   let invite = null;
@@ -127,29 +130,8 @@ export async function handler(event) {
   // Create auth.users row directly, insert registration as 'approved',
   // increment invite usage. User can log in immediately.
   if (invite && invite.auto_approve) {
-    let createdUserId = null;
     try {
-      // 1. Reserve invite slot ATOMICALLY before any other writes.
-      // RPC takes a row lock and rejects if max_uses already hit, preventing
-      // the TOCTOU race the old "read + update" pattern allowed.
-      const { data: rpcResult, error: rpcErr } = await supabase
-        .rpc('increment_invite_usage', { invite_code: invite.code });
-      if (rpcErr) throw new Error('邀请码状态查询失败: ' + rpcErr.message);
-      const status = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
-      if (!status?.ok) {
-        const reason = status?.reason || 'unknown';
-        const msgMap = {
-          not_found: '邀请码无效',
-          expired:   '邀请码已过期',
-          exhausted: '邀请码已达到使用上限',
-        };
-        return {
-          statusCode: 400, headers,
-          body: JSON.stringify({ error: msgMap[reason] || '邀请码状态异常' }),
-        };
-      }
-
-      // 2. Create Supabase Auth user
+      // 1. Create Supabase Auth user
       const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
         email: fakeEmail,
         password,
@@ -161,11 +143,9 @@ export async function handler(event) {
         },
       });
       if (authErr) throw authErr;
-      createdUserId = authData.user.id;
+      const userId = authData.user.id;
 
-      // 3. Insert registration record (status=approved immediately).
-      // The DB UNIQUE constraint on username is the final defense against
-      // any race that slipped past the earlier check.
+      // 2. Insert registration record (status=approved immediately)
       const { data: reg, error: regErr } = await supabase
         .from('jgw_registrations')
         .insert({
@@ -178,11 +158,74 @@ export async function handler(event) {
           client_ip: ip,
           status: 'approved',
           reviewed_at: new Date().toISOString(),
-          approved_user_id: createdUserId,
+          approved_user_id: userId,
         })
         .select('id, status_token')
         .single();
-      if (regErr) throw regErr;
+      if (regErr) {
+        // Rollback: delete the auth user we just created
+        await supabase.auth.admin.deleteUser(userId).catch(() => {});
+        throw regErr;
+      }
+
+      // 3. Increment invite used_count (non-atomic, good enough for low volume)
+      await supabase
+        .from('jgw_registration_invites')
+        .update({ used_count: (invite.used_count || 0) + 1 })
+        .eq('code', invite.code);
+
+      // 4. ── DEVICE SESSION CREATION ──
+      // Create the student-side jgw_invites + jgw_device_sessions records,
+      // so the freshly-registered user can log in immediately. This is what
+      // useDeviceAuth.js looks up via TOKEN_KEY ('jgw_device_token').
+      //
+      // Modules: inherited from registration invite (or fallback to all).
+      const userModules = Array.isArray(invite.modules) && invite.modules.length > 0
+        ? invite.modules
+        : ['lianzi','pinyin','words','grammar','chengyu','poetry','hsk','games'];
+
+      // Default device session expiry: 90 days (same as old jgw_invites pattern)
+      const sessionExpiry = new Date(Date.now() + 90 * 864e5).toISOString();
+
+      // 4a. Create jgw_invites row tied to this user
+      let deviceToken = null;
+      try {
+        const { data: studentInvite, error: invErr } = await supabase
+          .from('jgw_invites')
+          .insert({
+            label: name.trim(),
+            modules: userModules,
+            max_devices: 3,                              // allow 3 device logins
+            expires_at: sessionExpiry,
+            // token field — depending on schema, may auto-generate or need explicit value
+            // If your jgw_invites has a default for token, this works. Otherwise, set it:
+            // token: crypto.randomUUID(),
+          })
+          .select()
+          .single();
+
+        if (invErr) throw invErr;
+
+        // 4b. Create initial device session (the "default" device for this user)
+        const { data: session, error: sessErr } = await supabase
+          .from('jgw_device_sessions')
+          .insert({
+            invite_id:           studentInvite.id,
+            expires_at:          sessionExpiry,
+            device_fingerprint:  `register_${userId.slice(0,8)}_${Date.now()}`,
+            is_active:           true,
+            last_seen:           new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (sessErr) throw sessErr;
+        deviceToken = session.device_token;
+      } catch (deviceErr) {
+        // Don't roll back the auth user — they can still log in via username/password
+        // (loginWithPassword path in useDeviceAuth). Just log the error.
+        console.error('[register-submit] device-session creation failed (non-fatal):', deviceErr);
+      }
 
       return {
         statusCode: 200, headers,
@@ -192,23 +235,12 @@ export async function handler(event) {
           username: cleanUsername,
           id: reg.id,
           status_token: reg.status_token,
+          device_token: deviceToken,    // null if device-session creation failed
+          modules: userModules,
         }),
       };
     } catch (err) {
-      // ROLLBACK: clean up orphan auth user if we created one.
-      // We do NOT decrement the invite counter here because:
-      //   (a) doing it non-atomically reintroduces the race we just fixed,
-      //   (b) at worst, one invite slot gets "leaked" (counted but no user
-      //       actually created), so the invite runs out 1 use earlier than
-      //       expected — minor inconvenience, not data corruption.
-      //   If you really care, add a decrement_invite_usage RPC mirroring
-      //   increment_invite_usage and call it here.
       console.error('[register-submit] auto-approve failed:', err);
-      if (createdUserId) {
-        await supabase.auth.admin.deleteUser(createdUserId).catch(e =>
-          console.error('[register-submit] orphan cleanup failed for', createdUserId, ':', e?.message));
-      }
-
       return {
         statusCode: 500, headers,
         body: JSON.stringify({ error: '账号创建失败：' + (err.message || 'unknown') }),
@@ -239,19 +271,12 @@ export async function handler(event) {
     };
   }
 
-  // Increment invite usage if used (non-auto-approve invite).
-  // Use the atomic RPC so 2 concurrent requests on a max_uses=1 invite can't
-  // both "succeed" and bypass the limit.
+  // Increment invite usage if used (non-auto-approve invite)
   if (invite) {
-    const { data: rpcResult } = await supabase
-      .rpc('increment_invite_usage', { invite_code: invite.code });
-    const status = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
-    if (!status?.ok) {
-      // Race lost: invite filled up while we were inserting. The user's
-      // jgw_registrations row still exists (status='pending' awaiting review),
-      // so admin can still approve it manually. Don't fail the request.
-      console.warn(`[register-submit] invite ${invite.code} race lost on increment:`, status?.reason);
-    }
+    await supabase
+      .from('jgw_registration_invites')
+      .update({ used_count: (invite.used_count || 0) + 1 })
+      .eq('code', invite.code);
   }
 
   return {

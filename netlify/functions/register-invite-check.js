@@ -33,7 +33,7 @@ export async function handler(event) {
 
   const { data, error } = await supabase
     .from('jgw_registration_invites')
-    .select('code, max_uses, used_count, expires_at, auto_approve, label')
+    .select('code, max_uses, used_count, expires_at, auto_approve, label, modules')
     .eq('code', code)
     .maybeSingle();
 
@@ -66,6 +66,7 @@ export async function handler(event) {
       remaining: data.max_uses - data.used_count,
       expires_at: data.expires_at,
       label: data.label || null,
+      modules: Array.isArray(data.modules) ? data.modules : null,    // null = all modules allowed
     }),
   };
 }
