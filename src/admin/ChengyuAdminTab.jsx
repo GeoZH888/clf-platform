@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { getPrompt } from '../lib/prompts.js';
 import { parseTolerant } from '../lib/json-utils.js';
+import ChengyuImageEditorModal from './ChengyuImageEditorModal.jsx';
 
 // ── Illustration styles ───────────────────────────────────────────────────────
 const IMG_STYLES = [
@@ -104,6 +105,9 @@ export default function ChengyuAdminTab({ apiKeys }) {
   // Edit modal state
   const [editingIdiom, setEditingIdiom] = useState(null);
 
+  // Image prompt-editor modal state
+  const [imageEditing, setImageEditing] = useState(null);
+
   // API key status panel: { claude: 'ok' | 'err' | 'unknown' | 'testing', ... }
   const [keyStatus,    setKeyStatus]    = useState({});
 
@@ -120,6 +124,15 @@ export default function ChengyuAdminTab({ apiKeys }) {
 
   function log(msg) {
     setGenLog(prev => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev].slice(0, 20));
+  }
+
+  // Refresh a single idiom from DB after image regen — keeps edit modal & list in sync
+  async function refreshIdiom(idiomId) {
+    const { data } = await supabase.from('clf_chengyu').select('*').eq('id', idiomId).single();
+    if (data) {
+      setIdioms(prev => prev.map(i => i.id === data.id ? data : i));
+      if (editingIdiom?.id === data.id) setEditingIdiom(data);
+    }
   }
 
   // ── API key status: test each provider with a tiny ping ──────────────────
@@ -562,6 +575,16 @@ export default function ChengyuAdminTab({ apiKeys }) {
             setEditingIdiom(null);
             log(`✓ ${updated.idiom} 已更新`);
           }}
+          onEditImage={() => setImageEditing(editingIdiom)}
+        />
+      )}
+
+      {/* ── Image Prompt Editor Modal ── */}
+      {imageEditing && (
+        <ChengyuImageEditorModal
+          chengyu={imageEditing}
+          onClose={() => setImageEditing(null)}
+          onUpdated={() => refreshIdiom(imageEditing.id)}
         />
       )}
     </div>
@@ -571,7 +594,7 @@ export default function ChengyuAdminTab({ apiKeys }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Edit Modal
 // ═══════════════════════════════════════════════════════════════════════════
-function EditIdiomModal({ idiom, onClose, onSaved }) {
+function EditIdiomModal({ idiom, onClose, onSaved, onEditImage }) {
   const [form, setForm] = useState({
     idiom:       idiom.idiom       || '',
     pinyin:      idiom.pinyin      || '',
@@ -642,15 +665,29 @@ function EditIdiomModal({ idiom, onClose, onSaved }) {
           </button>
         </div>
 
-        {/* Image preview */}
-        {idiom.image_url && !imgError && (
-          <div style={{ marginBottom:16, textAlign:'center' }}>
+        {/* Image preview + edit button */}
+        <div style={{ marginBottom:16, textAlign:'center' }}>
+          {idiom.image_url && !imgError ? (
             <img src={idiom.image_url} alt={idiom.idiom}
               onError={() => setImgError(true)}
               style={{ maxWidth:'100%', maxHeight:220, borderRadius:12,
-                border:`1px solid ${V.border}`, objectFit:'contain' }}/>
-          </div>
-        )}
+                border:`1px solid ${V.border}`, objectFit:'contain', display:'block', margin:'0 auto' }}/>
+          ) : (
+            <div style={{ height:120, display:'flex', alignItems:'center', justifyContent:'center',
+              border:`1px dashed ${V.border}`, borderRadius:12, color:V.text3, fontSize:13,
+              background:'#f5ede0' }}>
+              暂无插图
+            </div>
+          )}
+          {onEditImage && (
+            <button onClick={onEditImage}
+              style={{ marginTop:10, padding:'7px 14px', borderRadius:10,
+                background:'#FFF3E0', color:'#E65100', border:'1px solid #FFB74D',
+                fontSize:13, fontWeight:500, cursor:'pointer' }}>
+              🎨 {idiom.image_url ? '编辑提示词重新生成' : '编辑提示词生成插图'}
+            </button>
+          )}
+        </div>
 
         {/* Form */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
