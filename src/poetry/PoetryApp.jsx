@@ -1,7 +1,7 @@
 // src/poetry/PoetryApp.jsx
 // 诗歌 Poetry module — read, recite, memorize, quiz Chinese classical poetry
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
 import AdaptiveCard from '../components/AdaptiveCard.jsx';
@@ -94,6 +94,48 @@ function ReadScreen({ poem, lang, onBack }) {
   const [showPinyin,  setShowPinyin]  = useState(false);
   const [showBg,      setShowBg]      = useState(false);
   const [imgPreview,  setImgPreview]  = useState(false);
+
+  // ─── Audio playback state ──────────────────────────────────────────
+  // poem.audio_url is the pre-generated mp3 (Azure TTS) from admin side.
+  const audioRef = useRef(null);
+  const [playing,  setPlaying]  = useState(false);
+  const [progress, setProgress] = useState(0);  // 0..1
+  const [duration, setDuration] = useState(0);  // seconds
+
+  // Reset audio state when poem changes
+  useEffect(() => {
+    setPlaying(false);
+    setProgress(0);
+    setDuration(0);
+  }, [poem?.id]);
+
+  function togglePlay() {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) {
+      a.play().catch(err => {
+        console.warn('audio play failed:', err);
+        setPlaying(false);
+      });
+    } else {
+      a.pause();
+    }
+  }
+
+  function seekTo(fraction) {
+    const a = audioRef.current;
+    if (!a || !duration) return;
+    a.currentTime = fraction * duration;
+  }
+
+  function fmtTime(s) {
+    if (!isFinite(s) || s < 0) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  }
+  // ────────────────────────────────────────────────────────────────────
+
   const title = lang==='zh'?poem.title:(poem.title_en||poem.title);
 
   useEffect(() => { awardPts('poetry_read', 5); }, []);
@@ -122,6 +164,17 @@ function ReadScreen({ poem, lang, onBack }) {
           <div style={{ fontSize:14, fontWeight:700, color:GOLD, fontFamily:"'STKaiti','KaiTi',serif" }}>{title}</div>
           <div style={{ fontSize:11, color:'#a07850' }}>{poem.dynasty} · {poem.author}</div>
         </div>
+        {/* Audio play button — only if audio exists */}
+        {poem.audio_url && (
+          <button onClick={togglePlay}
+            title={playing ? t('暂停','Pause','Pausa') : t('朗读','Listen','Ascolta')}
+            style={{ border:`1px solid ${playing?GOLD:GOLD+'44'}`, borderRadius:8,
+              background:playing?`${GOLD}22`:'transparent', color:GOLD,
+              fontSize:14, padding:'4px 10px', cursor:'pointer', fontWeight:600,
+              minWidth:38, lineHeight:1 }}>
+            {playing ? '⏸' : '🔊'}
+          </button>
+        )}
         {/* Pinyin toggle */}
         <button onClick={()=>setShowPinyin(s=>!s)}
           style={{ border:`1px solid ${showPinyin?GOLD:GOLD+'44'}`, borderRadius:8,
@@ -130,6 +183,53 @@ function ReadScreen({ poem, lang, onBack }) {
           {showPinyin?'拼':'拼'}音
         </button>
       </div>
+
+      {/* Hidden HTML5 audio element. Driven by audioRef + state above. */}
+      {poem.audio_url && (
+        <audio
+          ref={audioRef}
+          src={poem.audio_url}
+          preload="metadata"
+          onPlay={()=>setPlaying(true)}
+          onPause={()=>setPlaying(false)}
+          onEnded={()=>{ setPlaying(false); setProgress(0); }}
+          onLoadedMetadata={(e)=>setDuration(e.target.duration || 0)}
+          onTimeUpdate={(e)=>{
+            const d = e.target.duration;
+            if (d > 0) setProgress(e.target.currentTime / d);
+          }}
+        />
+      )}
+
+      {/* Audio progress bar (shows when audio exists) */}
+      {poem.audio_url && (
+        <div style={{ padding:'6px 16px', background:'rgba(0,0,0,0.3)',
+          display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:10, color:GOLD, fontFamily:'ui-monospace, monospace',
+            minWidth:34, textAlign:'right' }}>
+            {fmtTime(progress * duration)}
+          </span>
+          <div
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const frac = (e.clientX - rect.left) / rect.width;
+              seekTo(Math.max(0, Math.min(1, frac)));
+            }}
+            style={{ flex:1, height:4, background:'#3a2810',
+              borderRadius:2, cursor:'pointer', position:'relative', overflow:'hidden' }}>
+            <div style={{
+              position:'absolute', left:0, top:0, bottom:0,
+              width: `${progress * 100}%`,
+              background: GOLD,
+              transition: 'width 0.1s linear',
+            }}/>
+          </div>
+          <span style={{ fontSize:10, color:'#a07850', fontFamily:'ui-monospace, monospace',
+            minWidth:34 }}>
+            {fmtTime(duration)}
+          </span>
+        </div>
+      )}
 
       <div style={{ flex:1, overflowY:'auto', padding:'20px 16px' }}>
 
@@ -448,7 +548,7 @@ export default function PoetryApp({ onBack }) {
   const [search,  setSearch]  = useState('');
 
   useEffect(() => {
-    supabase.from('clf_poems').select('*').eq('active',true)
+    supabase.from('jgw_poems').select('*').eq('active',true)
       .order('difficulty').order('sort_order')
       .then(({ data }) => { setPoems(data||[]); setLoading(false); });
   }, []);
