@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import WordIllustrationStudio from './WordIllustrationStudio.jsx';
 import BatchWordIllustrationModal from './BatchWordIllustrationModal.jsx';
+import WordsBatchGenerateModal from './WordsBatchGenerateModal.jsx';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -33,6 +34,7 @@ export default function WordsAdminTab() {
   // Modal state
   const [editWord, setEditWord]       = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
+  const [showBatchGen, setShowBatchGen] = useState(false);
   const [illustrateWord, setIllustrateWord] = useState(null);
   const [showBatch, setShowBatch]     = useState(false);
 
@@ -110,6 +112,10 @@ export default function WordsAdminTab() {
         </label>
         <button onClick={() => setShowAdd(true)} style={btnPrimary}>
           ➕ 添加词语
+        </button>
+        <button onClick={() => setShowBatchGen(true)}
+          style={{ ...btnPrimary, background: '#7B1FA2' }}>
+          ✨ AI 批量生成
         </button>
         {selectedIds.size > 0 && (
           <button onClick={() => setShowBatch(true)} style={{ ...btnPrimary, background: '#F57F17' }}>
@@ -257,6 +263,14 @@ export default function WordsAdminTab() {
           title="添加词语"
           onClose={() => setShowAdd(false)}
           onSave={() => { setShowAdd(false); loadWords(); }}
+        />
+      )}
+
+      {showBatchGen && (
+        <WordsBatchGenerateModal
+          existingWords={words}
+          onClose={() => setShowBatchGen(false)}
+          onSaved={() => { setShowBatchGen(false); loadWords(); }}
         />
       )}
 
