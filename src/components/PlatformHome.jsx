@@ -184,7 +184,7 @@ const MODULES = [
 // ────────────────────────────────────────────────────────────────────
 // Main component
 // ────────────────────────────────────────────────────────────────────
-export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout }) {
+export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout, allowedModules }) {
   const { lang } = useLang();
   const t = (zh, en, it) => lang === 'zh' ? zh : lang === 'it' ? (it || en) : en;
 
@@ -201,7 +201,9 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
 
   // All registered modules are shown. If per-user permissions become a
   // requirement later, re-introduce an allowedModules filter here.
-  const visibleModules = MODULES;
+  const visibleModules = !allowedModules || allowedModules.length === 0
+  ? MODULES
+  : MODULES.filter(m => allowedModules.includes(m.id));
   // Fetch panda assets once per session. For each module:
   //   1. If a row in jgw_panda_assets has module_id matching the module → use it
   //   2. Otherwise, fall back to deterministic hash of module id over all pandas

@@ -317,7 +317,7 @@ function UserApp() {
           {screen === 'platform' && (
             <PlatformHome
               onSelect={mod => setScreen(mod==='lianzi'?'home':mod)}
-              aallowedModules={modules || ['lianzi','pinyin','words','chengyu','grammar','hsk','poetry','games','riddles']}
+              allowedModules={modules || []}
               onSettings={() => setScreen('settings')}
               onLogout={logout}
               userLabel={label}/>
