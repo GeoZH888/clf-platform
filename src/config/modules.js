@@ -11,27 +11,36 @@
 // gateable: false  → always available (e.g. home, profile) — admin can't toggle
 // defaultEnabled:  → if a user has no row in clf_user_modules for this id,
 //                    this is the value used (i.e. is it in the standard bundle?)
+//
+// CANONICAL IDS: All gateable IDs match what student-facing PlatformHome
+// renders. No more "characters" vs "lianzi" split — both refer to 练字
+// using the canonical id "lianzi".
 
 export const MODULES = [
-  // Always-on infrastructure
+  // ── Always-on infrastructure ────────────────────────────────────────
   { id: 'home',       label: '主页',     icon: '🏠', gateable: false, defaultEnabled: true,  category: 'core' },
   { id: 'profile',    label: '我的',     icon: '👤', gateable: false, defaultEnabled: true,  category: 'core' },
   { id: 'progress',   label: '学习进度', icon: '📊', gateable: false, defaultEnabled: true,  category: 'core' },
 
-  // Standard bundle (defaultEnabled: true, gateable: true)
+  // ── Standard bundle (defaultEnabled: true) ──────────────────────────
+  { id: 'lianzi',     label: '练字',     icon: '✍️', gateable: true,  defaultEnabled: true,  category: 'learning' },
   { id: 'words',      label: '词语',     icon: '📚', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'flashcards', label: '闪卡',     icon: '🎴', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'dictation',  label: '听写',     icon: '✍️', gateable: true,  defaultEnabled: true,  category: 'practice' },
-  { id: 'completion', label: '补全',     icon: '📝', gateable: true,  defaultEnabled: true,  category: 'practice' },
   { id: 'pinyin',     label: '拼音',     icon: '🔤', gateable: true,  defaultEnabled: true,  category: 'learning' },
+  { id: 'chengyu',    label: '成语',     icon: '🎋', gateable: true,  defaultEnabled: true,  category: 'cultural' },
+  { id: 'poetry',     label: '诗歌',     icon: '🪶', gateable: true,  defaultEnabled: true,  category: 'cultural' },
+  { id: 'grammar',    label: '语法',     icon: '📐', gateable: true,  defaultEnabled: true,  category: 'learning' },
+  { id: 'hsk',        label: 'HSK',     icon: '🎯', gateable: true,  defaultEnabled: true,  category: 'learning' },
+  { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' },
 
-  // Premium / opt-in (defaultEnabled: false)
-  { id: 'characters', label: '汉字',     icon: '汉', gateable: true,  defaultEnabled: false, category: 'learning' },
-  { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: false, category: 'cultural' },
+  // ── Premium / opt-in (defaultEnabled: false) ────────────────────────
+  { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' },
   { id: 'chat',       label: 'AI聊天',   icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' },
   { id: 'voice',      label: '语音评测', icon: '🎤', gateable: true,  defaultEnabled: false, category: 'practice' },
-  { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' },
   { id: 'homework',   label: '作业',     icon: '✏️', gateable: true,  defaultEnabled: false, category: 'practice' },
+
+  // ── Future placeholder (defaultEnabled: false, hidden until built) ──
+  { id: 'shop',       label: '小卖部',   icon: '🛒', gateable: true,  defaultEnabled: false, category: 'future' },
+  { id: 'parents',    label: '家长',     icon: '👨‍👩‍👧', gateable: true,  defaultEnabled: false, category: 'future' },
 ];
 
 // Module IDs that make up the "标准套餐" preset — what new students get by default.
@@ -49,3 +58,30 @@ export const MODULE_BY_ID = MODULES.reduce((acc, m) => {
   acc[m.id] = m;
   return acc;
 }, {});
+
+// ── Compatibility shim ─────────────────────────────────────────────
+// Some legacy data (jgw_invites.modules) may contain non-canonical IDs.
+// This map normalizes them to canonical. Will be retired in Phase 2 once
+// jgw_invites.modules is fully migrated.
+export const LEGACY_ID_MAP = {
+  'characters': 'lianzi',     // English term used in early development
+  'flashcards': 'words',      // sub-mode of words; gating is at parent level
+  'dictation':  'lianzi',     // sub-mode of lianzi
+  'completion': 'lianzi',     // sub-mode of lianzi
+  'games':      null,         // orphan in legacy data — drop
+};
+
+/**
+ * Normalize a list of module IDs (some may be legacy) to canonical IDs.
+ * Drops nulls (orphans) and deduplicates.
+ *
+ * Use this when reading legacy module arrays (e.g. from jgw_invites.modules)
+ * before passing to UI filtering logic.
+ */
+export function normalizeModuleIds(ids) {
+  if (!Array.isArray(ids)) return [];
+  const normalized = ids
+    .map(id => id in LEGACY_ID_MAP ? LEGACY_ID_MAP[id] : id)
+    .filter(Boolean);
+  return [...new Set(normalized)];
+}
