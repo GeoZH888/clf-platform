@@ -1,0 +1,533 @@
+﻿import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const LoginPage = () => {
+  const [loginMethod, setLoginMethod] = useState('password'); // password, code
+  const [accountType, setAccountType] = useState('username'); // username, phone, email
+  const [account, setAccount] = useState(() => {
+    try { return localStorage.getItem('dwxz_saved_account') || ''; } catch { return ''; }
+  });
+  const [password, setPassword] = useState(() => {
+    try { return localStorage.getItem('dwxz_saved_pw') || ''; } catch { return ''; }
+  });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => {
+    try { return localStorage.getItem('dwxz_remember') === '1'; } catch { return false; }
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  const { login, supabase } = useAuth();
+  const [pandaImg, setPandaImg] = useState(null);
+
+  // Load random panda from Supabase
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from('dwxz_panda_assets').select('image_url,label,emotion')
+      .not('image_url','is',null).limit(20)
+      .then(({ data }) => {
+        if (data?.length) setPandaImg(data[Math.floor(Math.random()*data.length)]);
+      });
+  }, [supabase]);
+  const { language, setLanguage, languages } = useLanguage();
+  const navigate = useNavigate();
+
+  // 多语言文本
+  const txt = {
+    zh: {
+      title: '欢迎回来',
+      subtitle: '大卫学中文',
+      loginMethod: '登录方式',
+      passwordLogin: '密码登录',
+      codeLogin: '验证码登录',
+      accountType: '账号类型',
+      username: '用户名',
+      phone: '手机号',
+      email: '邮箱',
+      password: '密码',
+      verificationCode: '验证码',
+      sendCode: '发送验证码',
+      resendCode: '秒后重发',
+      rememberMe: '记住我（7天）',
+      login: '登录',
+      logging: '登录中...',
+      forgotPassword: '忘记密码？',
+      noAccount: '没有账号？',
+      register: '立即注册',
+      error: {
+        empty: '请填写所有必填项',
+        invalidPhone: '请输入有效的手机号',
+        invalidEmail: '请输入有效的邮箱',
+        wrongPassword: '用户名或密码错误',
+        accountLocked: '账号已被锁定，请稍后再试',
+        codeExpired: '验证码已过期',
+        codeWrong: '验证码错误',
+        networkError: '网络错误，请稍后再试'
+      }
+    },
+    en: {
+      title: 'Welcome Back',
+      subtitle: "David's Chinese Learning",
+      loginMethod: 'Login Method',
+      passwordLogin: 'Password',
+      codeLogin: 'Verification Code',
+      accountType: 'Account Type',
+      username: 'Username',
+      phone: 'Phone',
+      email: 'Email',
+      password: 'Password',
+      verificationCode: 'Verification Code',
+      sendCode: 'Send Code',
+      resendCode: 's to resend',
+      rememberMe: 'Remember me (7 days)',
+      login: 'Login',
+      logging: 'Logging in...',
+      forgotPassword: 'Forgot password?',
+      noAccount: "Don't have an account?",
+      register: 'Register now',
+      error: {
+        empty: 'Please fill in all required fields',
+        invalidPhone: 'Please enter a valid phone number',
+        invalidEmail: 'Please enter a valid email',
+        wrongPassword: 'Invalid username or password',
+        accountLocked: 'Account is locked, please try again later',
+        codeExpired: 'Verification code expired',
+        codeWrong: 'Invalid verification code',
+        networkError: 'Network error, please try again'
+      }
+    },
+    it: {
+      title: 'Bentornato',
+      subtitle: 'David Impara il Cinese',
+      loginMethod: 'Metodo di Accesso',
+      passwordLogin: 'Password',
+      codeLogin: 'Codice di Verifica',
+      accountType: 'Tipo di Account',
+      username: 'Nome utente',
+      phone: 'Telefono',
+      email: 'Email',
+      password: 'Password',
+      verificationCode: 'Codice di Verifica',
+      sendCode: 'Invia Codice',
+      resendCode: 's per reinviare',
+      rememberMe: 'Ricordami (7 giorni)',
+      login: 'Accedi',
+      logging: 'Accesso in corso...',
+      forgotPassword: 'Password dimenticata?',
+      noAccount: 'Non hai un account?',
+      register: 'Registrati ora',
+      error: {
+        empty: 'Compila tutti i campi obbligatori',
+        invalidPhone: 'Inserisci un numero di telefono valido',
+        invalidEmail: 'Inserisci un\'email valida',
+        wrongPassword: 'Nome utente o password non validi',
+        accountLocked: 'Account bloccato, riprova più tardi',
+        codeExpired: 'Codice di verifica scaduto',
+        codeWrong: 'Codice di verifica non valido',
+        networkError: 'Errore di rete, riprova'
+      }
+    }
+  };
+  const t = txt[language] || txt.en;
+
+  // 发送验证码
+  const sendVerificationCode = async () => {
+    if (!account) {
+      setError(t.error.empty);
+      return;
+    }
+
+    // 验证手机号或邮箱格式
+    if (accountType === 'phone' && !/^[\d]{10,15}$/.test(account)) {
+      setError(t.error.invalidPhone);
+      return;
+    }
+    if (accountType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account)) {
+      setError(t.error.invalidEmail);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 生成6位验证码
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // 存储验证码到数据库
+      if (supabase) {
+        await supabase.from('dwxz_verification_codes').insert([{
+          target: account,
+          target_type: accountType,
+          code: code,
+          purpose: 'login',
+          expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5分钟有效
+        }]);
+      }
+
+      // TODO: 实际发送短信或邮件
+      console.log('Verification code:', code); // 开发阶段在控制台显示
+      alert(`验证码已发送: ${code}`); // 开发阶段显示验证码
+
+      setCodeSent(true);
+      setCountdown(60);
+      
+      // 倒计时
+      const timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (err) {
+      setError(t.error.networkError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 密码登录
+  const handlePasswordLogin = async () => {
+    if (!account || !password) {
+      setError(t.error.empty);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await login(account, password);
+      if (result.success) {
+        // 记录登录日志
+        if (supabase && result.user) {
+          await supabase.from('dwxz_login_logs').insert([{
+            user_id: result.user.id,
+            login_method: 'password',
+            success: true,
+            ip_address: 'N/A' // 浏览器无法获取真实IP
+          }]);
+          
+          // 更新最后登录时间
+          await supabase.from('dwxz_users_view').update({
+            last_login: new Date().toISOString()
+          }).eq('id', result.user.id);
+        }
+        
+        navigate('/dashboard');
+      } else {
+        // Map English error messages to translated ones
+        const errorMap = {
+          'User not found': t.error.wrongPassword,
+          'Invalid password': t.error.wrongPassword,
+          'Account locked': t.error.accountLocked,
+          'Database connection failed': t.error.networkError
+        };
+        const translatedError = errorMap[result.message] || t.error.wrongPassword;
+        setError(translatedError);
+        
+        // 记录失败登录
+        if (supabase) {
+          await supabase.from('dwxz_login_logs').insert([{
+            login_method: 'password',
+            success: false,
+            failure_reason: result.message
+          }]);
+        }
+      }
+    } catch (err) {
+      setError(t.error.networkError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 验证码登录
+  const handleCodeLogin = async () => {
+    if (!account || !verificationCode) {
+      setError(t.error.empty);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      if (supabase) {
+        // 验证验证码
+        const { data: codes } = await supabase
+          .from('dwxz_verification_codes')
+          .select('*')
+          .eq('target', account)
+          .eq('code', verificationCode)
+          .eq('purpose', 'login')
+          .eq('used', false)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!codes || codes.length === 0) {
+          setError(t.error.codeWrong);
+          return;
+        }
+
+        // 标记验证码已使用
+        await supabase.from('dwxz_verification_codes').update({ used: true }).eq('id', codes[0].id);
+
+        // 查找用户
+        const field = accountType === 'phone' ? 'phone' : 'email';
+        const { data: users } = await supabase
+          .from('dwxz_users_view')
+          .select('*')
+          .eq(field, account)
+          .limit(1);
+
+        if (!users || users.length === 0) {
+          setError(t.error.wrongPassword);
+          return;
+        }
+
+        // 登录成功，存储用户信息
+        const user = users[0];
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('token', 'verified_' + user.id);
+        if (rememberMe) {
+          localStorage.setItem('dwxz_remember', '1');
+          localStorage.setItem('dwxz_saved_account', account);
+          localStorage.setItem('dwxz_saved_pw', password);
+        } else {
+          localStorage.removeItem('dwxz_remember');
+          localStorage.removeItem('dwxz_saved_account');
+          localStorage.removeItem('dwxz_saved_pw');
+        }
+
+        // 记录登录日志
+        await supabase.from('dwxz_login_logs').insert([{
+          user_id: user.id,
+          login_method: accountType === 'phone' ? 'sms' : 'email',
+          success: true
+        }]);
+
+        // 更新最后登录时间
+        await supabase.from('dwxz_users_view').update({
+          last_login: new Date().toISOString()
+        }).eq('id', user.id);
+
+        // Check if first-time login (must change password)
+      if (user.password_changed === false || user.temp_password) {
+        window.location.href = '/set-password?first=1';
+      } else {
+        window.location.href = '/dashboard';
+      }
+      }
+    } catch (err) {
+      setError(t.error.networkError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (loginMethod === 'password') {
+      handlePasswordLogin();
+    } else {
+      handleCodeLogin();
+    }
+  };
+
+  return (
+    <div className="login-page">
+      <div className="login-container">
+        {/* Logo and Title with Panda */}
+        <div className="login-header" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+          {pandaImg?.image_url ? (
+            <img src={pandaImg.image_url} alt={pandaImg.emotion||'panda'}
+              style={{ width:72, height:72, objectFit:'contain', borderRadius:'50%',
+                background:'rgba(255,255,255,0.15)', padding:4 }}/>
+          ) : (
+            <span style={{ fontSize:56, lineHeight:1 }}>🐼</span>
+          )}
+          <h1>{t.subtitle}</h1>
+          <p>{t.title}</p>
+        </div>
+
+        {/* Language Selector */}
+        <div className="language-selector">
+          {languages.map(lang => (
+            <button
+              key={lang.code}
+              onClick={() => setLanguage(lang.code)}
+              className={`language-btn ${language === lang.code ? 'active' : ''}`}
+            >
+              {lang.flag} {lang.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Error Message */}
+        {error && <div className="alert alert-error">{error}</div>}
+
+        {/* Login Method Tabs */}
+        <div className="tabs" style={{ marginBottom: '1.5rem' }}>
+          <button
+            className={`tab ${loginMethod === 'password' ? 'active' : ''}`}
+            onClick={() => setLoginMethod('password')}
+          >
+            🔑 {t.passwordLogin}
+          </button>
+          <button
+            className={`tab ${loginMethod === 'code' ? 'active' : ''}`}
+            onClick={() => setLoginMethod('code')}
+          >
+            📱 {t.codeLogin}
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {/* Account Type Selection */}
+          <div className="form-group">
+            <label className="form-label">{t.accountType}</label>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap' }}>
+              <button
+                type="button"
+                className={`btn ${accountType === 'username' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setAccountType('username')}
+                style={{ flex: 1, whiteSpace: 'nowrap', padding: '0.5rem 0.25rem', fontSize: '0.875rem' }}
+              >
+                👤 {t.username}
+              </button>
+              <button
+                type="button"
+                className={`btn ${accountType === 'phone' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setAccountType('phone')}
+                style={{ flex: 1, whiteSpace: 'nowrap', padding: '0.5rem 0.25rem', fontSize: '0.875rem' }}
+              >
+                📱 {t.phone}
+              </button>
+              <button
+                type="button"
+                className={`btn ${accountType === 'email' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setAccountType('email')}
+                style={{ flex: 1, whiteSpace: 'nowrap', padding: '0.5rem 0.25rem', fontSize: '0.875rem' }}
+              >
+                📧 {t.email}
+              </button>
+            </div>
+          </div>
+
+          {/* Account Input */}
+          <div className="form-group">
+            <label className="form-label">
+              {accountType === 'username' ? t.username : accountType === 'phone' ? t.phone : t.email} *
+            </label>
+            <input
+              type={accountType === 'email' ? 'email' : 'text'}
+              className="form-input"
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+              placeholder={accountType === 'username' ? 'username' : accountType === 'phone' ? '+39 xxx xxx xxxx' : 'email@example.com'}
+              required
+            />
+          </div>
+
+          {/* Password Login */}
+          {loginMethod === 'password' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">{t.password} *</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <label htmlFor="rememberMe" style={{ cursor: 'pointer' }}>{t.rememberMe}</label>
+              </div>
+            </>
+          )}
+
+          {/* Verification Code Login */}
+          {loginMethod === 'code' && accountType !== 'username' && (
+            <div className="form-group">
+              <label className="form-label">{t.verificationCode} *</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="123456"
+                  maxLength={6}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={sendVerificationCode}
+                  disabled={countdown > 0 || loading}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {countdown > 0 ? `${countdown}${t.resendCode}` : t.sendCode}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loginMethod === 'code' && accountType === 'username' && (
+            <div className="alert alert-info">
+              {language === 'zh' ? '用户名登录请使用密码方式' : 
+               language === 'it' ? 'Per accedere con nome utente, usa la password' :
+               'Please use password login for username'}
+            </div>
+          )}
+
+          {/* Login Button */}
+          <button
+            type="submit"
+            className="btn btn-primary btn-lg"
+            style={{ width: '100%', marginTop: '1rem' }}
+            disabled={loading || (loginMethod === 'code' && accountType === 'username')}
+          >
+            {loading ? t.logging : t.login}
+          </button>
+        </form>
+
+        {/* Links */}
+        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+          <Link to="/forgot-password" style={{ color: 'var(--primary)' }}>
+            {t.forgotPassword}
+          </Link>
+        </div>
+
+        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+          {t.noAccount}{' '}
+          <Link to="/register" style={{ color: 'var(--primary)', fontWeight: '600' }}>
+            {t.register}
+          </Link>
+        </div>
+
+
+      </div>
+    </div>
+  );
+};
+
+export default LoginPage;

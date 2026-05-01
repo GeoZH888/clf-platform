@@ -30,6 +30,10 @@ import { useDeviceAuth } from './hooks/useDeviceAuth.js';
 import QRGate from './components/QRGate.jsx';
 import { SETS } from './data/characters.js';
 import CLFApp from './clf/CLFApp.jsx';
+import MainEntrance from './components/MainEntrance.jsx';
+import PWAInstallGuide from './components/PWAInstallGuide.jsx';
+import PWAInstallCard  from './components/PWAInstallCard.jsx';
+import KechuangApp from './kechuang/KechuangApp.jsx';
 
 // ── Fix title + random panda favicon ─────────────────────────────
 document.title = '大卫学中文';
@@ -74,9 +78,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 }
 
 const IS_ADMIN = window.location.pathname.startsWith('/admin');
-
-import PWAInstallGuide from './components/PWAInstallGuide.jsx';
-import PWAInstallCard  from './components/PWAInstallCard.jsx';
+const IS_KECHUANG = window.location.pathname.startsWith('/kechuang');
 
 // ── Minimal Settings screen ───────────────────────────────────────
 // Language switcher + user info + logout. Split into own file when it grows.
@@ -221,19 +223,24 @@ function PWAInstallBanner() {
 function UserApp() {
   const { status, label, expiresAt, daysLeft, expiring, error, logout,
     modules, loginWithPassword } = useDeviceAuth();
-  const [screen,     setScreen]  = useScreenHistory('platform', 'app'); // start at platform hub
+  // ── Start at entrance so users always see the two-door menu first ──
+  const [screen,     setScreen]  = useScreenHistory('entrance', 'app');
   const [activeSet,  setSet]     = useState(null);
   const [charIdx,    setCharIdx] = useState(0);
-  const [prevScreen, setPrev]    = useState('platform');
-  const [practiceMode, setPracticeMode] = useState('free');  // 'free' | 'dictation' | 'completion' | 'speak'
-  const [practiceModule,     setPracticeModule]     = useState(null);  // null | 'lianzi' | 'pinyin' — for 2-layer picker
-  const [pinyinInitialScreen, setPinyinInitialScreen] = useState(null); // 'home' | 'table' | 'tones' | 'listen' | 'type' | 'speak'
+  const [prevScreen, setPrev]    = useState('entrance');
+  const [practiceMode, setPracticeMode] = useState('free');
+  const [practiceModule,     setPracticeModule]     = useState(null);
+  const [pinyinInitialScreen, setPinyinInitialScreen] = useState(null);
   const { progress, stats, recordPractice, recordQuiz, resetProgress } = useProgress();
   const { sets: SETS, loading: setsLoading } = useCharacters();
+  // ── Get language safely (UserApp wraps LanguageProvider so we default here) ──
+  const [uiLang, setUiLang] = useState(
+    () => localStorage.getItem('david_lang') || 'zh'
+  );
 
   // ── Phone back button: when user is on platform home, intercept the first
   // back press, show "press again to exit" toast. Second press exits the PWA.
-  useExitConfirm(screen === 'platform', '再按一次退出 · Press again to exit');
+  useExitConfirm(screen === 'platform' || screen === 'entrance', '再按一次退出 · Press again to exit');
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -280,13 +287,13 @@ function UserApp() {
 
   const navActive = screen === 'progress' || screen === 'mystats' ? 'progress'
     : screen === 'settings' ? 'settings'
-    : screen === 'platform' ? 'home'
+    : screen === 'entrance' || screen === 'platform' ? 'home'
     : screen === 'practice-session' || screen === 'practice-modes' ? 'practice'
     : 'practice';
 
   function handleNav(id) {
-    if (id === 'home')     setScreen('platform');
-    if (id === 'practice') setScreen('practice-session');   // reinforcement session
+    if (id === 'home')     setScreen('entrance');
+    if (id === 'practice') setScreen('practice-session');
     if (id === 'progress') setScreen('progress');
     if (id === 'settings') setScreen('settings');
   }
@@ -310,9 +317,17 @@ function UserApp() {
           </div>
         )}
         <PWAInstallBanner/>
-        <PWAInstallCard lang={typeof lang !== 'undefined' ? lang : 'zh'}/>
+        <PWAInstallCard lang={uiLang}/>
 
         <div style={{ flex:1, overflowY:'auto', paddingBottom:72 }}>
+        {screen === 'entrance' && (
+          <MainEntrance
+            lang={uiLang}
+            userLabel={label || ''}
+            onKetang={() => window.open('https://joyful-paletas-0e1f44.netlify.app', '_blank')}
+            onShequ={() => setScreen('platform')}
+          />
+        )}
 
           {screen === 'platform' && (
             <PlatformHome
@@ -320,7 +335,8 @@ function UserApp() {
               allowedModules={modules || []}
               onSettings={() => setScreen('settings')}
               onLogout={logout}
-              userLabel={label}/>
+              userLabel={label}
+              onBack={() => setScreen('entrance')}/>
           )}
           {screen === 'practice-session' && (
             <PracticeSession onExit={() => setScreen('platform')}/>
@@ -451,12 +467,12 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-export default function App() {
-  return (
-    <ErrorBoundary>
-      {IS_ADMIN
-        ? <LanguageProvider><AdminApp/></LanguageProvider>
-        : <UserApp/>}
-    </ErrorBoundary>
-  );
-}
+ export default function App() {
+     return (
+       <ErrorBoundary>
+         {IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
+        : IS_KECHUANG ? <LanguageProvider><KechuangApp/></LanguageProvider>
+        :              <UserApp/>}
+       </ErrorBoundary>
+     );
+   }
