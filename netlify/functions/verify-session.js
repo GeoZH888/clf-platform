@@ -3,6 +3,13 @@
 // Supports both session types:
 //   - Legacy (jgw_invites-backed): session.invite_id set, label from jgw_invites
 //   - New (auth.users-backed):      session.user_id set,   label from jgw_registrations
+//
+// MODULE RESOLUTION (Stage 5B — two-layer):
+//   Path A (legacy): modules from jgw_invites.modules (untouched)
+//   Path B (new):    modules from clf_user_modules.{available, selected}
+//                    Module shows only if BOTH true.
+//
+// Stage 5B also returns user's role in the response.
 
 export const handler = async (event) => {
   const headers = {
@@ -31,7 +38,6 @@ export const handler = async (event) => {
         ...(opts.headers || {}),
       },
     });
-    // 204 No Content (common for PATCH/DELETE with no Prefer:return) → no body
     if (res.status === 204) return null;
     const text = await res.text();
     if (!text) return null;
@@ -45,7 +51,7 @@ export const handler = async (event) => {
   const { device_token } = body;
   if (!device_token) return { statusCode: 400, headers, body: JSON.stringify({ valid: false }) };
 
-  // ── 1. Fetch the session row (no JOIN — we'll resolve label separately) ──
+  // ── 1. Fetch the session row ──
   const sessions = await SB(
     `jgw_device_sessions?device_token=eq.${encodeURIComponent(device_token)}&limit=1`
     + `&select=id,expires_at,is_active,invite_id,user_id`
@@ -65,9 +71,10 @@ export const handler = async (event) => {
   let modules = null;
   let user_id = null;
   let username = null;
+  let role = null;          // ← STAGE 5B: track role
 
   if (session.invite_id) {
-    // Legacy: fetch from jgw_invites
+    // Path A (legacy): fetch from jgw_invites — modules array stays as-is
     const inv = await SB(
       `jgw_invites?id=eq.${encodeURIComponent(session.invite_id)}&limit=1&select=label,modules,username`
     );
@@ -77,21 +84,22 @@ export const handler = async (event) => {
       username = inv[0].username || null;
     }
   } else if (session.user_id) {
-    // New: fetch from jgw_registrations
+    // Path B (new): fetch label + role + resolve modules from clf_user_modules
     const regs = await SB(
-      `jgw_registrations?approved_user_id=eq.${encodeURIComponent(session.user_id)}&limit=1&select=name,username`
+      `jgw_registrations?approved_user_id=eq.${encodeURIComponent(session.user_id)}&limit=1&select=name,username,role`
     );
     if (Array.isArray(regs) && regs[0]) {
       label = regs[0].name || regs[0].username || 'User';
       username = regs[0].username || null;
-      // New admin-created users have full module access
-      modules = ['lianzi','pinyin','words','hsk','poetry','chengyu','grammar','games'];
+      role = regs[0].role || null;    // ← STAGE 5B
       user_id = session.user_id;
+
+      // ── STAGE 5B BRIDGE: real module resolution with two-layer logic ──
+      modules = await resolveModulesForUser(SB, session.user_id);
     }
   }
 
-  // ── 3. Touch last_seen (fire-and-forget, don't await JSON) ──
-  // Use Prefer: return=minimal to avoid response-body issues anyway
+  // ── 3. Touch last_seen (fire-and-forget) ──
   fetch(`${URL}/rest/v1/jgw_device_sessions?id=eq.${session.id}`, {
     method: 'PATCH',
     headers: {
@@ -101,7 +109,7 @@ export const handler = async (event) => {
       'Prefer':        'return=minimal',
     },
     body: JSON.stringify({ last_seen: new Date().toISOString() }),
-  }).catch(() => {});   // swallow errors — non-critical
+  }).catch(() => {});
 
   return { statusCode: 200, headers, body: JSON.stringify({
     valid: true,
@@ -110,5 +118,67 @@ export const handler = async (event) => {
     modules,
     user_id,
     username,
+    role,                  // ← STAGE 5B
   })};
 };
+
+// ─────────────────────────────────────────────────────────────────────
+// Module resolution (mirrors student-auth.js helper, using SB fetch)
+// ─────────────────────────────────────────────────────────────────────
+const MODULE_DEFAULTS = {
+  // 社区 standard bundle
+  lianzi:   true,
+  words:    true,
+  pinyin:   true,
+  chengyu:  true,
+  poetry:   true,
+  grammar:  true,
+  hsk:      true,
+  riddles:  true,
+  // 课堂 + premium + future (defaultEnabled: false)
+  kechuang: false,
+  lessons:  false,
+  chat:     false,
+  voice:    false,
+  homework: false,
+  shop:     false,
+  parents:  false,
+};
+
+const ALWAYS_ON_MODULES = ['home', 'profile', 'progress'];
+
+async function resolveModulesForUser(SB, userId) {
+  const standardBundle = Object.entries(MODULE_DEFAULTS)
+    .filter(([_, v]) => v === true)
+    .map(([k]) => k);
+
+  if (!userId) return [...ALWAYS_ON_MODULES, ...standardBundle];
+
+  try {
+    // STAGE 5B: query both layers — module shows only if available AND selected
+    const rows = await SB(
+      `clf_user_modules?user_id=eq.${encodeURIComponent(userId)}&select=module_id,available,selected`
+    );
+
+    if (!Array.isArray(rows)) {
+      // No data or query failure → safe default
+      return [...ALWAYS_ON_MODULES, ...standardBundle];
+    }
+
+    const overrides = {};
+    rows.forEach(row => {
+      // Both layers must be true for module to be enabled
+      overrides[row.module_id] = (row.available === true) && (row.selected === true);
+    });
+
+    const enabled = [...ALWAYS_ON_MODULES];
+    for (const [moduleId, defaultVal] of Object.entries(MODULE_DEFAULTS)) {
+      const finalVal = (moduleId in overrides) ? overrides[moduleId] : defaultVal;
+      if (finalVal) enabled.push(moduleId);
+    }
+    return enabled;
+  } catch (err) {
+    console.warn('[verify-session resolveModulesForUser] error:', err.message);
+    return [...ALWAYS_ON_MODULES, ...standardBundle];
+  }
+}

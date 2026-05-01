@@ -3,9 +3,43 @@
 //   - Legacy: look up in jgw_invites (Miaohong-era users, plaintext password)
 //   - New: look up in jgw_registrations + auth.users (admin-created, bcrypt hash)
 // Both paths create a row in jgw_device_sessions and return a device_token.
+//
+// MODULE RESOLUTION (Stage 5B — two-layer permission):
+//   Path A (legacy): modules come from jgw_invites.modules array (untouched)
+//   Path B (new):    modules come from clf_user_modules.{available, selected}
+//                    A module shows only if BOTH columns are true.
+//                    'available' = admin grants. 'selected' = user opts in.
+//
+// AUTH RESPONSE (Stage 5B): now includes user.role for frontend role-based UI.
 
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
+
+// ── Canonical module catalog (must match src/config/modules.js) ──────
+// Duplicated here because Netlify functions can't import from src/.
+// Keep this list in sync when modules.js changes.
+const MODULE_DEFAULTS = {
+  // gateable: true, defaultEnabled: true (社区 standard bundle)
+  lianzi:   true,
+  words:    true,
+  pinyin:   true,
+  chengyu:  true,
+  poetry:   true,
+  grammar:  true,
+  hsk:      true,
+  riddles:  true,
+  // gateable: true, defaultEnabled: false (premium / 课堂 / future)
+  kechuang: false,
+  lessons:  false,
+  chat:     false,
+  voice:    false,
+  homework: false,
+  shop:     false,
+  parents:  false,
+};
+
+// Always-on modules (gateable: false in modules.js)
+const ALWAYS_ON_MODULES = ['home', 'profile', 'progress'];
 
 exports.handler = async (event) => {
   const headers = {
@@ -75,7 +109,65 @@ exports.handler = async (event) => {
     body: JSON.stringify({ error: '用户名或密码错误 · Username or password incorrect' }) };
 };
 
-// ── Legacy path: jgw_invites-backed account ──
+// ─────────────────────────────────────────────────────────────────────
+// Resolve modules for a Path B user from clf_user_modules + defaults
+// ─────────────────────────────────────────────────────────────────────
+// Returns an array of canonical module IDs the user has access to.
+//
+// STAGE 5B two-layer logic:
+//   - 'available' (admin grant): is this module available to this user?
+//   - 'selected'  (user opt-in): does the user want it on their home?
+//   Module is shown only if BOTH available AND selected are true.
+//
+// Logic per module:
+//   - If clf_user_modules has a row → both flags must be true
+//   - Otherwise → use defaultEnabled from MODULE_DEFAULTS as both
+//                 (assumes new users have default modules available + selected)
+//
+// Always-on modules are always included regardless of user_modules state.
+// Falls back to STANDARD_BUNDLE on DB error so transient failure doesn't
+// lock the user out of everything.
+async function resolveModulesForUser(admin, userId) {
+  const standardBundle = Object.entries(MODULE_DEFAULTS)
+    .filter(([_, v]) => v === true)
+    .map(([k]) => k);
+
+  if (!userId) return [...ALWAYS_ON_MODULES, ...standardBundle];
+
+  try {
+    const { data, error } = await admin
+      .from('clf_user_modules')
+      .select('module_id, available, selected')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.warn('[resolveModulesForUser] DB error, using defaults:', error.message);
+      return [...ALWAYS_ON_MODULES, ...standardBundle];
+    }
+
+    // Build a map of explicit overrides: a module is "on" if BOTH flags true
+    const overrides = {};
+    (data || []).forEach(row => {
+      overrides[row.module_id] = (row.available === true) && (row.selected === true);
+    });
+
+    // Final list: always-on + every module that resolves to enabled
+    const enabled = [...ALWAYS_ON_MODULES];
+    for (const [moduleId, defaultVal] of Object.entries(MODULE_DEFAULTS)) {
+      const finalVal = (moduleId in overrides) ? overrides[moduleId] : defaultVal;
+      if (finalVal) enabled.push(moduleId);
+    }
+    return enabled;
+  } catch (err) {
+    console.warn('[resolveModulesForUser] exception, using defaults:', err.message);
+    return [...ALWAYS_ON_MODULES, ...standardBundle];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PATH A: legacy jgw_invites-backed account
+// (modules come from jgw_invites.modules array — untouched)
+// ─────────────────────────────────────────────────────────────────────
 async function handleLegacyLogin(admin, inv, fp, headers) {
   if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
     return { statusCode: 403, headers,
@@ -147,16 +239,17 @@ async function handleLegacyLogin(admin, inv, fp, headers) {
   })};
 }
 
-// ── New path: jgw_registrations / auth.users-backed account ──
+// ─────────────────────────────────────────────────────────────────────
+// PATH B: new jgw_registrations / auth.users-backed account
+// (modules come from clf_user_modules + defaults — STAGE C BRIDGE)
+// ─────────────────────────────────────────────────────────────────────
 async function handleNewUserLogin(admin, reg, fp, headers) {
   const userId = reg.approved_user_id;
 
-  // No expiry on new accounts (matches admin intent for direct-create)
-  // If an admin had set an expiry on a registration, could enforce it here.
+  // Resolve actual modules for this user (replaces hardcoded list)
+  const modules = await resolveModulesForUser(admin, userId);
 
-  // Default device cap for user-keyed accounts — look up from clf_quicklogin_tokens
-  // if an active QR token exists for this user (it may define max_devices).
-  // Otherwise fall back to 3 devices.
+  // Default device cap for user-keyed accounts
   const { data: qrToken } = await admin
     .from('clf_quicklogin_tokens')
     .select('max_devices, expires_at')
@@ -180,11 +273,12 @@ async function handleNewUserLogin(admin, reg, fp, headers) {
     return { statusCode: 200, headers, body: JSON.stringify({
       device_token: existing.device_token,
       label: reg.name,
-      modules: ['lianzi','pinyin','words','hsk','poetry','chengyu','grammar','games'],
+      modules,    // ← STAGE C: resolved from clf_user_modules + defaults
       expires_at: qrToken?.expires_at || null,
       user_id: userId,
       username: reg.username,
       display_name: reg.name,
+      role: reg.role || null,    // ← STAGE 5B: include user's role
     })};
   }
 
@@ -204,7 +298,7 @@ async function handleNewUserLogin(admin, reg, fp, headers) {
     }
   }
 
-  // Create new session (no invite_id since this is an auth.users-backed login)
+  // Create new session
   const { data: sess, error: sessErr } = await admin
     .from('jgw_device_sessions')
     .insert({
@@ -224,10 +318,11 @@ async function handleNewUserLogin(admin, reg, fp, headers) {
   return { statusCode: 200, headers, body: JSON.stringify({
     device_token: sess.device_token,
     label: reg.name,
-    modules: ['lianzi','pinyin','words','hsk','poetry','chengyu','grammar','games'],
+    modules,    // ← STAGE C: resolved from clf_user_modules + defaults
     expires_at: qrToken?.expires_at || null,
     user_id: userId,
     username: reg.username,
     display_name: reg.name,
+    role: reg.role || null,    // ← STAGE 5B: include user's role
   })};
 }
