@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════════
 // MainEntrance.jsx  —  Drop into clf-platform/src/components/
 //
 // Top-level gateway with two doors:
@@ -42,33 +42,64 @@ function getGreeting(lang) {
 }
 
 // ── Animated Chinese lantern SVG ─────────────────────────────
-function Lantern({ color = '#c41e3a', swing = false, size = 52 }) {
-  return (
-    <svg width={size} height={size * 1.5} viewBox="0 0 52 78" fill="none"
-      style={{ filter: `drop-shadow(0 0 8px ${color}66)`,
-               animation: swing ? 'lanternSwing 3s ease-in-out infinite' : 'none' }}>
-      {/* Top cap */}
-      <rect x="18" y="2" width="16" height="6" rx="2" fill={color} opacity="0.9"/>
-      {/* String */}
-      <line x1="26" y1="0" x2="26" y2="6" stroke="#8B6914" strokeWidth="1.5"/>
-      {/* Body */}
-      <ellipse cx="26" cy="42" rx="20" ry="28" fill={color} opacity="0.88"/>
-      {/* Highlight */}
-      <ellipse cx="20" cy="32" rx="6" ry="10" fill="white" opacity="0.18"/>
-      {/* Ribs */}
-      {[-14,-7,0,7,14].map((x, i) => (
-        <line key={i} x1={26+x} y1="14" x2={26+x*0.5} y2="70" stroke="white" strokeWidth="0.8" opacity="0.25"/>
-      ))}
-      {/* Bottom tassel */}
-      <rect x="22" y="68" width="8" height="4" rx="1" fill={color} opacity="0.9"/>
-      {[22,25,28].map((x, i) => (
-        <line key={i} x1={x} y1="72" x2={x - 2 + i * 2} y2="78" stroke="#f0c040" strokeWidth="1.2"/>
-      ))}
-      {/* Glow center */}
-      <ellipse cx="26" cy="42" rx="10" ry="14" fill="#fffbe6" opacity="0.22"/>
-    </svg>
-  )
-}
+function Panda({ size = 140, glow = '#c41e3a', wave = true }) {
+    return (
+      <div style={{ position:'relative', width:size, height:size,
+        display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{
+          position:'absolute', inset:'-30%',
+          background:`radial-gradient(circle, ${glow}44 0%, ${glow}22 35%, transparent 70%)`,
+          filter:'blur(16px)', pointerEvents:'none',
+        }}/>
+        <svg width={size} height={size} viewBox="0 0 200 200" fill="none"
+          style={{ position:'relative',
+            animation: wave ? 'pandaBob 3s ease-in-out infinite' : 'none',
+            filter:`drop-shadow(0 4px 14px ${glow}55)` }}>
+          <style>{`
+            @keyframes pandaBob {
+              0%,100% { transform: translateY(0) rotate(-1deg); }
+              50%     { transform: translateY(-4px) rotate(1deg); }
+            }
+            @keyframes pandaWave {
+              0%,60%,100% { transform: rotate(0deg); }
+              70%,90%     { transform: rotate(-22deg); }
+              80%         { transform: rotate(-10deg); }
+            }
+          `}</style>
+          <ellipse cx="100" cy="148" rx="58" ry="42" fill="#1a1a1a"/>
+          <ellipse cx="100" cy="148" rx="46" ry="32" fill="#fafafa"/>
+          <ellipse cx="74"  cy="178" rx="14" ry="10" fill="#1a1a1a"/>
+          <ellipse cx="126" cy="178" rx="14" ry="10" fill="#1a1a1a"/>
+          <ellipse cx="52" cy="135" rx="14" ry="22" fill="#1a1a1a"
+            transform="rotate(-18 52 135)"/>
+          <g style={{ transformOrigin: '148px 130px',
+            animation: wave ? 'pandaWave 2.6s ease-in-out infinite' : 'none' }}>
+            <ellipse cx="156" cy="118" rx="13" ry="22" fill="#1a1a1a"
+              transform="rotate(28 156 118)"/>
+            <circle cx="170" cy="98" r="11" fill="#1a1a1a"/>
+          </g>
+          <circle cx="100" cy="84" r="52" fill="#fafafa"/>
+          <circle cx="58"  cy="46" r="18" fill="#1a1a1a"/>
+          <circle cx="142" cy="46" r="18" fill="#1a1a1a"/>
+          <circle cx="58"  cy="46" r="9"  fill="#3a2a2a"/>
+          <circle cx="142" cy="46" r="9"  fill="#3a2a2a"/>
+          <ellipse cx="80"  cy="78" rx="13" ry="16" fill="#1a1a1a"
+            transform="rotate(-15 80 78)"/>
+          <ellipse cx="120" cy="78" rx="13" ry="16" fill="#1a1a1a"
+            transform="rotate(15 120 78)"/>
+          <circle cx="82"  cy="80" r="5" fill="#fafafa"/>
+          <circle cx="118" cy="80" r="5" fill="#fafafa"/>
+          <circle cx="83"  cy="81" r="2.5" fill="#1a1a1a"/>
+          <circle cx="119" cy="81" r="2.5" fill="#1a1a1a"/>
+          <circle cx="68"  cy="100" r="6" fill="#ff6b8a" opacity="0.45"/>
+          <circle cx="132" cy="100" r="6" fill="#ff6b8a" opacity="0.45"/>
+          <ellipse cx="100" cy="98" rx="4.5" ry="3.2" fill="#1a1a1a"/>
+          <path d="M 92 108 Q 100 116 108 108"
+            stroke="#1a1a1a" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        </svg>
+      </div>
+    )
+  }
 
 // ── Door card ────────────────────────────────────────────────
 function DoorCard({ emoji, title, subtitle, desc, features, color, bgGrad, textColor, accentColor, onClick, badge }) {
@@ -179,11 +210,13 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
 
   // ── 课堂 features ──────────────────────────────────────────
   const ketangFeatures = [
-    t('AI智能课程','AI-powered Lessons','Lezioni con IA', lang),
+    t('课程助手','Lesson Assistant','Assistente Lezioni', lang),
     t('作业管理','Homework Mgmt','Gestione Compiti', lang),
     t('班级考勤','Class Attendance','Presenze Classe', lang),
     t('HSK备考','HSK Prep','Preparazione HSK', lang),
     t('教师反馈','Teacher Feedback','Feedback Insegnante', lang),
+    t('家校互动','Home-school Hub','Scuola-Famiglia', lang),
+                
   ]
 
   // ── 社区 features ──────────────────────────────────────────
@@ -192,7 +225,8 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
     t('拼音学习','Pinyin Learning','Apprendimento Pinyin', lang),
     t('词语闪卡','Vocab Flashcards','Flashcard Vocaboli', lang),
     t('成语故事','Chengyu Stories','Storie Chengyu', lang),
-    t('AI对话','AI Conversation','Conversazione IA', lang),
+    t('场景对话','scene dialogue','dialogo di scena', lang),
+    t('故事汇','Story Collection','Raccolta di storie', lang),
   ]
 
   return (
@@ -223,12 +257,10 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
       {/* ── Top lanterns ── */}
       <div style={{ display:'flex', justifyContent:'center', gap:48,
         paddingTop:28, paddingBottom:4 }}>
-        {[['#c41e3a', true], ['#d4a017', false], ['#c41e3a', true]].map(([color, swing], i) => (
-          <div key={i} style={{ animationDelay:`${i*0.3}s`, opacity: animIn ? 1 : 0,
-            animation: animIn ? `fadeUp 0.6s ${i*0.15}s both` : 'none' }}>
-            <Lantern color={color} swing={swing} size={i===1 ? 62 : 48} />
+       <div style={{ opacity: animIn ? 1 : 0,
+            animation: animIn ? 'fadeUp 0.6s both' : 'none' }}>
+            <Panda size={140} glow="#c41e3a" wave={true} />
           </div>
-        ))}
       </div>
 
       {/* ── Logo / Title ── */}
@@ -268,11 +300,11 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
         <div style={{ animation: animIn ? 'fadeUp 0.6s 0.4s both' : 'none' }}>
           <DoorCard
             emoji="🏫"
-            title={t('课堂', 'Classroom', 'Aula', lang)}
+            title={t('学校', 'School', 'Scuola', lang)}
             subtitle={t('大卫学中文 · 教学系统', 'David Chinese · Teaching System', 'Sistema di Insegnamento', lang)}
             desc={t(
-              '由教师管理的正式学习空间。加入班级、完成作业、接受AI辅助的个性化教学，与老师和同学共同进步。',
-              'A teacher-managed formal learning space. Join classes, complete homework, receive AI-assisted personalised teaching.',
+              '由教师管理的正式学习空间。加入班级、完成作业、接受个性化教学，与老师和同学共同进步。',
+              'A teacher-managed formal learning space. Join classes, complete homework, receive personalised teaching.',
               'Spazio di apprendimento formale gestito dall\'insegnante. Unisciti alle classi, completa i compiti.',
               lang
             )}
@@ -281,7 +313,7 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
             bgGrad="linear-gradient(135deg, #fff5f0 0%, #ffe8e0 50%, #fff0eb 100%)"
             textColor="#2c1008"
             accentColor="#c41e3a"
-            badge={t('B2C 学生入口', 'Student Portal', 'Portale Studenti', lang)}
+            //badge={t('B2C 学生入口', 'Student Portal', 'Portale Studenti', lang)}
             onClick={onKetang}
           />
         </div>
