@@ -86,6 +86,7 @@ function useAdminAuth() {
   const [isAdmin, setIsAdmin]     = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [contributorName, setContributorName] = useState(null);
+  const [profile, setProfile]     = useState(null);
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
@@ -99,6 +100,7 @@ function useAdminAuth() {
       if (s) checkRoles(s.user.id);
       else {
         setIsAdmin(false); setIsContributor(false); setContributorName(null);
+        setProfile(null);
         setLoading(false);
       }
     });
@@ -106,23 +108,36 @@ function useAdminAuth() {
   }, []);
 
   async function checkRoles(userId) {
-    // Check admin first — admins take precedence over contributors.
-    const [{ data: adminRow }, { data: contribRow }, { data: { user } }] = await Promise.all([
+    const [{ data: profile }, { data: adminRow }, { data: contribRow }, { data: { user } }] = await Promise.all([
+      supabase.from('clf_user_profiles').select('role, is_active, display_name').eq('user_id', userId).maybeSingle(),
       supabase.from('jgw_admins').select('id').eq('user_id', userId).maybeSingle(),
       supabase.from('jgw_contributors').select('display_name').eq('user_id', userId).maybeSingle(),
       supabase.auth.getUser(),
     ]);
-    const isMeta = user?.user_metadata?.role === 'superadmin';
-    const admin  = !!adminRow || isMeta;
+
+    // Inactive users → blocked
+    if (profile && profile.is_active === false) {
+      setIsAdmin(false); setIsContributor(false);
+      setContributorName(null); setProfile(null); setLoading(false);
+      return;
+    }
+
+    const clfRole = profile?.role || null;
+    const isMeta  = user?.user_metadata?.role === 'superadmin';
+    const admin   = clfRole === 'super_admin'
+                 || clfRole === 'school_master'
+                 || !!adminRow
+                 || isMeta;
+
     setIsAdmin(admin);
-    // Only flag contributor if NOT already admin
     setIsContributor(!admin && !!contribRow);
-    setContributorName(contribRow?.display_name || null);
+    setContributorName(contribRow?.display_name || profile?.display_name || null);
+    setProfile(profile);
     setLoading(false);
   }
 
   return {
-    session, isAdmin, isContributor, contributorName, loading,
+    session, isAdmin, isContributor, contributorName, profile, loading,
     signIn:  (email, pw) => supabase.auth.signInWithPassword({ email, password: pw }),
     signOut: () => supabase.auth.signOut(),
   };
@@ -1071,7 +1086,7 @@ function AnalyticsTab({ chars }) {
 
 // ── Main AdminApp ─────────────────────────────────────────────────
 export default function AdminApp() {
-  const { session, isAdmin, isContributor, contributorName, loading, signIn, signOut } = useAdminAuth();
+  const { session, isAdmin, isContributor, contributorName, profile, loading, signIn, signOut } = useAdminAuth();
   const [tab,         setTab]         = useState('characters');
   const [chars,       setChars]       = useState([]);
   const [charsLoading, setCharsLoading] = useState(true);
@@ -1176,9 +1191,47 @@ export default function AdminApp() {
   if (loading) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:V.bg }}>Loading…</div>;
   if (!session) return <LoginScreen onSignIn={signIn}/>;
 
-  // Contributor users see a dedicated simplified panel instead of the full
-  // admin UI. They can only record pinyin audio + edit IPA overrides.
-  if (!isAdmin && isContributor) {
+  // Role-based redirect: students/parents land on /admin → bounce to home.
+  // Teachers without admin rights see a "no panel yet" placeholder.
+  if (!isAdmin && !isContributor && profile) {
+    if (profile.role === 'student' || profile.role === 'parent') {
+      window.location.replace('/');
+      return null;
+    }
+    if (profile.role === 'teacher') {
+      return (
+        <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:V.bg, padding:20 }}>
+          <div style={{ maxWidth:420, background:V.card, borderRadius:16, padding:'2rem', border:`0.5px solid ${V.border}`, textAlign:'center' }}>
+            <div style={{ fontSize:48, marginBottom:8 }}>🐼</div>
+            <div style={{ fontSize:18, fontWeight:600, color:V.text, marginBottom:6 }}>
+              老师专区开发中
+            </div>
+            <div style={{ fontSize:13, color:V.text2, marginBottom:4 }}>Teacher Panel · In Progress</div>
+            <div style={{ fontSize:13, color:V.text2, marginBottom:16 }}>
+              欢迎，{profile.display_name || session.user.email}
+            </div>
+            <div style={{ fontSize:12, color:V.text3, marginBottom:20 }}>
+              The teacher dashboard is coming soon. For now, you can return home.
+            </div>
+            <button onClick={() => window.location.href = '/'}
+              style={{ padding:'10px 18px', fontSize:13, fontWeight:500, cursor:'pointer',
+                borderRadius:8, border:'none', background:V.vermillion, color:'#fdf6e3', marginRight:8 }}>
+              返回首页 Home
+            </button>
+            <button onClick={signOut}
+              style={{ padding:'10px 18px', fontSize:13, cursor:'pointer',
+                borderRadius:8, border:`1px solid ${V.border}`, background:V.card, color:V.text2 }}>
+              退出 Sign out
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
+
+    // Contributor users see a dedicated simplified panel instead of the full
+    // admin UI. They can only record pinyin audio + edit IPA overrides.
+    if (!isAdmin && isContributor) {
     return <ContributorPanel
       displayName={contributorName || session.user.email}
       onSignOut={signOut}/>;
