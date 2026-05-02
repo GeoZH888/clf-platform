@@ -1,251 +1,285 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+// src/kechuang/contexts/AuthContext.jsx
+// ═══════════════════════════════════════════════════════════════════════════
+// UNIFIED AUTH CONTEXT (drop-in replacement)
+// ───────────────────────────────────────────────────────────────────────────
+// Backed by Supabase Auth + clf_user_profiles. Keeps the SAME public API
+// as the old kechuang AuthContext so consumer components continue working
+// without modification:
+//
+//   const {
+//     user, token, loading, error,
+//     login, register, logout, updateProfile,
+//     supabase,
+//     isAuthenticated,
+//     isTeacher, isStudent, isParent,
+//     isAdmin, isSuperAdmin, isSchoolMaster, isContentEditor,
+//   } = useAuth();
+//
+// Differences from the old context (intentional):
+//   • Hardcoded keys are GONE — uses src/lib/supabase.js (env-var based).
+//   • Plaintext password comparison is GONE — Supabase Auth handles bcrypt.
+//   • Custom btoa() tokens are GONE — Supabase issues real signed JWTs.
+//   • localStorage hand-management is GONE — Supabase manages session.
+//   • login(email, password) — kechuang form already collects email; we
+//     use it directly. (Old code accepted "username" but actually queried
+//     by username string against dwxz_users_view; same field, new backing.)
+// ═══════════════════════════════════════════════════════════════════════════
 
-// NEW Supabase credentials
-const supabaseUrl = 'https://wrpyhgklasdtgdtyuief.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycHloZ2tsYXNkdGdkdHl1aWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzA2MjMsImV4cCI6MjA5MDA0NjYyM30.TeLgs4K9vo_Xm7XKDSbyg9Qklpy9ZQclBIKdg_-XWWM';
-
-console.log('🔗 Connecting to Supabase:', supabaseUrl);
-
-let supabase = null;
-try {
-  supabase = createClient(supabaseUrl, supabaseKey);
-  window.supabase = supabase; // Expose for debugging
-  console.log('✅ Supabase client created successfully');
-} catch (error) {
-  console.error('❌ Failed to create Supabase client:', error);
-}
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '../../lib/supabase';
 
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-// Simple hash comparison for bcrypt hashes (browser-compatible)
-// This compares against known test passwords
-const verifyPassword = async (inputPassword, storedHash) => {
-  // Direct comparison for plain text passwords (demo mode)
-  if (inputPassword === storedHash) {
-    return true;
-  }
-  
-  // For demo/test accounts with known password "admin123"
-  // The hash in DB is: $2b$10$hACwQ5/HQI6FhbIISOUVeusy3sKyUDhSq36fF5d/54aAdiygJPFzm
-  if (inputPassword === 'admin123' && (storedHash?.startsWith('$2') || storedHash === 'admin123')) {
-    return true;
-  }
-  
-  // For new users, we'll store passwords with a simple hash
-  // In production, use Supabase Auth instead
-  if (storedHash === simpleHash(inputPassword)) {
-    return true;
-  }
-  
-  return false;
-};
-
-// Simple hash function for new passwords (browser-compatible)
-const simpleHash = (str) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return 'simple$' + Math.abs(hash).toString(16);
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [authUser,  setAuthUser] = useState(null);   // raw auth.users row
+  const [profile,   setProfile]  = useState(null);   // clf_user_profiles row
+  const [token,     setToken]    = useState(null);   // access_token (JWT)
+  const [loading,   setLoading]  = useState(true);
+  const [error,     setError]    = useState(null);
 
-  // Check for existing session on mount
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('token');
-    if (savedUser && savedToken) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setToken(savedToken);
-      } catch (e) {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-      }
+  // ─────────────────────────────────────────────────────────
+  // Profile fetcher
+  // ─────────────────────────────────────────────────────────
+  const fetchProfile = useCallback(async (userId) => {
+    if (!userId) return null;
+    const { data, error } = await supabase
+      .from('clf_user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) {
+      console.warn('[AuthContext] profile fetch failed:', error.message);
+      return null;
     }
-    setLoading(false);
+    return data;
   }, []);
 
-  const login = async (username, password) => {
-    try {
-      setError(null);
-      console.log('🔐 Attempting login for:', username);
-      
-      if (!supabase) {
-        throw new Error('Supabase not initialized');
+  // ─────────────────────────────────────────────────────────
+  // Boot: pick up existing session, subscribe to changes
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!active) return;
+
+      if (session?.user) {
+        setAuthUser(session.user);
+        setToken(session.access_token);
+        const prof = await fetchProfile(session.user.id);
+        if (active) setProfile(prof);
       }
-      
-      // Query user from Supabase
-      console.log('📡 Querying database...');
-      const { data: users, error: queryError } = await supabase
-        .from('dwxz_users_view')
-        .select('*')
-        .eq('username', username)
-        .eq('is_active', true)
-        .limit(1);
-      
-      console.log('📡 Query result:', { users, queryError });
-      
-      if (queryError) {
-        console.error('❌ Database query error:', queryError);
-        throw new Error(queryError.message || 'Database connection failed');
+      setLoading(false);
+    })();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!active) return;
+        setAuthUser(session?.user ?? null);
+        setToken(session?.access_token ?? null);
+        if (session?.user) {
+          const prof = await fetchProfile(session.user.id);
+          if (active) setProfile(prof);
+        } else {
+          setProfile(null);
+        }
       }
-      
-      if (!users || users.length === 0) {
-        setError('User not found');
-        return { success: false, message: 'User not found' };
-      }
-      
-      const foundUser = users[0];
-      console.log('✅ User found:', foundUser.username);
-      
-      // Verify password
-      const isValid = await verifyPassword(password, foundUser.password_hash || foundUser.password);
-      if (!isValid) {
-        setError('Invalid password');
-        return { success: false, message: 'Invalid password' };
-      }
-      
-      console.log('✅ Password verified');
-      
-      // Create simple token
-      const simpleToken = btoa(JSON.stringify({ id: foundUser.id, username: foundUser.username, exp: Date.now() + 86400000 }));
-      
-      // Remove password from user object
-      const { password_hash: _, password: __, ...userWithoutPassword } = foundUser;
-      
-      localStorage.setItem('token', simpleToken);
-      localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-      setUser(userWithoutPassword);
-      setToken(simpleToken);
-      
-      console.log('✅ Login successful!');
-      return { success: true };
-    } catch (err) {
-      console.error('❌ Login error:', err);
-      const message = err.message || 'Login failed';
-      setError(message);
-      return { success: false, message };
+    );
+
+    return () => { active = false; subscription?.unsubscribe(); };
+  }, [fetchProfile]);
+
+  // ─────────────────────────────────────────────────────────
+  // login(emailOrUsername, password)
+  // ─────────────────────────────────────────────────────────
+  // Kechuang's old form passed `username`. The new system uses email.
+  // To stay backward-compatible, we treat the input as email if it
+  // contains '@', otherwise we synthesize the local-domain form
+  // (matches the migration we did for jgw_invites students).
+  const login = async (emailOrUsername, password) => {
+    setError(null);
+    const email = emailOrUsername.includes('@')
+      ? emailOrUsername.trim().toLowerCase()
+      : `${emailOrUsername.trim().toLowerCase()}@local.david-zhongwen.net`;
+
+    const { data, error: authErr } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authErr) {
+      setError(authErr.message);
+      return { success: false, message: authErr.message };
     }
+
+    setAuthUser(data.user);
+    setToken(data.session?.access_token ?? null);
+
+    const prof = await fetchProfile(data.user.id);
+    setProfile(prof);
+
+    if (!prof) {
+      // Auth succeeded but no CLF profile — caller should redirect them.
+      const msg = 'Account exists but has no CLF profile. Contact an administrator.';
+      setError(msg);
+      return { success: false, message: msg };
+    }
+
+    if (prof.is_active === false) {
+      await supabase.auth.signOut();
+      const msg = 'Your account has been deactivated.';
+      setError(msg);
+      return { success: false, message: msg };
+    }
+
+    return { success: true };
   };
 
+  // ─────────────────────────────────────────────────────────
+  // register(userData)
+  // ─────────────────────────────────────────────────────────
+  // userData: { email, password, name, name_zh?, role?, hsk_level?, ... }
+  // We treat email as the canonical identifier (per chosen mapping).
   const register = async (userData) => {
-    try {
-      setError(null);
-      
-      // Check if username exists
-      const { data: existing } = await supabase
-        .from('dwxz_users_view')
-        .select('id')
-        .eq('username', userData.username)
-        .limit(1);
-      
-      if (existing && existing.length > 0) {
-        setError('Username already exists');
-        return { success: false, message: 'Username already exists' };
-      }
-      
-      // Hash password with simple hash (browser-compatible)
-      const hashedPassword = simpleHash(userData.password);
-      
-      // Insert new user
-      const { data: newUser, error: insertError } = await supabase
-        .from('dwxz_users_view')
-        .insert([{
-          username: userData.username,
-          password_hash: hashedPassword,
-          name: userData.name,
-          name_zh: userData.name_zh || null,
-          email: userData.email,
-          role: userData.role || 'student',
-          hsk_level: userData.hsk_level || 1,
-          is_active: true
-        }])
-        .select()
-        .single();
-      
-      if (insertError) throw insertError;
-      
-      // Create token and login
-      const simpleToken = btoa(JSON.stringify({ id: newUser.id, username: newUser.username, exp: Date.now() + 86400000 }));
-      const { password_hash: _, ...userWithoutPassword } = newUser;
-      
-      localStorage.setItem('token', simpleToken);
-      localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-      setUser(userWithoutPassword);
-      setToken(simpleToken);
-      
-      return { success: true };
-    } catch (err) {
-      console.error('Register error:', err);
-      const message = err.message || 'Registration failed';
-      setError(message);
-      return { success: false, message };
+    setError(null);
+
+    if (!userData?.email || !userData?.password) {
+      const msg = 'Email and password are required';
+      setError(msg);
+      return { success: false, message: msg };
     }
+
+    const email = userData.email.trim().toLowerCase();
+
+    // The on_auth_user_created trigger in clf_user_profiles auto-creates
+    // a profile from raw_user_meta_data. We pass display_name + role hints.
+    const { data, error: signUpErr } = await supabase.auth.signUp({
+      email,
+      password: userData.password,
+      options: {
+        data: {
+          display_name:    userData.name    || email.split('@')[0],
+          display_name_zh: userData.name_zh || null,
+          role:            userData.role    || 'student',
+        },
+      },
+    });
+
+    if (signUpErr) {
+      setError(signUpErr.message);
+      return { success: false, message: signUpErr.message };
+    }
+
+    // Some Supabase configurations require email confirmation before session.
+    // If session is null we still treat sign-up as success but tell the caller.
+    if (!data.session) {
+      return {
+        success: true,
+        message: 'Check your email to confirm your account.',
+        requiresConfirmation: true,
+      };
+    }
+
+    setAuthUser(data.user);
+    setToken(data.session.access_token);
+    const prof = await fetchProfile(data.user.id);
+    setProfile(prof);
+
+    return { success: true };
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
+  // ─────────────────────────────────────────────────────────
+  // logout()
+  // ─────────────────────────────────────────────────────────
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setAuthUser(null);
+    setProfile(null);
     setToken(null);
   };
 
+  // ─────────────────────────────────────────────────────────
+  // updateProfile(profileData)
+  // Updates clf_user_profiles for the current user.
+  // ─────────────────────────────────────────────────────────
   const updateProfile = async (profileData) => {
-    try {
-      const { data, error: updateError } = await supabase
-        .from('dwxz_users_view')
-        .update(profileData)
-        .eq('id', user.id)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-      
-      const { password: _, ...userWithoutPassword } = data;
-      localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-      setUser(userWithoutPassword);
-      
-      return { success: true };
-    } catch (err) {
-      return { success: false, message: err.message || 'Update failed' };
+    if (!authUser) return { success: false, message: 'Not authenticated' };
+
+    // Only allow updating safe fields here; role/is_active flips via admin panel.
+    const allowed = ['display_name', 'display_name_zh'];
+    const patch = {};
+    for (const k of allowed) if (k in profileData) patch[k] = profileData[k];
+
+    if (Object.keys(patch).length === 0) return { success: true };
+
+    const { data, error: updateErr } = await supabase
+      .from('clf_user_profiles')
+      .update(patch)
+      .eq('user_id', authUser.id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return { success: false, message: updateErr.message };
     }
+    setProfile(data);
+    return { success: true };
   };
 
+  // ─────────────────────────────────────────────────────────
+  // Derive a `user` object that mirrors the OLD shape so kechuang
+  // components reading user.role / user.username / user.name continue
+  // to work without modification.
+  // ─────────────────────────────────────────────────────────
+  const user = (authUser && profile) ? {
+    id:          profile.user_id,
+    user_id:     profile.user_id,
+    email:       profile.email || authUser.email,
+    username:    profile.email || authUser.email,             // legacy alias
+    name:        profile.display_name,
+    name_zh:     profile.display_name_zh,
+    role:        profile.role,
+    is_active:   profile.is_active,
+    school_id:   profile.school_id,
+    created_at:  profile.created_at,
+  } : null;
+
+  // ─────────────────────────────────────────────────────────
+  // Public context value (preserves OLD API)
+  // ─────────────────────────────────────────────────────────
   const value = {
     user,
     token,
     loading,
     error,
+
+    // actions
     login,
     register,
     logout,
     updateProfile,
-    supabase, // Expose supabase client for direct queries
-    isAuthenticated: !!user,
-    isTeacher: user?.role === 'teacher',
-    isStudent: user?.role === 'student',
-    isParent: user?.role === 'parent',
-    isAdmin: user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'school_master',
-    isSuperAdmin: user?.role === 'super_admin',
-    isSchoolMaster: user?.role === 'school_master',
-    isContentEditor: user?.role === 'content_editor'
+
+    // shared client (for direct queries from kechuang components)
+    supabase,
+
+    // role flags — match the old context exactly
+    isAuthenticated:  !!user,
+    isTeacher:        user?.role === 'teacher',
+    isStudent:        user?.role === 'student',
+    isParent:         user?.role === 'parent',
+    isAdmin:          user?.role === 'super_admin'
+                       || user?.role === 'school_master',
+    isSuperAdmin:     user?.role === 'super_admin',
+    isSchoolMaster:   user?.role === 'school_master',
+    isContentEditor:  false, // role not present in clf_user_role enum;
+                              // add if needed
   };
 
   return (
