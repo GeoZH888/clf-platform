@@ -229,6 +229,14 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
     t('故事汇','Story Collection','Raccolta di storie', lang),
   ]
 
+  // ── 非遗 features ────────────────────────────────────
+  const feiyiFeatures = [
+    t('民俗故事','Folklore','Folclore', lang),
+    t('传统戏曲','Opera','Opera', lang),
+    t('民间工艺','Crafts','Artigianato', lang),
+    t('节庆文化','Festivals','Feste', lang),
+]
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -336,9 +344,36 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
             textColor="#0c2a5a"
             accentColor="#1565C0"
             onClick={onShequ}
-          />
+            />
+          </div>
+
+          {/* ── Card 3: 非遗 (Heritage) — placeholder ── */}
+          <div style={{ animation: animIn ? 'fadeUp 0.6s 0.64s both' : 'none' }}>
+            <DoorCard
+              emoji="🏮"
+              title={t('非遗', 'Heritage', 'Patrimonio', lang)}
+              subtitle={t('中华非物质文化遗产', 'Chinese Intangible Heritage', 'Patrimonio Culturale', lang)}
+              desc={t(
+                '深入探索中国非物质文化遗产:民俗、戏曲、工艺、传统节日。专题正在建设中。',
+                'Explore China\'s intangible cultural heritage: folklore, opera, crafts, festivals. Section under construction.',
+                'Esplora il patrimonio culturale immateriale cinese: folklore, opera, artigianato, feste. Sezione in costruzione.',
+                lang
+              )}
+              features={feiyiFeatures}
+              color="#a0522d"
+              bgGrad="linear-gradient(135deg, #fff8ed 0%, #fdebc7 50%, #fff5e0 100%)"
+              textColor="#3d2410"
+              accentColor="#a0522d"
+              badge={t('即将上线', 'Coming Soon', 'In arrivo', lang)}
+              onClick={() => alert(t(
+                '非遗专区正在建设中,敬请期待。',
+                'Heritage section is under construction. Stay tuned.',
+                'Sezione patrimonio in costruzione. Resta sintonizzato.',
+                lang
+              ))}
+            />
+          </div>
         </div>
-      </div>
 
       {/* ── Footer ── */}
       <div style={{ marginTop:32, textAlign:'center',

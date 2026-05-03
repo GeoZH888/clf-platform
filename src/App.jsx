@@ -159,6 +159,44 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
   );
 }
 
+// ── Placeholder for upcoming modules ──────────────────────────
+function ComingSoonScreen({ title, titleEn, titleIt, emoji, onBack }) {
+  return (
+    <div style={{
+      minHeight:'100dvh', background:'#fdf6e3',
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:24, gap:8, textAlign:'center',
+    }}>
+      <div style={{ fontSize:72, marginBottom:8 }}>{emoji}</div>
+      <div style={{ fontSize:28, fontWeight:700, color:'#1a0a05',
+        fontFamily:"'STKaiti','KaiTi',serif", letterSpacing:2 }}>{title}</div>
+      <div style={{ fontSize:13, color:'#a07850', marginTop:2 }}>
+        {titleEn} · {titleIt}
+      </div>
+      <div style={{ marginTop:20, padding:'12px 18px', borderRadius:14,
+        background:'#f5ede0', color:'#5D2E0C', fontSize:13, maxWidth:340,
+        lineHeight:1.6, border:'1px solid #e8d5b0' }}>
+        本专区正在建设中,敬请期待。<br/>
+        <span style={{ fontSize:11, opacity:0.7 }}>
+          Section under construction · Sezione in costruzione
+        </span>
+      </div>
+      <button onClick={onBack} style={{
+        marginTop:20, padding:'10px 22px', fontSize:13, fontWeight:500,
+        cursor:'pointer', borderRadius:8, border:'none',
+        background:'#8B4513', color:'#fdf6e3',
+      }}>
+        ← 返回 Back
+      </button>
+    </div>
+  );
+}
+
+
+
+
+
+
 // ── PWA Install Banner ────────────────────────────────────────────
 function PWAInstallBanner() {
   const [prompt,    setPrompt]    = React.useState(null);
@@ -321,12 +359,11 @@ function UserApp() {
 
         <div style={{ flex:1, overflowY:'auto', paddingBottom:72 }}>
         {screen === 'entrance' && (
-          <MainEntrance
-            lang={uiLang}
-            userLabel={label || ''}
-            onKetang={() => window.open('https://joyful-paletas-0e1f44.netlify.app', '_blank')}
-            onShequ={() => setScreen('platform')}
-          />
+            <MainEntrance
+              onKetang={() => window.open('https://joyful-paletas-0e1f44.netlify.app', '_blank')}
+              onShequ={() => setScreen('platform')}
+              onFeiyi={() => setScreen('feiyi')}
+            />
         )}
 
           {screen === 'platform' && (
@@ -402,11 +439,26 @@ function UserApp() {
               onLogout={logout}
               onBack={()=>setScreen('platform')}/>
           )}
-          {screen === 'pinyin' && (
-            <PinyinApp
-              initialScreen={pinyinInitialScreen}
-              onBack={()=>{ setPinyinInitialScreen(null); setScreen('platform'); }}/>
-          )}
+        {screen === 'pinyin' && (
+              <PinyinApp
+                onBack={()=>{ setPinyinInitialScreen(null); setScreen('platform'); }}/>
+            )}
+
+            {screen === 'scenario' && (
+              <ComingSoonScreen
+                title="场景对话"  titleEn="Scenario Dialogues"  titleIt="Dialoghi di Scenari"
+                emoji="💬"  onBack={() => setScreen('platform')}/>
+            )}
+            {screen === 'story' && (
+              <ComingSoonScreen
+                title="故事会"  titleEn="Story Time"  titleIt="Ora delle Storie"
+                emoji="📖"  onBack={() => setScreen('platform')}/>
+            )}
+            {screen === 'feiyi' && (
+              <ComingSoonScreen
+                title="非遗"  titleEn="Heritage"  titleIt="Patrimonio"
+                emoji="🏮"  onBack={() => setScreen('entrance')}/>
+            )}
           {screen === 'words' && (
             <WordsApp onBack={()=>setScreen('platform')}/>
           )}

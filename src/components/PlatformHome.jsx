@@ -160,7 +160,7 @@ const MODULES = [
     desc:     { zh:'拆字 · 谐音 · 文化典故',
                 en:'Wordplay · puns · cultural allusions',
                 it:'Indovinelli classici · giochi di parole' },
-    features: [
+                  features: [
       { zh:'因人而异',     en:'Tailored to your level',   it:'Su misura per te' },
       { zh:'拆字 · 谐音',   en:'Wordplay & decomposition', it:'Giochi di parole' },
       { zh:'渐进提示',     en:'Progressive hints',        it:'Suggerimenti graduali' },
@@ -171,6 +171,47 @@ const MODULES = [
     border:   '#C62828',     // 喜庆红
     text:     '#5D1010',     // 深红字
   },
+
+  {
+    id:       'scenario',
+    emoji:    '💬',
+    iconImage: null,
+    name:     { zh:'场景对话', en:'Scenario Dialogues', it:'Dialoghi di Scenari' },
+    desc:     { zh:'生活场景 · 三语字幕 · 朗读',
+                en:'Real-life scenes · trilingual · TTS',
+                it:'Scene di vita · trilingue · TTS' },
+    features: [
+      { zh:'面包店买早餐',     en:'Bakery breakfast',     it:'Colazione al bar' },
+      { zh:'学校开学第一天',   en:'First day of school',  it:'Primo giorno di scuola' },
+      { zh:'家庭晚餐',         en:'Family dinner',        it:'Cena in famiglia' },
+      { zh:'问路与交通',       en:'Asking directions',    it:'Chiedere indicazioni' },
+    ],
+    tag:      { zh:'对话', en:'Dialogue', it:'Dialogo' },
+    color:    '#E1F5FE',
+    border:   '#0277BD',
+    text:     '#01579B',
+  },
+  {
+    id:       'story',
+    emoji:    '📖',
+    iconImage: null,
+    name:     { zh:'故事会', en:'Story Time', it:'Ora delle Storie' },
+    desc:     { zh:'听故事 · 看绘本 · 学中文',
+                en:'Listen · read · learn',
+                it:'Ascolta · leggi · impara' },
+    features: [
+      { zh:'小猫钓鱼',         en:'Kitten goes fishing',     it:'Il gattino pesca' },
+      { zh:'龟兔赛跑',         en:'Tortoise & hare',         it:'La lepre e la tartaruga' },
+      { zh:'中秋玉兔',         en:'Mid-Autumn jade rabbit',  it:'Coniglio di giada' },
+      { zh:'熊猫找朋友',       en:'Panda finds friends',     it:'Panda trova amici' },
+    ],
+    tag:      { zh:'绘本', en:'Picture Book', it:'Libro Illustrato' },
+    color:    '#F1F8E9',
+    border:   '#558B2F',
+    text:     '#33691E',
+  },
+
+
 
 
   // ── Future modules — uncomment and adjust as they come online ──
