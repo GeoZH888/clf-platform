@@ -31,12 +31,17 @@ export const MODULES = [
   { id: 'grammar',    label: '语法',     icon: '📐', gateable: true,  defaultEnabled: true,  category: 'learning' },
   { id: 'hsk',        label: 'HSK',     icon: '🎯', gateable: true,  defaultEnabled: true,  category: 'learning' },
   { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' },
+  { id: 'scenario', label: '场景对话', icon: '💬', gateable: true, defaultEnabled: false, category: 'practice' },
+   { id: 'story',    label: '故事会',   icon: '📖', gateable: true, defaultEnabled: false, category: 'practice' },
 
   // ── Premium / opt-in (defaultEnabled: false) ────────────────────────
+// ── Premium / opt-in (defaultEnabled: false) ────────────────────────
   { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' },
-  { id: 'chat',       label: 'AI聊天',   icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' },
+  { id: 'chat',       label: '问答聊天',   icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' },
   { id: 'voice',      label: '语音评测', icon: '🎤', gateable: true,  defaultEnabled: false, category: 'practice' },
   { id: 'homework',   label: '作业',     icon: '✏️', gateable: true,  defaultEnabled: false, category: 'practice' },
+  { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' },
+  { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: false, category: 'practice' },
 
   // ── Future placeholder (defaultEnabled: false, hidden until built) ──
   { id: 'shop',       label: '小卖部',   icon: '🛒', gateable: true,  defaultEnabled: false, category: 'future' },
