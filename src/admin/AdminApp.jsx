@@ -29,6 +29,8 @@ import AIAnalyticsTab from './AIAnalyticsTab.jsx';
 import CorpusTab      from './CorpusTab.jsx';
 import PromptTemplatesTab from './PromptTemplatesTab.jsx';
 import RiddleAdminTab from './RiddleAdminTab';
+import ScenarioAdminTab from './ScenarioAdminTab.jsx';
+import StoryAdminTab from './StoryAdminTab.jsx';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -1262,6 +1264,8 @@ export default function AdminApp() {
     { id:'pinyin-audio', label:'🎤 拼音音库' },
     { id:'chengyu',    label:'📜 成语' },
     { id:'grammar',    label:'📐 语法' },
+    { id:'scenarios',  label:'💬 场景对话' },
+    { id:'stories',    label:'📖 故事会' },
     { id:'users',      label:'👥 用户' },
     { id:'analytics',  label:'📊 AI 分析' },
     { id:'apikeys',    label:'🔑 API Keys' },
@@ -1639,6 +1643,8 @@ export default function AdminApp() {
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
         {tab==='grammar'   && <GrammarAdminTab/>}
+        {tab==='scenarios' && <ScenarioAdminTab/>}
+        {tab==='stories'   && <StoryAdminTab/>}
         {tab==='hsk'       && <HSKAdminTab/>}
         {tab==='poetry'    && <PoetryAdminTab/>}
         {tab==='apikeys'   && <ApiKeyManager/>}
