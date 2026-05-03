@@ -1,6 +1,7 @@
 // src/admin/PandaStudio.jsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { MODULES } from '../config/modules.js';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -44,14 +45,13 @@ const PROVIDERS = [
 // When module_id is set on jgw_panda_assets, that panda is shown for that
 // module on the home screen instead of the hash-based fallback.
 const MODULE_OPTIONS = [
-  { id: '',         label: '— 不分配 —' },
-  { id: 'lianzi',   label: '🐢 练字' },
-  { id: 'pinyin',   label: '🔤 拼音' },
-  { id: 'words',    label: '📝 词语' },
-  { id: 'grammar',  label: '📐 语法' },
-  { id: 'chengyu',  label: '🐼 成语' },
-  { id: 'poetry',   label: '🪷 诗词' },
-  { id: 'riddles',   label: '🏮 灯谜' },
+  { id: '', label: '— 不分配 —' },
+  ...MODULES
+    .filter(m => m.gateable)
+    .map(m => ({
+      id: m.id,
+      label: `${m.icon || ''} ${m.label}`.trim(),
+    })),
 ];
 
 function getKey(id) { return localStorage.getItem(`admin_key_${id}`) || ''; }
