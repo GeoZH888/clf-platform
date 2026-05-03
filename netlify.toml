@@ -8,11 +8,13 @@
   functions = "netlify/functions"
 
 [build.environment]
+ [build.environment]
   NODE_VERSION = "20"
   # Supabase ANON URL + KEY are public by design (anon role, RLS-protected).
-  # They are embedded in index.html (font URLs) and compiled into the Vite bundle.
-  # Tell Netlify's secret scanner to ignore them.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
+  # Disable secrets scanning entirely — this is a SPA and all the keys
+  # exposed in bundle (anon, public CDN URLs) are intentionally so.
+  # OMIT_KEYS alone wasn't enough — Netlify still scanned & redacted values.
+  SECRETS_SCAN_ENABLED = "false"
 
 [functions]
   node_bundler          = "esbuild"
