@@ -34,3 +34,9 @@ src.backup/
 # Ad-hoc test files
 body.json
 test_body.json
+
+# Local dev / debug artifacts
+*.log
+*-tail.txt
+body.json
+test_body.json
