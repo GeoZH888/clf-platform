@@ -1,6 +1,6 @@
-# ──────────────────────────────────────────────────────────────────────
-#  大卫学中文 — Netlify config
-# ──────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#  å¤§å«å­¦ä¸­æ–‡ â€” Netlify config
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 [build]
   command   = "npm run build"
@@ -8,12 +8,11 @@
   functions = "netlify/functions"
 
 [build.environment]
- [build.environment]
   NODE_VERSION = "20"
   # Supabase ANON URL + KEY are public by design (anon role, RLS-protected).
-  # Disable secrets scanning entirely — this is a SPA and all the keys
+  # Disable secrets scanning entirely â€” this is a SPA and all the keys
   # exposed in bundle (anon, public CDN URLs) are intentionally so.
-  # OMIT_KEYS alone wasn't enough — Netlify still scanned & redacted values.
+  # OMIT_KEYS alone wasn't enough â€” Netlify still scanned & redacted values.
   SECRETS_SCAN_ENABLED = "false"
 
 [functions]
@@ -23,7 +22,7 @@
   # otherwise esbuild tries to bundle them into the Lambda and breaks on native deps.
   external_node_modules = ["pdf-parse", "pdf2json", "adm-zip", "mammoth", "xlsx"]
 
-# ─── Long-running functions (900s = 15 min, max for Pro background) ────
+# â”€â”€â”€ Long-running functions (900s = 15 min, max for Pro background) â”€â”€â”€â”€
 [functions."process-pdf"]
   timeout = 900
 
@@ -48,14 +47,14 @@
 [functions."batch-translate-mnemonics"]
   timeout = 900
 
-# ─── Shorter functions ─────────────────────────────────────────────────
+# â”€â”€â”€ Shorter functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 [functions."generate-illustration"]
   timeout = 60   # Stability Ultra can take 20-40s
 
 [functions."azure-tts-speak"]
   timeout = 30
 
-# ─── Routing ───────────────────────────────────────────────────────────
+# â”€â”€â”€ Routing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 [[redirects]]
   from   = "/api/*"
   to     = "/.netlify/functions/:splat"
@@ -66,17 +65,17 @@
   to     = "/index.html"
   status = 200
 
-# ─── Dev ───────────────────────────────────────────────────────────────
+# â”€â”€â”€ Dev â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 [dev]
   command    = "npm run dev"
   port       = 8888
   targetPort = 5173
   autoLaunch = false
 
-# ──────────────────────────────────────────────────────────────────────
-#  Environment variables — set in Netlify UI:
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#  Environment variables â€” set in Netlify UI:
 #
-#   Site configuration → Environment variables → Add a variable
+#   Site configuration â†’ Environment variables â†’ Add a variable
 #
 #   Required (non-secret, public):
 #     VITE_SUPABASE_URL         = "https://xxx.supabase.co"
@@ -91,4 +90,4 @@
 #     AZURE_SPEECH_KEY          = "..."
 #     AZURE_SPEECH_REGION       = "westeurope"
 #     ADMIN_EMAIL_ALLOWLIST     = "you@example.com"
-# ──────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
