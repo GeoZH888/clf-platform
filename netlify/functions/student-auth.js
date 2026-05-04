@@ -125,8 +125,11 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: '账号已停用 · Account disabled' }) };
   }
 
-  // ── Step 4: Resolve modules ──
-  const modules = await resolveModules(admin, userId);
+  // ── Step 4: Resolve modules — admins see everything ──
+  const isAdmin = ['super_admin', 'school_master'].includes(profile.role);
+  const modules = isAdmin
+    ? [...ALWAYS_ON, ...Object.keys(MODULE_DEFAULTS), 'scenario', 'story', 'feiyi']
+    : await resolveModules(admin, userId);
 
   // ── Step 5: Return session + profile + modules ──
   return { statusCode: 200, headers, body: JSON.stringify({

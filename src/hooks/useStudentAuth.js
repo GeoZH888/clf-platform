@@ -79,8 +79,10 @@ export function useStudentAuth() {
         return;
       }
 
-      // Resolve modules
-      const modules = await resolveModules(userId);
+      // Resolve modules — admin roles see everything (bypass gating)
+      const modules = ['super_admin', 'school_master'].includes(profile.role)
+        ? buildFullModuleList()
+        : await resolveModules(userId);
 
       const expiresAt = session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null;
       const days = daysUntil(expiresAt);
@@ -139,7 +141,9 @@ export function useStudentAuth() {
         expiresAt,
         daysLeft: days,
         expiring: days !== null && days <= 7,
-        modules: data.modules || [...ALWAYS_ON, ...STANDARD_BUNDLE],
+        modules: ['super_admin', 'school_master'].includes(data.role)
+          ? buildFullModuleList()
+          : (data.modules || [...ALWAYS_ON, ...STANDARD_BUNDLE]),
         error: '',
         userId: data.user_id,
         username: data.username,
@@ -201,6 +205,21 @@ async function resolveModules(userId) {
     return [...ALWAYS_ON, ...standard];
   }
 }
+
+// Build full module list for admins — every gateable module + practice modules.
+// New modules added later (defaultEnabled: false) won't appear automatically;
+// add them to EXTRA_FOR_ADMIN if you want admins to see them.
+const EXTRA_FOR_ADMIN = ['scenario', 'story', 'feiyi'];
+
+function buildFullModuleList() {
+  return [
+    ...ALWAYS_ON,
+    ...Object.keys(MODULE_DEFAULTS),
+    ...EXTRA_FOR_ADMIN,
+  ];
+}
+
+
 
 // ─────────────────────────────────────────────────────────────────
 // Backwards-compat alias — old code imports `useDeviceAuth`.
