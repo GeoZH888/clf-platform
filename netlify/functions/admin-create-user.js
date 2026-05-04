@@ -45,18 +45,25 @@ function genUsername(displayName) {
 }
 
 // Validate a JWT belongs to a superadmin
+// Validate a JWT belongs to a super_admin or school_master.
+// Reads from clf_user_profiles (single source of truth as of Phase-2 migration).
 async function requireSuperAdmin(authHeader) {
   const token = (authHeader || '').replace(/^Bearer\s+/i, '');
   if (!token) throw new Error('Missing auth token');
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) throw new Error('Invalid token');
 
-  // Check jgw_admins OR user_metadata.role === 'superadmin'
-  const { data: adminRow } = await supabase
-    .from('jgw_admins').select('user_id').eq('user_id', user.id).maybeSingle();
-  const isSuperadmin = user.user_metadata?.role === 'superadmin';
+  const { data: profile } = await supabase
+    .from('clf_user_profiles')
+    .select('role, is_active')
+    .eq('user_id', user.id)
+    .maybeSingle();
 
-  if (!adminRow && !isSuperadmin) throw new Error('Not authorized');
+  if (!profile) throw new Error('Not authorized: no profile');
+  if (profile.is_active === false) throw new Error('Not authorized: account disabled');
+  if (!['super_admin', 'school_master'].includes(profile.role)) {
+    throw new Error('Not authorized: insufficient role');
+  }
   return user;
 }
 

@@ -29,10 +29,18 @@ async function requireSuperAdmin(authHeader) {
   if (!token) throw new Error('Missing auth token');
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) throw new Error('Invalid token');
-  const { data: adminRow } = await supabase
-    .from('jgw_admins').select('user_id').eq('user_id', user.id).maybeSingle();
-  const isSuperadmin = user.user_metadata?.role === 'superadmin';
-  if (!adminRow && !isSuperadmin) throw new Error('Not authorized');
+
+  const { data: profile } = await supabase
+    .from('clf_user_profiles')
+    .select('role, is_active')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!profile) throw new Error('Not authorized: no profile');
+  if (profile.is_active === false) throw new Error('Not authorized: account disabled');
+  if (!['super_admin', 'school_master'].includes(profile.role)) {
+    throw new Error('Not authorized: insufficient role');
+  }
   return user;
 }
 

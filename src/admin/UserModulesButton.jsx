@@ -29,12 +29,12 @@ export default function UserModulesButton({ user, style }) {
       if (!user?.id) return;
       const { data } = await supabase
         .from('clf_user_modules')
-        .select('module_id, enabled')
+        .select('module_id, available, selected')
         .eq('user_id', user.id);
       if (cancelled) return;
       // Compute effective count
       const flags = {};
-      (data || []).forEach(r => { flags[r.module_id] = r.enabled; });
+      (data || []).forEach(r => { flags[r.module_id] = r.available && r.selected; });
       const enabled = MODULES.filter(m => {
         if (!m.gateable) return false;
         if (m.id in flags) return flags[m.id];
@@ -91,13 +91,13 @@ function UserModulesModal({ user, onClose, onSaved }) {
     (async () => {
       const { data, error } = await supabase
         .from('clf_user_modules')
-        .select('module_id, enabled')
+        .select('module_id, available, selected')
         .eq('user_id', user.id);
       if (error) {
         setMsg({ kind: 'error', text: `加载失败: ${error.message}` });
       } else {
         const map = {};
-        (data || []).forEach(r => { map[r.module_id] = r.enabled; });
+        (data || []).forEach(r => { map[r.module_id] = r.available && r.selected; });
         setFlags(map);
         setOriginal(map);
       }
@@ -166,7 +166,7 @@ function UserModulesModal({ user, onClose, onSaved }) {
         const inDraft  = modId in flags;
         const inOrig   = modId in original;
         if (inDraft && (!inOrig || flags[modId] !== original[modId])) {
-          upserts.push({ user_id: user.id, module_id: modId, enabled: flags[modId] });
+          upserts.push({ user_id: user.id, module_id: modId, available: flags[modId], selected: flags[modId] });
         } else if (!inDraft && inOrig) {
           deletes.push(modId);
         }

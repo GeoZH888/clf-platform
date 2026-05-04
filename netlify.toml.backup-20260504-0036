@@ -1,0 +1,94 @@
+# ──────────────────────────────────────────────────────────────────────
+#  大卫学中文 — Netlify config
+# ──────────────────────────────────────────────────────────────────────
+
+[build]
+  command   = "npm run build"
+  publish   = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+ [build.environment]
+  NODE_VERSION = "20"
+  # Supabase ANON URL + KEY are public by design (anon role, RLS-protected).
+  # Disable secrets scanning entirely — this is a SPA and all the keys
+  # exposed in bundle (anon, public CDN URLs) are intentionally so.
+  # OMIT_KEYS alone wasn't enough — Netlify still scanned & redacted values.
+  SECRETS_SCAN_ENABLED = "false"
+
+[functions]
+  node_bundler          = "esbuild"
+  included_files        = ["netlify/functions/**/*.json"]
+  # IMPORTANT: every parser lib used by a function MUST be in external_node_modules,
+  # otherwise esbuild tries to bundle them into the Lambda and breaks on native deps.
+  external_node_modules = ["pdf-parse", "pdf2json", "adm-zip", "mammoth", "xlsx"]
+
+# ─── Long-running functions (900s = 15 min, max for Pro background) ────
+[functions."process-pdf"]
+  timeout = 900
+
+[functions."process-zip"]
+  timeout = 900
+
+[functions."classify-embed"]
+  timeout = 900
+
+[functions."rag-search"]
+  timeout = 900
+
+[functions."process-document"]
+  timeout = 900
+
+[functions."process-document-background"]
+  timeout = 900
+
+[functions."process-zip-corpus-background"]
+  timeout = 900
+
+[functions."batch-translate-mnemonics"]
+  timeout = 900
+
+# ─── Shorter functions ─────────────────────────────────────────────────
+[functions."generate-illustration"]
+  timeout = 60   # Stability Ultra can take 20-40s
+
+[functions."azure-tts-speak"]
+  timeout = 30
+
+# ─── Routing ───────────────────────────────────────────────────────────
+[[redirects]]
+  from   = "/api/*"
+  to     = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# ─── Dev ───────────────────────────────────────────────────────────────
+[dev]
+  command    = "npm run dev"
+  port       = 8888
+  targetPort = 5173
+  autoLaunch = false
+
+# ──────────────────────────────────────────────────────────────────────
+#  Environment variables — set in Netlify UI:
+#
+#   Site configuration → Environment variables → Add a variable
+#
+#   Required (non-secret, public):
+#     VITE_SUPABASE_URL         = "https://xxx.supabase.co"
+#     VITE_SUPABASE_ANON_KEY    = "eyJhbG..."    (public anon JWT)
+#
+#   Required (secret, protect these!):
+#     SUPABASE_SERVICE_ROLE_KEY = "eyJhbG..."    (admin access, PROTECT)
+#     ANTHROPIC_API_KEY         = "sk-ant-..."
+#     DEEPSEEK_API_KEY          = "sk-..."
+#     VOYAGE_API_KEY            = "pa-..."
+#     STABILITY_API_KEY         = "sk-..."
+#     AZURE_SPEECH_KEY          = "..."
+#     AZURE_SPEECH_REGION       = "westeurope"
+#     ADMIN_EMAIL_ALLOWLIST     = "you@example.com"
+# ──────────────────────────────────────────────────────────────────────
