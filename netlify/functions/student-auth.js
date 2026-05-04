@@ -16,6 +16,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Canonical module catalog (mirrors src/config/modules.js)
 const MODULE_DEFAULTS = {
+  // standard bundle (defaultEnabled: true)
   lianzi:   true,
   words:    true,
   pinyin:   true,
@@ -24,6 +25,9 @@ const MODULE_DEFAULTS = {
   grammar:  true,
   hsk:      true,
   riddles:  true,
+  scenario: true,
+  story:    true,
+  // premium / opt-in (defaultEnabled: false)
   kechuang: false,
   lessons:  false,
   chat:     false,
@@ -32,6 +36,8 @@ const MODULE_DEFAULTS = {
   shop:     false,
   parents:  false,
 };
+
+
 const ALWAYS_ON = ['home', 'profile', 'progress'];
 
 exports.handler = async (event) => {

@@ -173,7 +173,7 @@ export function useStudentAuth() {
 // ─────────────────────────────────────────────────────────────────
 const MODULE_DEFAULTS = {
   lianzi:true, words:true, pinyin:true, chengyu:true, poetry:true,
-  grammar:true, hsk:true, riddles:true,
+  grammar:true, hsk:true, riddles:true, scenario:true, story:true,
   kechuang:false, lessons:false, chat:false, voice:false,
   homework:false, shop:false, parents:false,
 };
