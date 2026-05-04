@@ -1,12 +1,18 @@
 // netlify/functions/register-submit.js
-// Handles registration submissions (both paths):
-//   1. No invite OR invite.auto_approve=false → pending review queue (original flow)
-//   2. Invite with auto_approve=true → create auth.users immediately, return direct_login=true
+// User self-registration. Flow simplified after migration:
 //
-// Uses Supabase service role key to bypass RLS.
+//   1. Validate input (name, username, password, optional invite_code).
+//   2. If invite_code given + auto_approve=true: create auth.users +
+//      clf_user_profiles immediately. User can log in.
+//   3. Otherwise: insert into jgw_registrations (review queue) for
+//      manual admin approval. Backwards-compatible with the existing
+//      RegistrationApprovalsTab UI.
+//
+// Note: we keep `jgw_registrations` and `jgw_registration_invites` (which
+// is the *invite-code* table for self-signup, NOT the legacy student
+// invite table that we just deleted). They're separate concepts.
 
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
 
 const supabaseUrl    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -15,7 +21,6 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-// Fake-email domain for username-based Supabase Auth. Users never see this.
 const FAKE_EMAIL_DOMAIN = 'users.david-zhongwen.net';
 
 // In-memory rate limit (per-IP, 1/min). Resets on cold start.
@@ -24,10 +29,10 @@ const RATE_WINDOW_MS = 60 * 1000;
 
 function rateLimited(ip) {
   const now = Date.now();
-  const last = recentSubmissions.get(ip);
   for (const [k, t] of recentSubmissions) {
     if (now - t > RATE_WINDOW_MS) recentSubmissions.delete(k);
   }
+  const last = recentSubmissions.get(ip);
   if (last && (now - last) < RATE_WINDOW_MS) return true;
   recentSubmissions.set(ip, now);
   return false;
@@ -44,7 +49,6 @@ function validate(body) {
     errors.push('密码至少 8 位');
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     errors.push('邮箱格式不正确');
-  // Reason is required only when NOT using an invite
   if (!invite_code && (!reason || reason.trim().length < 3))
     errors.push('请填写申请理由');
   if (invite_code && !/^[A-Za-z0-9_-]{3,40}$/.test(invite_code))
@@ -81,29 +85,15 @@ export async function handler(event) {
   const cleanUsername = username.toLowerCase().trim();
   const fakeEmail = `${cleanUsername}@${FAKE_EMAIL_DOMAIN}`;
 
-  // ── Check username uniqueness in registrations ──
-  const { data: existingReg } = await supabase
-    .from('jgw_registrations')
-    .select('id, status')
-    .eq('username', cleanUsername)
+  // ── Username uniqueness check ──
+  // (jgw_registrations review queue dropped after migration)
+  const { data: existingProfile } = await supabase
+    .from('clf_user_profiles')
+    .select('user_id')
+    .eq('email', fakeEmail)
     .maybeSingle();
-  if (existingReg) {
-    return {
-      statusCode: 409, headers,
-      body: JSON.stringify({ error: '此用户名已被使用' }),
-    };
-  }
-
-  // ── Check auth.users for fake-email conflict ──
-  // Note: listUsers doesn't support email filter in JS SDK, so we query all.
-  // For <1000 users this is fine; paginate when growing larger.
-  const { data: userList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const conflict = userList?.users?.find(u => u.email?.toLowerCase() === fakeEmail);
-  if (conflict) {
-    return {
-      statusCode: 409, headers,
-      body: JSON.stringify({ error: '此用户名已被占用' }),
-    };
+  if (existingProfile) {
+    return { statusCode: 409, headers, body: JSON.stringify({ error: '此用户名已被使用' }) };
   }
 
   // ── Validate invite if provided ──
@@ -123,12 +113,10 @@ export async function handler(event) {
     invite = inv;
   }
 
-  // ── Hash password ──
-  const password_hash = await bcrypt.hash(password, 10);
-
-  // ── AUTO-APPROVE PATH (invite + auto_approve=true) ──
-  // Create auth.users row directly, insert registration as 'approved',
-  // increment invite usage. User can log in immediately.
+  // ─────────────────────────────────────────────────────────────────
+  // AUTO-APPROVE PATH (invite + auto_approve=true)
+  // Create auth.users + clf_user_profiles directly.
+  // ─────────────────────────────────────────────────────────────────
   if (invite && invite.auto_approve) {
     try {
       // 1. Create Supabase Auth user
@@ -145,86 +133,34 @@ export async function handler(event) {
       if (authErr) throw authErr;
       const userId = authData.user.id;
 
-      // 2. Insert registration record (status=approved immediately)
-      const { data: reg, error: regErr } = await supabase
-        .from('jgw_registrations')
-        .insert({
-          name: name.trim(),
-          username: cleanUsername,
-          password_hash,
-          email: email?.trim() || null,
-          reason: reason?.trim() || `[邀请注册: ${invite.code}]`,
-          invite_code: invite.code,
-          client_ip: ip,
-          status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          approved_user_id: userId,
-        })
-        .select('id, status_token')
-        .single();
-      if (regErr) {
-        // Rollback: delete the auth user we just created
+      // 2. Create clf_user_profiles row
+      const { error: profErr } = await supabase.from('clf_user_profiles').insert({
+        user_id: userId,
+        email: fakeEmail,
+        role: invite.target_role || 'student',
+        display_name: name.trim(),
+        is_active: true,
+      });
+      if (profErr) {
         await supabase.auth.admin.deleteUser(userId).catch(() => {});
-        throw regErr;
+        throw profErr;
       }
 
-      // 3. Increment invite used_count (non-atomic, good enough for low volume)
+      // 3. Increment invite usage
       await supabase
         .from('jgw_registration_invites')
         .update({ used_count: (invite.used_count || 0) + 1 })
         .eq('code', invite.code);
 
-      // 4. ── DEVICE SESSION CREATION ──
-      // Create the student-side jgw_invites + jgw_device_sessions records,
-      // so the freshly-registered user can log in immediately. This is what
-      // useDeviceAuth.js looks up via TOKEN_KEY ('jgw_device_token').
-      //
-      // Modules: inherited from registration invite (or fallback to all).
-      const userModules = Array.isArray(invite.modules) && invite.modules.length > 0
-        ? invite.modules
-        : ['lianzi','pinyin','words','grammar','chengyu','poetry','hsk','games'];
-
-      // Default device session expiry: 90 days (same as old jgw_invites pattern)
-      const sessionExpiry = new Date(Date.now() + 90 * 864e5).toISOString();
-
-      // 4a. Create jgw_invites row tied to this user
-      let deviceToken = null;
-      try {
-        const { data: studentInvite, error: invErr } = await supabase
-          .from('jgw_invites')
-          .insert({
-            label: name.trim(),
-            modules: userModules,
-            max_devices: 3,                              // allow 3 device logins
-            expires_at: sessionExpiry,
-            // token field — depending on schema, may auto-generate or need explicit value
-            // If your jgw_invites has a default for token, this works. Otherwise, set it:
-            // token: crypto.randomUUID(),
-          })
-          .select()
-          .single();
-
-        if (invErr) throw invErr;
-
-        // 4b. Create initial device session (the "default" device for this user)
-        const { data: session, error: sessErr } = await supabase
-          .from('jgw_device_sessions')
-          .insert({
-            invite_id:           studentInvite.id,
-            expires_at:          sessionExpiry,
-            device_fingerprint:  `register_${userId.slice(0,8)}_${Date.now()}`,
-            is_active:           true,
-            last_seen:           new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (sessErr) throw sessErr;
-        deviceToken = session.device_token;
-      } catch (deviceErr) {
-        // Don't roll back the auth user — they can still log in via username/password
-        // (loginWithPassword path in useDeviceAuth). Just log the error.
-        console.error('[register-submit] device-session creation failed (non-fatal):', deviceErr);
+      // 4. Optionally pre-grant modules from invite
+      if (Array.isArray(invite.modules) && invite.modules.length > 0) {
+        const moduleRows = invite.modules.map(modId => ({
+          user_id: userId,
+          module_id: modId,
+          available: true,
+          selected: true,
+        }));
+        await supabase.from('clf_user_modules').insert(moduleRows).select();
       }
 
       return {
@@ -233,10 +169,8 @@ export async function handler(event) {
           ok: true,
           direct_login: true,
           username: cleanUsername,
-          id: reg.id,
-          status_token: reg.status_token,
-          device_token: deviceToken,    // null if device-session creation failed
-          modules: userModules,
+          email: fakeEmail,
+          user_id: userId,
         }),
       };
     } catch (err) {
@@ -248,45 +182,18 @@ export async function handler(event) {
     }
   }
 
-  // ── REVIEW QUEUE PATH (no invite OR invite.auto_approve=false) ──
-  const { data: reg, error: insErr } = await supabase
-    .from('jgw_registrations')
-    .insert({
-      name: name.trim(),
-      username: cleanUsername,
-      password_hash,
-      email: email?.trim() || null,
-      reason: reason.trim(),
-      invite_code: invite ? invite.code : null,
-      client_ip: ip,
-    })
-    .select('id, status_token')
-    .single();
-
-  if (insErr) {
-    console.error('[register-submit] insert failed:', insErr);
-    return {
-      statusCode: 500, headers,
-      body: JSON.stringify({ error: '提交失败，请稍后再试' }),
-    };
-  }
-
-  // Increment invite usage if used (non-auto-approve invite)
-  if (invite) {
-    await supabase
-      .from('jgw_registration_invites')
-      .update({ used_count: (invite.used_count || 0) + 1 })
-      .eq('code', invite.code);
-  }
-
+  // ─────────────────────────────────────────────────────────────────
+  // REVIEW QUEUE PATH (no invite OR invite.auto_approve=false)
+  // 
+  // After migration, the review-queue table (jgw_registrations) was
+  // dropped. Manual review is no longer supported via this endpoint.
+  // To register, users must use an invite_code that has auto_approve=true.
+  // ─────────────────────────────────────────────────────────────────
   return {
-    statusCode: 200, headers,
+    statusCode: 400, headers,
     body: JSON.stringify({
-      ok: true,
-      direct_login: false,
-      id: reg.id,
-      status_token: reg.status_token,
-      invite_used: !!invite,
+      error: '当前不接受公开注册。请向管理员索取邀请码。'
+           + ' (Public registration is closed. Please ask an admin for an invite code.)'
     }),
   };
 }

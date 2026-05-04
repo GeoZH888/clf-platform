@@ -1,14 +1,11 @@
 // netlify/functions/admin-create-user.js
-// Admin-only: directly create user account(s), skipping any invite flow.
-// Supports both single-user creation and batch creation from a name list.
-//
-// Auth: requires the caller to be a superadmin (checked via their JWT).
+// Admin-only: directly create user account(s).
+// Writes to: auth.users, clf_user_profiles, clf_user_modules (optional QR token).
+// Replaces the previous flow that wrote to jgw_registrations.
 
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
 
-const supabaseUrl =
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseUrl    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -27,26 +24,21 @@ function randChars(n, alphabet) {
 }
 
 function genPassword() {
-  // 8-char, no confusable characters (0/O, 1/l, I)
   const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   return randChars(8, alpha);
 }
 
 function genUsername(displayName) {
-  // Strip to ASCII letters/digits. If nothing remains (e.g. all CJK),
-  // use a short prefix 'user' + random.
   const cleaned = (displayName || '')
     .toLowerCase()
     .normalize('NFKD')
-    .replace(/[^\x00-\x7F]/g, '')    // Strip non-ASCII (CJK)
+    .replace(/[^\x00-\x7F]/g, '')
     .replace(/[^a-z0-9]/g, '');
   const base = cleaned ? cleaned.slice(0, 8) : 'user';
   return base + '_' + randChars(4, '23456789abcdefghjkmnpqrstuvwxyz');
 }
 
-// Validate a JWT belongs to a superadmin
 // Validate a JWT belongs to a super_admin or school_master.
-// Reads from clf_user_profiles (single source of truth as of Phase-2 migration).
 async function requireSuperAdmin(authHeader) {
   const token = (authHeader || '').replace(/^Bearer\s+/i, '');
   if (!token) throw new Error('Missing auth token');
@@ -67,21 +59,23 @@ async function requireSuperAdmin(authHeader) {
   return user;
 }
 
-// Create one account. Returns { name, username, password, user_id }.
-// Throws if username is taken or createUser fails.
-async function createOne({ name, username, password, email, adminUser,
+// Create one account. Returns { name, username, password, user_id, qr_token }.
+async function createOne({ name, username, password, email, adminUser, role,
                           generateQrToken, maxDevices, expiresAt, label }) {
   const finalUsername = (username || genUsername(name)).toLowerCase().trim();
   const finalPassword = password || genPassword();
-  const fakeEmail = `${finalUsername}@${FAKE_EMAIL_DOMAIN}`;
+  const fakeEmail     = `${finalUsername}@${FAKE_EMAIL_DOMAIN}`;
+  const finalRole     = role || 'student';
 
-  // Check uniqueness in jgw_registrations
+  // ── Check uniqueness in clf_user_profiles ──
   const { data: existing } = await supabase
-    .from('jgw_registrations')
-    .select('id').eq('username', finalUsername).maybeSingle();
+    .from('clf_user_profiles')
+    .select('user_id')
+    .eq('email', fakeEmail)
+    .maybeSingle();
   if (existing) throw new Error(`Username "${finalUsername}" is taken`);
 
-  // Create auth.users
+  // ── 1. Create auth.users ──
   const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
     email: fakeEmail,
     password: finalPassword,
@@ -94,31 +88,38 @@ async function createOne({ name, username, password, email, adminUser,
   });
   if (authErr) throw authErr;
 
-  // Record in jgw_registrations as approved
-  const password_hash = await bcrypt.hash(finalPassword, 10);
-  const { error: regErr } = await supabase.from('jgw_registrations').insert({
-    name: name.trim(),
-    username: finalUsername,
-    password_hash,
-    email: email?.trim() || null,
-    reason: '[管理员直接创建]',
-    status: 'approved',
-    reviewed_at: new Date().toISOString(),
-    reviewed_by: adminUser.id,
-    approved_user_id: authData.user.id,
-  });
-  if (regErr) {
-    await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
-    throw regErr;
+  const userId = authData.user.id;
+
+  // ── 2. Create clf_user_profiles row ──
+  const profileRow = {
+    user_id: userId,
+    email: fakeEmail,
+    role: finalRole,
+    display_name: name.trim(),
+    is_active: true,
+  };
+  // Heuristic: if name is CJK, also store in display_name_zh
+  if (/[\u4e00-\u9fff]/.test(name)) {
+    profileRow.display_name_zh = name.trim();
   }
 
-  // Optionally generate a quick-login QR token
+  const { error: profErr } = await supabase
+    .from('clf_user_profiles')
+    .insert(profileRow);
+
+  if (profErr) {
+    // Rollback: delete the auth user we just created
+    await supabase.auth.admin.deleteUser(userId).catch(() => {});
+    throw profErr;
+  }
+
+  // ── 3. Optionally generate a quick-login QR token ──
   let qrToken = null;
   if (generateQrToken) {
     qrToken = randChars(24, 'ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789');
     const { error: tokErr } = await supabase.from('clf_quicklogin_tokens').insert({
       token: qrToken,
-      user_id: authData.user.id,
+      user_id: userId,
       username: finalUsername,
       max_devices: maxDevices || 1,
       expires_at: expiresAt || null,
@@ -126,9 +127,8 @@ async function createOne({ name, username, password, email, adminUser,
       created_by: adminUser.id,
     });
     if (tokErr) {
-      console.error('[create-user] qr token insert:', tokErr);
-      // Not fatal — account still works, just no QR
-      qrToken = null;
+      console.error('[admin-create-user] qr token insert:', tokErr);
+      qrToken = null;  // not fatal
     }
   }
 
@@ -136,7 +136,7 @@ async function createOne({ name, username, password, email, adminUser,
     name: name.trim(),
     username: finalUsername,
     password: finalPassword,
-    user_id: authData.user.id,
+    user_id: userId,
     qr_token: qrToken,
   };
 }
@@ -165,12 +165,7 @@ export async function handler(event) {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  // Two modes:
-  //   { mode: 'single', name, username?, password?, email?,
-  //                     generateQrToken?, maxDevices?, expiresAt?, label? }
-  //   { mode: 'batch',  names: [...], generateQrToken?, maxDevices?, expiresAt?, labelPrefix? }
-
-  // Shared QR options
+  // QR options shared by both modes
   const qrOpts = {
     generateQrToken: !!body.generateQrToken,
     maxDevices: body.maxDevices || 1,
@@ -209,6 +204,7 @@ export async function handler(event) {
       try {
         const r = await createOne({
           name: rawName, adminUser,
+          role: body.role,
           ...qrOpts,
           label: body.labelPrefix ? `${body.labelPrefix} #${i + 1}` : null,
         });

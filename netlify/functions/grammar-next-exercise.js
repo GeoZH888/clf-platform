@@ -34,34 +34,15 @@ function gaussianDifficulty(target, sigma = 0.6) {
 // Returns { user_key, kind: 'user_id'|'invite_id' } or throws.
 async function resolveUser(event) {
   const authHeader = event.headers.authorization || event.headers.Authorization || '';
-  const deviceToken = event.headers['x-device-token'] || event.headers['X-Device-Token'];
-
-  // Path A: Supabase JWT (auth.users-backed)
   const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (jwt) {
-    const { data: { user }, error } = await supabase.auth.getUser(jwt);
-    if (!error && user) {
-      return { user_key: user.id, kind: 'user_id' };
-    }
+  if (!jwt) {
+    throw new Error('Not authenticated — missing Authorization header');
   }
-
-  // Path B: device_token → look up session in jgw_device_sessions
-  if (deviceToken) {
-    const { data: sess } = await supabase
-      .from('jgw_device_sessions')
-      .select('user_id, invite_id, is_active, expires_at')
-      .eq('device_token', deviceToken)
-      .maybeSingle();
-    if (sess && sess.is_active !== false) {
-      if (sess.expires_at && new Date(sess.expires_at) < new Date()) {
-        throw new Error('Session expired');
-      }
-      if (sess.user_id) return { user_key: sess.user_id, kind: 'user_id' };
-      if (sess.invite_id) return { user_key: sess.invite_id, kind: 'invite_id' };
-    }
+  const { data: { user }, error } = await supabase.auth.getUser(jwt);
+  if (error || !user) {
+    throw new Error('Not authenticated — invalid token');
   }
-
-  throw new Error('Not authenticated — missing or invalid credentials');
+  return { user_key: user.id, kind: 'user_id' };
 }
 
 export async function handler(event) {

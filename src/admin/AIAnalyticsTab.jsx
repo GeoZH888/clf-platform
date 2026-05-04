@@ -83,19 +83,48 @@ export default function AIAnalyticsTab() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [sR, pR, cR] = await Promise.all([
-        supabase.from('jgw_device_sessions')
-          .select('*, jgw_invites(label, username, modules, max_devices)')
-          .order('last_seen', { ascending:false }).limit(100),
+      // After migration: read from clf_user_profiles + clf_user_modules.
+      // Legacy jgw_points and jgw_chengyu_progress still kept (read-only).
+      const [profilesR, modulesR, pR, cR] = await Promise.all([
+        supabase.from('clf_user_profiles')
+          .select('user_id, email, display_name, display_name_zh, role, is_active, created_at, updated_at')
+          .eq('role', 'student')
+          .eq('is_active', true)
+          .order('created_at', { ascending:false }).limit(100),
+        supabase.from('clf_user_modules')
+          .select('user_id, module_id, available, selected'),
         supabase.from('jgw_points')
           .select('device_token, module, action, points, earned_at')
           .order('earned_at', { ascending:false }).limit(1000),
         supabase.from('jgw_chengyu_progress')
           .select('device_token, mode, correct, practiced_at').limit(500),
       ]);
-      setSessions(sR.data || []);
-      setPts(pR.data     || []);
-      setCyProg(cR.data  || []);
+
+      // Build session-shaped objects (sessions[] is consumed by computed userStats).
+      // Each profile becomes one "session" with last_seen=updated_at.
+      const modByUser = {};
+      (modulesR.data || []).forEach(m => {
+        if (!modByUser[m.user_id]) modByUser[m.user_id] = [];
+        if (m.available && m.selected) modByUser[m.user_id].push(m.module_id);
+      });
+
+      const synthesized = (profilesR.data || []).map(p => ({
+        id: p.user_id,
+        invite_id: p.user_id,            // re-use user_id as the grouping key
+        device_token: null,              // no longer applicable
+        last_seen: p.updated_at,
+        is_active: p.is_active,
+        user_info: {
+          label: p.display_name_zh || p.display_name || p.email,
+          username: p.email?.split('@')[0] || '',
+          modules: modByUser[p.user_id] || [],
+          max_devices: 1,
+        },
+      }));
+
+      setSessions(synthesized);
+      setPts(pR.data    || []);
+      setCyProg(cR.data || []);
     } catch(e) { console.error(e); }
     setLoading(false);
   }
@@ -106,9 +135,9 @@ export default function AIAnalyticsTab() {
     sessions.forEach(s => {
       const key = s.invite_id || 'unknown';
       if (!byInvite[key]) byInvite[key] = {
-        label: s.jgw_invites?.label || 'Unknown',
-        username: s.jgw_invites?.username || '',
-        modules: s.jgw_invites?.modules || [],
+        label: s.user_info?.label || 'Unknown',
+        username: s.user_info?.username || '',
+        modules: s.user_info?.modules || [],
         sessions: [], tokens: [],
       };
       byInvite[key].sessions.push(s);

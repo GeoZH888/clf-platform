@@ -1,25 +1,21 @@
 // netlify/functions/student-auth.js
-// Dual-path username+password login:
-//   - Legacy: look up in jgw_invites (Miaohong-era users, plaintext password)
-//   - New: look up in jgw_registrations + auth.users (admin-created, bcrypt hash)
-// Both paths create a row in jgw_device_sessions and return a device_token.
+// Username + password login using Supabase Auth.
 //
-// MODULE RESOLUTION (Stage 5B — two-layer permission):
-//   Path A (legacy): modules come from jgw_invites.modules array (untouched)
-//   Path B (new):    modules come from clf_user_modules.{available, selected}
-//                    A module shows only if BOTH columns are true.
-//                    'available' = admin grants. 'selected' = user opts in.
+// Flow:
+//   1. Resolve username → email (look up in clf_user_profiles).
+//   2. Call supabase.auth.signInWithPassword(email, password).
+//   3. Return the access_token + refresh_token to the client, which
+//      then hands them to supabase.auth.setSession() so the SDK
+//      manages the session normally.
+//   4. Resolve user's modules from clf_user_modules + defaults.
 //
-// AUTH RESPONSE (Stage 5B): now includes user.role for frontend role-based UI.
+// No more device tokens, jgw_invites, jgw_device_sessions, dual-paths.
+// Sessions are pure Supabase Auth (JWT, auto-refreshing, multi-device).
 
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
 
-// ── Canonical module catalog (must match src/config/modules.js) ──────
-// Duplicated here because Netlify functions can't import from src/.
-// Keep this list in sync when modules.js changes.
+// Canonical module catalog (mirrors src/config/modules.js)
 const MODULE_DEFAULTS = {
-  // gateable: true, defaultEnabled: true (社区 standard bundle)
   lianzi:   true,
   words:    true,
   pinyin:   true,
@@ -28,7 +24,6 @@ const MODULE_DEFAULTS = {
   grammar:  true,
   hsk:      true,
   riddles:  true,
-  // gateable: true, defaultEnabled: false (premium / 课堂 / future)
   kechuang: false,
   lessons:  false,
   chat:     false,
@@ -37,9 +32,7 @@ const MODULE_DEFAULTS = {
   shop:     false,
   parents:  false,
 };
-
-// Always-on modules (gateable: false in modules.js)
-const ALWAYS_ON_MODULES = ['home', 'profile', 'progress'];
+const ALWAYS_ON = ['home', 'profile', 'progress'];
 
 exports.handler = async (event) => {
   const headers = {
@@ -47,282 +40,132 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
-
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers,
-      body: JSON.stringify({ error: 'Method not allowed' }) };
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  const SUPABASE_URL     = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!SERVICE_ROLE_KEY) {
+  const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const ANON_KEY     = process.env.VITE_SUPABASE_ANON_KEY;
+  const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
     return { statusCode: 500, headers,
-      body: JSON.stringify({ error: 'SUPABASE_SERVICE_ROLE_KEY not set' }) };
+      body: JSON.stringify({ error: 'Server misconfigured: missing Supabase env vars' }) };
   }
 
   let body;
-  try { body = JSON.parse(event.body); }
+  try { body = JSON.parse(event.body || '{}'); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { username, password, fingerprint } = body;
+  const { username, password } = body;
   if (!username || !password) {
     return { statusCode: 400, headers,
       body: JSON.stringify({ error: 'username and password required' }) };
   }
 
   const cleanUsername = username.trim().toLowerCase();
-  const cleanPassword = password.trim();
-  const fp = fingerprint || ('fp_' + Math.random().toString(36).slice(2));
 
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  // ── Step 1: Resolve username → email (admin client, bypasses RLS) ──
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-  // ── PATH A: Try legacy jgw_invites first ──
-  const { data: legacyInv } = await admin
-    .from('jgw_invites')
-    .select('*')
-    .eq('username', cleanUsername)
-    .eq('password', cleanPassword)
-    .maybeSingle();
+  // We accept either: 'marco' or 'marco@users.david-zhongwen.net'
+  let email = cleanUsername.includes('@')
+    ? cleanUsername
+    : null;
 
-  if (legacyInv) {
-    return await handleLegacyLogin(admin, legacyInv, fp, headers);
+  if (!email) {
+    // Look up email by username pattern (display_name or stored mapping).
+    // Convention: email is `${username}@users.david-zhongwen.net`
+    email = `${cleanUsername}@users.david-zhongwen.net`;
+
+    // But also look up clf_user_profiles in case username doesn't match
+    // the email prefix (e.g. teacher with custom email).
+    const { data: profile } = await admin
+      .from('clf_user_profiles')
+      .select('email')
+      .ilike('display_name', cleanUsername)
+      .maybeSingle();
+    if (profile?.email) email = profile.email;
   }
 
-  // ── PATH B: Try new jgw_registrations / auth.users ──
-  const { data: reg } = await admin
-    .from('jgw_registrations')
-    .select('*')
-    .eq('username', cleanUsername)
-    .eq('status', 'approved')
-    .maybeSingle();
+  // ── Step 2: Sign in via Supabase Auth (anon client) ──
+  const anon = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-  if (reg && reg.password_hash && reg.approved_user_id) {
-    const match = await bcrypt.compare(cleanPassword, reg.password_hash);
-    if (match) {
-      return await handleNewUserLogin(admin, reg, fp, headers);
-    }
+  const { data: signIn, error: signInErr } = await anon.auth.signInWithPassword({
+    email,
+    password: password.trim(),
+  });
+
+  if (signInErr || !signIn?.session) {
+    return { statusCode: 401, headers, body: JSON.stringify({
+      error: '用户名或密码错误 · Username or password incorrect',
+    })};
   }
 
-  // ── Neither path matched ──
-  return { statusCode: 401, headers,
-    body: JSON.stringify({ error: '用户名或密码错误 · Username or password incorrect' }) };
+  const userId = signIn.user.id;
+
+  // ── Step 3: Get profile (display name, role, is_active) ──
+  const { data: profile } = await admin
+    .from('clf_user_profiles')
+    .select('display_name, display_name_zh, role, is_active')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!profile) {
+    return { statusCode: 403, headers,
+      body: JSON.stringify({ error: 'No profile for this user. Contact admin.' }) };
+  }
+  if (profile.is_active === false) {
+    return { statusCode: 403, headers,
+      body: JSON.stringify({ error: '账号已停用 · Account disabled' }) };
+  }
+
+  // ── Step 4: Resolve modules ──
+  const modules = await resolveModules(admin, userId);
+
+  // ── Step 5: Return session + profile + modules ──
+  return { statusCode: 200, headers, body: JSON.stringify({
+    access_token:  signIn.session.access_token,
+    refresh_token: signIn.session.refresh_token,
+    expires_at:    signIn.session.expires_at,    // unix ts
+    user_id:       userId,
+    username:      cleanUsername,
+    display_name:  profile.display_name_zh || profile.display_name || cleanUsername,
+    role:          profile.role,
+    modules,
+  })};
 };
 
-// ─────────────────────────────────────────────────────────────────────
-// Resolve modules for a Path B user from clf_user_modules + defaults
-// ─────────────────────────────────────────────────────────────────────
-// Returns an array of canonical module IDs the user has access to.
-//
-// STAGE 5B two-layer logic:
-//   - 'available' (admin grant): is this module available to this user?
-//   - 'selected'  (user opt-in): does the user want it on their home?
-//   Module is shown only if BOTH available AND selected are true.
-//
-// Logic per module:
-//   - If clf_user_modules has a row → both flags must be true
-//   - Otherwise → use defaultEnabled from MODULE_DEFAULTS as both
-//                 (assumes new users have default modules available + selected)
-//
-// Always-on modules are always included regardless of user_modules state.
-// Falls back to STANDARD_BUNDLE on DB error so transient failure doesn't
-// lock the user out of everything.
-async function resolveModulesForUser(admin, userId) {
-  const standardBundle = Object.entries(MODULE_DEFAULTS)
-    .filter(([_, v]) => v === true)
-    .map(([k]) => k);
-
-  if (!userId) return [...ALWAYS_ON_MODULES, ...standardBundle];
+// ─────────────────────────────────────────────────────────────────
+async function resolveModules(admin, userId) {
+  const standard = Object.entries(MODULE_DEFAULTS)
+    .filter(([_, v]) => v).map(([k]) => k);
+  if (!userId) return [...ALWAYS_ON, ...standard];
 
   try {
     const { data, error } = await admin
       .from('clf_user_modules')
       .select('module_id, available, selected')
       .eq('user_id', userId);
+    if (error) return [...ALWAYS_ON, ...standard];
 
-    if (error) {
-      console.warn('[resolveModulesForUser] DB error, using defaults:', error.message);
-      return [...ALWAYS_ON_MODULES, ...standardBundle];
-    }
-
-    // Build a map of explicit overrides: a module is "on" if BOTH flags true
     const overrides = {};
-    (data || []).forEach(row => {
-      overrides[row.module_id] = (row.available === true) && (row.selected === true);
+    (data || []).forEach(r => {
+      overrides[r.module_id] = r.available === true && r.selected === true;
     });
 
-    // Final list: always-on + every module that resolves to enabled
-    const enabled = [...ALWAYS_ON_MODULES];
-    for (const [moduleId, defaultVal] of Object.entries(MODULE_DEFAULTS)) {
-      const finalVal = (moduleId in overrides) ? overrides[moduleId] : defaultVal;
-      if (finalVal) enabled.push(moduleId);
+    const enabled = [...ALWAYS_ON];
+    for (const [id, def] of Object.entries(MODULE_DEFAULTS)) {
+      const final = id in overrides ? overrides[id] : def;
+      if (final) enabled.push(id);
     }
     return enabled;
-  } catch (err) {
-    console.warn('[resolveModulesForUser] exception, using defaults:', err.message);
-    return [...ALWAYS_ON_MODULES, ...standardBundle];
+  } catch {
+    return [...ALWAYS_ON, ...standard];
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// PATH A: legacy jgw_invites-backed account
-// (modules come from jgw_invites.modules array — untouched)
-// ─────────────────────────────────────────────────────────────────────
-async function handleLegacyLogin(admin, inv, fp, headers) {
-  if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
-    return { statusCode: 403, headers,
-      body: JSON.stringify({ error: 'expired', label: inv.label }) };
-  }
-  const maxDevices = inv.max_devices || 1;
-
-  // Existing session for this device?
-  const { data: existing } = await admin
-    .from('jgw_device_sessions')
-    .select('*')
-    .eq('invite_id', inv.id)
-    .eq('device_fingerprint', fp)
-    .maybeSingle();
-
-  if (existing) {
-    await admin.from('jgw_device_sessions')
-      .update({ is_active: true, last_seen: new Date().toISOString() })
-      .eq('id', existing.id);
-    return { statusCode: 200, headers, body: JSON.stringify({
-      device_token: existing.device_token,
-      label: inv.label, modules: inv.modules,
-      expires_at: inv.expires_at,
-    })};
-  }
-
-  // Device cap — pause oldest if over limit
-  const { data: activeSessions } = await admin
-    .from('jgw_device_sessions')
-    .select('id, last_seen')
-    .eq('invite_id', inv.id)
-    .eq('is_active', true);
-
-  if ((activeSessions?.length || 0) >= maxDevices) {
-    const oldest = (activeSessions || []).slice().sort((a,b) =>
-      new Date(a.last_seen||0) - new Date(b.last_seen||0))[0];
-    if (oldest) {
-      await admin.from('jgw_device_sessions')
-        .update({ is_active: false }).eq('id', oldest.id);
-    }
-  }
-
-  if (!inv.used_at) {
-    await admin.from('jgw_invites')
-      .update({ used_at: new Date().toISOString() }).eq('id', inv.id);
-  }
-
-  const { data: sess, error: sessErr } = await admin
-    .from('jgw_device_sessions')
-    .insert({
-      invite_id: inv.id,
-      expires_at: inv.expires_at,
-      device_fingerprint: fp,
-      is_active: true,
-    })
-    .select()
-    .maybeSingle();
-
-  if (sessErr || !sess) {
-    return { statusCode: 500, headers,
-      body: JSON.stringify({ error: 'Failed to create session: ' + (sessErr?.message || 'unknown') }) };
-  }
-
-  return { statusCode: 200, headers, body: JSON.stringify({
-    device_token: sess.device_token,
-    label: inv.label,
-    modules: inv.modules,
-    expires_at: inv.expires_at,
-  })};
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// PATH B: new jgw_registrations / auth.users-backed account
-// (modules come from clf_user_modules + defaults — STAGE C BRIDGE)
-// ─────────────────────────────────────────────────────────────────────
-async function handleNewUserLogin(admin, reg, fp, headers) {
-  const userId = reg.approved_user_id;
-
-  // Resolve actual modules for this user (replaces hardcoded list)
-  const modules = await resolveModulesForUser(admin, userId);
-
-  // Default device cap for user-keyed accounts
-  const { data: qrToken } = await admin
-    .from('clf_quicklogin_tokens')
-    .select('max_devices, expires_at')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const maxDevices = qrToken?.max_devices || 3;
-
-  // Existing session for this device?
-  const { data: existing } = await admin
-    .from('jgw_device_sessions')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('device_fingerprint', fp)
-    .maybeSingle();
-
-  if (existing) {
-    await admin.from('jgw_device_sessions')
-      .update({ is_active: true, last_seen: new Date().toISOString() })
-      .eq('id', existing.id);
-    return { statusCode: 200, headers, body: JSON.stringify({
-      device_token: existing.device_token,
-      label: reg.name,
-      modules,    // ← STAGE C: resolved from clf_user_modules + defaults
-      expires_at: qrToken?.expires_at || null,
-      user_id: userId,
-      username: reg.username,
-      display_name: reg.name,
-      role: reg.role || null,    // ← STAGE 5B: include user's role
-    })};
-  }
-
-  // Device cap
-  const { data: activeSessions } = await admin
-    .from('jgw_device_sessions')
-    .select('id, last_seen')
-    .eq('user_id', userId)
-    .eq('is_active', true);
-
-  if ((activeSessions?.length || 0) >= maxDevices) {
-    const oldest = (activeSessions || []).slice().sort((a,b) =>
-      new Date(a.last_seen||0) - new Date(b.last_seen||0))[0];
-    if (oldest) {
-      await admin.from('jgw_device_sessions')
-        .update({ is_active: false }).eq('id', oldest.id);
-    }
-  }
-
-  // Create new session
-  const { data: sess, error: sessErr } = await admin
-    .from('jgw_device_sessions')
-    .insert({
-      user_id: userId,
-      expires_at: qrToken?.expires_at || null,
-      device_fingerprint: fp,
-      is_active: true,
-    })
-    .select()
-    .maybeSingle();
-
-  if (sessErr || !sess) {
-    return { statusCode: 500, headers,
-      body: JSON.stringify({ error: 'Failed to create session: ' + (sessErr?.message || 'unknown') }) };
-  }
-
-  return { statusCode: 200, headers, body: JSON.stringify({
-    device_token: sess.device_token,
-    label: reg.name,
-    modules,    // ← STAGE C: resolved from clf_user_modules + defaults
-    expires_at: qrToken?.expires_at || null,
-    user_id: userId,
-    username: reg.username,
-    display_name: reg.name,
-    role: reg.role || null,    // ← STAGE 5B: include user's role
-  })};
 }

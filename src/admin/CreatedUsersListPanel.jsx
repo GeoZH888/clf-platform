@@ -28,17 +28,18 @@ export default function CreatedUsersListPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Get all admin-created registrations
-    const { data: regs, error } = await supabase
-      .from('jgw_registrations')
-      .select('id, username, name, email, approved_user_id, created_at, reason')
-      .eq('status', 'approved')
+    // Read all student/teacher accounts from clf_user_profiles
+    // (admin/super_admin/school_master are excluded — they're managed elsewhere)
+    const { data: profiles, error } = await supabase
+      .from('clf_user_profiles')
+      .select('user_id, email, role, display_name, display_name_zh, is_active, created_at')
+      .in('role', ['student', 'teacher', 'parent'])
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) { console.warn('[created-users] load:', error); setLoading(false); return; }
 
     // Get tokens for those users
-    const userIds = regs.filter(r => r.approved_user_id).map(r => r.approved_user_id);
+    const userIds = (profiles || []).map(p => p.user_id);
     const { data: tokens } = userIds.length > 0 ? await supabase
       .from('clf_quicklogin_tokens')
       .select('*')
@@ -46,9 +47,21 @@ export default function CreatedUsersListPanel() {
     const tokByUser = new Map();
     (tokens || []).forEach(t => tokByUser.set(t.user_id, t));
 
-    setRows(regs.map(r => ({
-      ...r,
-      token: r.approved_user_id ? tokByUser.get(r.approved_user_id) : null,
+    // Map profiles to the row shape the rest of the component expects.
+    // Field name compatibility:
+    //   id              → user_id (used as React key)
+    //   username        → email prefix
+    //   name            → display_name_zh || display_name
+    //   approved_user_id → user_id (legacy field name preserved for downstream actions)
+    setRows((profiles || []).map(p => ({
+      id: p.user_id,
+      approved_user_id: p.user_id,
+      username: p.email?.split('@')[0] || '',
+      name: p.display_name_zh || p.display_name || p.email,
+      email: p.email,
+      created_at: p.created_at,
+      reason: null,                       // not stored in clf_user_profiles
+      token: tokByUser.get(p.user_id) || null,
     })));
     setLoading(false);
   }, []);

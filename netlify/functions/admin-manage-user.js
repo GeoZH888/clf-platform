@@ -1,14 +1,11 @@
 // netlify/functions/admin-manage-user.js
 // Admin-only operations on existing users.
-// Actions: reset_password, delete_user, revoke_qr, regenerate_qr
-//
-// Auth: caller must be superadmin (JWT check).
+// Actions: reset_password, delete_user, revoke_qr, regenerate_qr.
+// Reads from clf_user_profiles (replaces jgw_registrations dependency).
 
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
 
-const supabaseUrl =
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseUrl    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -67,12 +64,11 @@ export async function handler(event) {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { action, user_id, registration_id,
-          max_devices, expires_at, label } = body;
+  const { action, user_id, max_devices, expires_at, label } = body;
 
-  if (!user_id && !registration_id) {
+  if (!user_id) {
     return { statusCode: 400, headers,
-      body: JSON.stringify({ error: 'user_id or registration_id required' }) };
+      body: JSON.stringify({ error: 'user_id required' }) };
   }
 
   // ── RESET_PASSWORD ────────────────────────────────────────────
@@ -84,12 +80,8 @@ export async function handler(event) {
       );
       if (authErr) throw authErr;
 
-      const newHash = await bcrypt.hash(newPassword, 10);
-      await supabase
-        .from('jgw_registrations')
-        .update({ password_hash: newHash })
-        .eq('approved_user_id', user_id);
-
+      // No more jgw_registrations.password_hash to maintain — auth.users
+      // is now the single source of truth for passwords.
       return { statusCode: 200, headers,
         body: JSON.stringify({ ok: true, new_password: newPassword }) };
     } catch (err) {
@@ -100,30 +92,18 @@ export async function handler(event) {
   // ── DELETE_USER ───────────────────────────────────────────────
   if (action === 'delete_user') {
     try {
-      // FIRST: capture the registration row id BEFORE deleting auth.users.
-      // The FK constraint on jgw_registrations.approved_user_id is
-      // ON DELETE SET NULL, so once we delete the auth user, the link is
-      // nulled and we can no longer find the registration by approved_user_id.
-      // This is what created zombie 'approved' rows in earlier versions.
-      const { data: reg } = await supabase
-        .from('jgw_registrations')
-        .select('id')
-        .eq('approved_user_id', user_id)
-        .maybeSingle();
+      // 1. Delete clf_quicklogin_tokens (CASCADE on user_id, but be explicit)
+      await supabase.from('clf_quicklogin_tokens').delete().eq('user_id', user_id);
 
-      // Delete auth.users (cascades to clf_quicklogin_tokens.user_id CASCADE,
-      // sets jgw_registrations.approved_user_id SET NULL)
+      // 2. Delete clf_user_modules
+      await supabase.from('clf_user_modules').delete().eq('user_id', user_id);
+
+      // 3. Delete clf_user_profiles
+      await supabase.from('clf_user_profiles').delete().eq('user_id', user_id);
+
+      // 4. Delete auth.users (final, irreversible)
       const { error: delErr } = await supabase.auth.admin.deleteUser(user_id);
       if (delErr) throw delErr;
-
-      // Now delete the registration by its captured id (don't use
-      // approved_user_id — that column is now NULL after the cascade)
-      if (reg?.id) {
-        await supabase
-          .from('jgw_registrations')
-          .delete()
-          .eq('id', reg.id);
-      }
 
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
     } catch (err) {
@@ -147,20 +127,22 @@ export async function handler(event) {
       // Delete any existing token for this user
       await supabase.from('clf_quicklogin_tokens').delete().eq('user_id', user_id);
 
-      // Get username from registrations
-      const { data: reg } = await supabase
-        .from('jgw_registrations')
-        .select('username')
-        .eq('approved_user_id', user_id)
+      // Get username from clf_user_profiles
+      const { data: profile } = await supabase
+        .from('clf_user_profiles')
+        .select('email')
+        .eq('user_id', user_id)
         .maybeSingle();
-      if (!reg) throw new Error('User not found in registrations');
+      if (!profile) throw new Error('User not found');
+
+      const username = profile.email?.split('@')[0] || '';
 
       const newToken = randChars(24,
         'ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789');
       const { error: tokErr } = await supabase.from('clf_quicklogin_tokens').insert({
         token: newToken,
         user_id,
-        username: reg.username,
+        username,
         max_devices: max_devices || 1,
         expires_at: expires_at || null,
         label: label || null,

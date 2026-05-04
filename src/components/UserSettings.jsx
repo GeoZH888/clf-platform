@@ -1,18 +1,20 @@
 // src/components/UserSettings.jsx
-// User-facing settings: change display name and password
-// Accessible from a gear icon in the platform home or bottom nav
+// User-facing settings: change display name and password.
+// Reads from clf_user_profiles, writes via supabase.auth.updateUser().
+//
+// Replaces the old version that read jgw_device_sessions → jgw_invites.
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
 
-const TOKEN_KEY = 'jgw_device_token';
-
 export default function UserSettings({ onBack }) {
   const { lang } = useLang();
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it||en : en;
 
-  const [invite,      setInvite]     = useState(null);
+  const [profile,     setProfile]    = useState(null);
+  const [authEmail,   setAuthEmail]  = useState('');
+  const [modules,     setModules]    = useState([]);
   const [newName,     setNewName]    = useState('');
   const [newPassword, setNewPassword]= useState('');
   const [confirmPw,   setConfirmPw]  = useState('');
@@ -23,65 +25,115 @@ export default function UserSettings({ onBack }) {
   const [showPw,      setShowPw]     = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) { setLoading(false); return; }
+    (async () => {
+      try {
+        // 1. Get current Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setLoading(false); return; }
 
-    supabase.from('jgw_device_sessions')
-      .select('jgw_invites(id, label, username, password, modules, expires_at)')
-      .eq('device_token', token)
-      .eq('is_active', true)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.jgw_invites) {
-          setInvite(data.jgw_invites);
-          setNewName(data.jgw_invites.label || '');
+        setAuthEmail(session.user.email || '');
+
+        // 2. Fetch profile from clf_user_profiles
+        const { data: prof } = await supabase
+          .from('clf_user_profiles')
+          .select('user_id, email, role, display_name, display_name_zh, is_active')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (prof) {
+          setProfile(prof);
+          setNewName(prof.display_name_zh || prof.display_name || '');
         }
+
+        // 3. Fetch user's modules (for display only)
+        const { data: mods } = await supabase
+          .from('clf_user_modules')
+          .select('module_id, available, selected')
+          .eq('user_id', session.user.id);
+
+        const enabled = (mods || [])
+          .filter(m => m.available && m.selected)
+          .map(m => m.module_id);
+        setModules(enabled);
+      } catch (e) {
+        console.error('[UserSettings] load:', e);
+      } finally {
         setLoading(false);
-      }).catch(() => setLoading(false));
+      }
+    })();
   }, []);
 
   async function handleSave() {
-    if (!invite) return;
+    if (!profile) return;
     setSaving(true);
     setMsg({ text:'', ok:true });
 
-    // Validate current password
-    if (currentPw && currentPw !== invite.password) {
-      setMsg({ text: t('当前密码不正确', 'Current password incorrect', 'Password attuale errata'), ok:false });
-      setSaving(false); return;
-    }
+    try {
+      // ── Validate new password ──
+      if (newPassword) {
+        if (!currentPw) {
+          setMsg({ text: t('请输入当前密码', 'Enter current password', 'Inserisci password attuale'), ok:false });
+          setSaving(false); return;
+        }
+        if (newPassword !== confirmPw) {
+          setMsg({ text: t('两次输入的新密码不一致', 'Passwords do not match', 'Le password non corrispondono'), ok:false });
+          setSaving(false); return;
+        }
+        if (newPassword.length < 8) {
+          setMsg({ text: t('新密码至少8位', 'New password ≥ 8 chars', 'Nuova password min 8 caratteri'), ok:false });
+          setSaving(false); return;
+        }
 
-    // Validate new password match
-    if (newPassword && newPassword !== confirmPw) {
-      setMsg({ text: t('两次输入的新密码不一致', 'Passwords do not match', 'Le password non corrispondono'), ok:false });
-      setSaving(false); return;
-    }
+        // Verify current password by signing in (Supabase doesn't have a
+        // "verify password" API — re-auth is the standard pattern).
+        const { error: reauthErr } = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: currentPw,
+        });
+        if (reauthErr) {
+          setMsg({ text: t('当前密码不正确', 'Current password incorrect', 'Password attuale errata'), ok:false });
+          setSaving(false); return;
+        }
 
-    if (newPassword && newPassword.length < 6) {
-      setMsg({ text: t('密码至少6位', 'Password must be at least 6 characters', 'Minimo 6 caratteri'), ok:false });
-      setSaving(false); return;
-    }
+        // Now update password
+        const { error: pwErr } = await supabase.auth.updateUser({ password: newPassword });
+        if (pwErr) {
+          setMsg({ text: pwErr.message, ok:false });
+          setSaving(false); return;
+        }
+      }
 
-    const updates = {};
-    if (newName.trim() && newName.trim() !== invite.label) updates.label = newName.trim();
-    if (newPassword) updates.password = newPassword;
+      // ── Update display name in clf_user_profiles ──
+      const trimmedName = newName.trim();
+      const currentName = profile.display_name_zh || profile.display_name || '';
+      if (trimmedName && trimmedName !== currentName) {
+        // Heuristic: if the name contains any CJK, store it as display_name_zh;
+        // otherwise display_name.
+        const hasCJK = /[\u4e00-\u9fff]/.test(trimmedName);
+        const update = hasCJK
+          ? { display_name_zh: trimmedName }
+          : { display_name: trimmedName };
 
-    if (Object.keys(updates).length === 0) {
-      setMsg({ text: t('没有修改', 'Nothing changed', 'Nessuna modifica'), ok:true });
-      setSaving(false); return;
-    }
+        const { error: nameErr } = await supabase
+          .from('clf_user_profiles')
+          .update(update)
+          .eq('user_id', profile.user_id);
 
-    const { error } = await supabase.from('jgw_invites')
-      .update(updates).eq('id', invite.id);
+        if (nameErr) {
+          setMsg({ text: nameErr.message, ok:false });
+          setSaving(false); return;
+        }
+        setProfile(p => ({ ...p, ...update }));
+      }
 
-    if (error) {
-      setMsg({ text: `Error: ${error.message}`, ok:false });
-    } else {
-      setInvite(prev => ({ ...prev, ...updates }));
+      // ── Done ──
       setCurrentPw(''); setNewPassword(''); setConfirmPw('');
       setMsg({ text: t('✓ 保存成功！', '✓ Saved successfully!', '✓ Salvato!'), ok:true });
+    } catch (e) {
+      setMsg({ text: e.message || String(e), ok:false });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const V = {
@@ -96,7 +148,7 @@ export default function UserSettings({ onBack }) {
     </div>
   );
 
-  if (!invite) return (
+  if (!profile) return (
     <div style={{ minHeight:'100dvh', display:'flex', flexDirection:'column',
       alignItems:'center', justifyContent:'center', background:V.bg, gap:16, padding:24 }}>
       <div style={{ fontSize:14, color:V.text3 }}>
@@ -109,10 +161,14 @@ export default function UserSettings({ onBack }) {
     </div>
   );
 
-  const moduleLabels = { lianzi:'练字', pinyin:'拼音', words:'词语', chengyu:'成语' };
-  const expireDate = invite.expires_at
-    ? new Date(invite.expires_at).toLocaleDateString('zh-CN', {year:'numeric',month:'long',day:'numeric'})
-    : '—';
+  const moduleLabels = {
+    lianzi:'练字', pinyin:'拼音', words:'词语', chengyu:'成语',
+    poetry:'诗歌', grammar:'语法', hsk:'HSK', riddles:'灯谜',
+    kechuang:'课程', lessons:'课时', chat:'聊天', voice:'语音',
+    homework:'作业', shop:'商城', parents:'家长',
+  };
+
+  const username = authEmail?.split('@')[0] || '—';
 
   return (
     <div style={{ background:V.bg, minHeight:'100dvh', paddingBottom:40 }}>
@@ -139,21 +195,23 @@ export default function UserSettings({ onBack }) {
           <div style={{ display:'flex', flexDirection:'column', gap:6, fontSize:13, color:V.text2 }}>
             <div style={{ display:'flex', gap:8 }}>
               <span style={{ color:V.text3, width:60 }}>{t('用户名','Username','Username')}:</span>
-              <strong style={{ fontFamily:'monospace', color:V.verm }}>{invite.username || '—'}</strong>
+              <strong style={{ fontFamily:'monospace', color:V.verm }}>{username}</strong>
             </div>
             <div style={{ display:'flex', gap:8 }}>
-              <span style={{ color:V.text3, width:60 }}>{t('到期日','Expires','Scade')}:</span>
-              <span>{expireDate}</span>
+              <span style={{ color:V.text3, width:60 }}>{t('角色','Role','Ruolo')}:</span>
+              <span>{profile.role || '—'}</span>
             </div>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
               <span style={{ color:V.text3, width:60 }}>{t('模块','Modules','Moduli')}:</span>
               <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                {(invite.modules||[]).map(m => (
-                  <span key={m} style={{ fontSize:10, padding:'2px 7px', borderRadius:8,
-                    background:'#f0e8d8', color:V.verm }}>
-                    {moduleLabels[m]||m}
-                  </span>
-                ))}
+                {modules.length === 0
+                  ? <span style={{ fontSize:11, color:V.text3 }}>—</span>
+                  : modules.map(m => (
+                      <span key={m} style={{ fontSize:10, padding:'2px 7px', borderRadius:8,
+                        background:'#f0e8d8', color:V.verm }}>
+                        {moduleLabels[m]||m}
+                      </span>
+                    ))}
               </div>
             </div>
           </div>
@@ -169,7 +227,7 @@ export default function UserSettings({ onBack }) {
             {t('显示姓名', 'Display name', 'Nome visualizzato')}
           </label>
           <input value={newName} onChange={e => setNewName(e.target.value)}
-            placeholder={invite.label}
+            placeholder={profile.display_name_zh || profile.display_name || ''}
             style={{ width:'100%', padding:'9px 12px', fontSize:14, borderRadius:10,
               border:`1.5px solid ${V.border}`, background:V.bg, color:V.text,
               boxSizing:'border-box' }}/>
@@ -204,7 +262,7 @@ export default function UserSettings({ onBack }) {
             </div>
             <div>
               <label style={{ fontSize:11, color:V.text3, display:'block', marginBottom:4 }}>
-                {t('新密码（至少6位）', 'New password (6+ chars)', 'Nuova password (min 6)')}
+                {t('新密码（至少8位）', 'New password (8+ chars)', 'Nuova password (min 8)')}
               </label>
               <input type={showPw?'text':'password'} value={newPassword}
                 onChange={e=>setNewPassword(e.target.value)}

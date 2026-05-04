@@ -110,30 +110,27 @@ function useAdminAuth() {
   }, []);
 
   async function checkRoles(userId) {
-    const [{ data: profile }, { data: adminRow }, { data: contribRow }, { data: { user } }] = await Promise.all([
-      supabase.from('clf_user_profiles').select('role, is_active, display_name').eq('user_id', userId).maybeSingle(),
-      supabase.from('jgw_admins').select('id').eq('user_id', userId).maybeSingle(),
-      supabase.from('jgw_contributors').select('display_name').eq('user_id', userId).maybeSingle(),
-      supabase.auth.getUser(),
-    ]);
+    const { data: profile } = await supabase
+      .from('clf_user_profiles')
+      .select('role, is_active, display_name, display_name_zh')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    // Inactive users → blocked
-    if (profile && profile.is_active === false) {
+    // No profile or inactive → blocked
+    if (!profile || profile.is_active === false) {
       setIsAdmin(false); setIsContributor(false);
       setContributorName(null); setProfile(null); setLoading(false);
       return;
     }
 
-    const clfRole = profile?.role || null;
-    const isMeta  = user?.user_metadata?.role === 'superadmin';
-    const admin   = clfRole === 'super_admin'
-                 || clfRole === 'school_master'
-                 || !!adminRow
-                 || isMeta;
+    // Single source of truth: clf_user_profiles.role
+    // Admin roles get full AdminApp; teacher gets restricted view (handled in render)
+    const adminRoles = ['super_admin', 'school_master'];
+    const isAdmin = adminRoles.includes(profile.role);
 
-    setIsAdmin(admin);
-    setIsContributor(!admin && !!contribRow);
-    setContributorName(contribRow?.display_name || profile?.display_name || null);
+    setIsAdmin(isAdmin);
+    setIsContributor(false);   // contributor flow deprecated
+    setContributorName(null);
     setProfile(profile);
     setLoading(false);
   }

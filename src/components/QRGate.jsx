@@ -1,6 +1,6 @@
 // src/components/QRGate.jsx
-// Login screen: username + password (replaces QR scan)
-// Still shows paused / expired / device-limit states
+// Login screen: username + password.
+// Reads jgw_panda_assets for the panda mascot — kept as-is (table preserved).
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -44,7 +44,7 @@ export default function QRGate({ status, error, loginWithPassword }) {
     setBusy(false);
   }
 
-  // ── Paused ────────────────────────────────────────────────────────
+  // ── Paused (account disabled in clf_user_profiles) ───────────────
   if (status === 'paused') return (
     <div style={{ minHeight:'100dvh', display:'flex', flexDirection:'column',
       alignItems:'center', justifyContent:'center', background:V.bg, padding:'2rem', gap:'1.5rem' }}>
@@ -53,34 +53,16 @@ export default function QRGate({ status, error, loginWithPassword }) {
         border:`1px solid ${V.border}`, maxWidth:320, width:'100%', textAlign:'center' }}>
         <div style={{ fontSize:18, fontWeight:500, color:'#8B1A1A', lineHeight:1.6,
           fontFamily:"'STKaiti','KaiTi',Georgia,serif", marginBottom:12 }}>
-          此设备已暂停使用<br/>请重新登录
+          账号已暂停<br/>请联系老师
         </div>
         <div style={{ fontSize:13, color:V.text2, lineHeight:1.6 }}>
-          Your account is active on another device.<br/>Log in again to switch to this device.
+          Your account has been paused.<br/>Please contact your teacher.
         </div>
         <button onClick={() => window.location.reload()}
           style={{ marginTop:16, padding:'10px 24px', borderRadius:10, border:'none',
             background:V.verm, color:'#fdf6e3', fontSize:13, cursor:'pointer' }}>
           重新登录 · Login again
         </button>
-      </div>
-    </div>
-  );
-
-  // ── Expired ───────────────────────────────────────────────────────
-  if (status === 'expired') return (
-    <div style={{ minHeight:'100dvh', display:'flex', flexDirection:'column',
-      alignItems:'center', justifyContent:'center', background:V.bg, padding:'2rem', gap:'1.5rem' }}>
-      <div style={{ fontSize:52 }}>⏰</div>
-      <div style={{ background:V.card, borderRadius:16, padding:'1.8rem 2rem',
-        border:`1px solid ${V.border}`, maxWidth:320, width:'100%', textAlign:'center' }}>
-        <div style={{ fontSize:18, fontWeight:500, color:'#8B1A1A',
-          fontFamily:"'STKaiti','KaiTi',Georgia,serif", marginBottom:10 }}>
-          账号已过期<br/>请联系老师续期
-        </div>
-        <div style={{ fontSize:13, color:V.text2, lineHeight:1.6 }}>
-          Your access has expired.<br/>Please contact your teacher.
-        </div>
       </div>
     </div>
   );
@@ -125,7 +107,7 @@ export default function QRGate({ status, error, loginWithPassword }) {
             value={username}
             onChange={e => setUsername(e.target.value)}
             onKeyDown={e => e.key==='Enter' && handleLogin()}
-            placeholder="e.g. marco.rossi"
+            placeholder="e.g. marco"
             autoComplete="username"
             disabled={busy}
             style={{ width:'100%', padding:'10px 12px', fontSize:14, borderRadius:10,
