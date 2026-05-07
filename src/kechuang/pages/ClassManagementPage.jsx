@@ -1,4 +1,4 @@
-﻿// src/pages/ClassManagementPage.jsx
+// src/pages/ClassManagementPage.jsx
 // 班级管理 — 创建班级 + 招募学生
 // ✅ 优美的创建班级流程
 // ✅ 多种登录方式：用户名/手机/学号/邮箱

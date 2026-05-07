@@ -1,4 +1,4 @@
-﻿// src/pages/ParentDashboard.jsx
+// src/pages/ParentDashboard.jsx
 // 家长中心 — 完整版
 // ✅ 查看孩子的作业情况和完成状态
 // ✅ 出勤记录

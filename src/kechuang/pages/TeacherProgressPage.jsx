@@ -1,4 +1,4 @@
-﻿// src/pages/TeacherProgressPage.jsx
+// src/pages/TeacherProgressPage.jsx
 // 教学进度 & 知识点管理 v2
 // ✅ 基于上传教材自动生成知识点（非HSK固定分类）
 // ✅ 教师可人工添加分类和知识点

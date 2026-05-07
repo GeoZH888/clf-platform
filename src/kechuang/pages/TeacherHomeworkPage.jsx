@@ -1,4 +1,4 @@
-﻿// src/pages/TeacherHomeworkPage.jsx
+// src/pages/TeacherHomeworkPage.jsx
 // 作业管理 — 智能布置作业
 // 根据学生学习情况、知识点掌握程度、出勤率自动生成个性化作业
 

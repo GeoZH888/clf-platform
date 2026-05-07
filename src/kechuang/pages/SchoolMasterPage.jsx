@@ -1,4 +1,4 @@
-﻿// src/pages/SchoolMasterPage.jsx
+// src/pages/SchoolMasterPage.jsx
 // 校长中心 — 全校数据一览 + AI智能分析 + 多渠道通知
 // Tabs: 学校总览 | 出勤 | 作业 | 教学 | 活动 | 通知发送
 

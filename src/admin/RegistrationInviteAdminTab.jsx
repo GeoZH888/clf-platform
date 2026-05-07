@@ -1,4 +1,4 @@
-﻿// src/admin/RegistrationInviteAdminTab.jsx
+// src/admin/RegistrationInviteAdminTab.jsx
 // Admin tab for creating and managing registration invite codes.
 // Each code gets a QR encoding: https://<site>/register?invite=<code>
 //

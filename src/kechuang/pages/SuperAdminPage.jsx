@@ -1,4 +1,4 @@
-﻿// src/pages/SuperAdminPage.jsx
+// src/pages/SuperAdminPage.jsx
 // 超级管理员面板 — 精简高效版
 // Tabs: 系统概览 | 用户与访问 | 知识库监控 | 系统配置 | 🐼 Panda Studio
 

@@ -1,4 +1,4 @@
-﻿// RAG Service - Retrieval-Augmented Generation
+// RAG Service - Retrieval-Augmented Generation
 // Used by AI Agents to query knowledge base
 
 class RAGService {

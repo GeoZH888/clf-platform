@@ -22,51 +22,51 @@ const PATH_STORAGE_KEY = 'clf_current_path';
 // Cleared when the tab is closed.
 let PANDA_CACHE = null;
 
-// ── Module registry ────────────────────────────────────────────────
-// id → must match what App.jsx's onSelect expects (e.g. 'lianzi' → 'home').
-// emoji, name, desc, features, tag → display content in three languages.
-// color / border / text → card theme colors.
+// â”€â”€ Module registry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// id â†’ must match what App.jsx's onSelect expects (e.g. 'lianzi' â†’ 'home').
+// emoji, name, desc, features, tag â†’ display content in three languages.
+// color / border / text â†’ card theme colors.
 //
 // To add a new module: append an entry here, then add a render case in
 // App.jsx. No other changes to this file are required.
 const MODULES = [
   {
     id:       'lianzi',
-    emoji:    '🐼',
+    emoji:    'ðŸ¼',
     // If you later want to use a custom panda illustration asset, set
     // iconImage to a URL/path (e.g. '/panda-lianzi.png' in /public) and it
     // will override the emoji in ModuleCard.
     iconImage: null,
-    name:     { zh:'练字', en:'Character Writing', it:'Scrittura' },
-    desc:     { zh:'笔顺 · 软笔 · 声调练习',
-                en:'Stroke order · brush · tones',
-                it:'Tratti · pennello · toni' },
+    name:     { zh:'ç»ƒå­—', en:'Character Writing', it:'Scrittura' },
+    desc:     { zh:'ç¬”é¡º Â· è½¯ç¬” Â· å£°è°ƒç»ƒä¹ ',
+                en:'Stroke order Â· brush Â· tones',
+                it:'Tratti Â· pennello Â· toni' },
     features: [
-      { zh:'字形临摹',     en:'Character tracing',  it:'Tracciamento' },
-      { zh:'笔顺动画引导', en:'Stroke animations',  it:'Animazioni tratti' },
-      { zh:'软笔/硬笔练习', en:'Brush & hard pen',   it:'Pennello e penna' },
-      { zh:'声调朗读评分', en:'Tone scoring',       it:'Punteggio toni' },
+      { zh:'å­—å½¢ä¸´æ‘¹',     en:'Character tracing',  it:'Tracciamento' },
+      { zh:'ç¬”é¡ºåŠ¨ç”»å¼•å¯¼', en:'Stroke animations',  it:'Animazioni tratti' },
+      { zh:'è½¯ç¬”/ç¡¬ç¬”ç»ƒä¹ ', en:'Brush & hard pen',   it:'Pennello e penna' },
+      { zh:'å£°è°ƒæœ—è¯»è¯„åˆ†', en:'Tone scoring',       it:'Punteggio toni' },
     ],
-    tag:      { zh:'书法', en:'Calligraphy', it:'Calligrafia' },
+    tag:      { zh:'ä¹¦æ³•', en:'Calligraphy', it:'Calligrafia' },
     color:    '#FBE9E7',
     border:   '#8B4513',
     text:     '#5D2E0C',
   },
   {
     id:       'pinyin',
-    emoji:    '🐼',
+    emoji:    'ðŸ¼',
     iconImage: null,  // set to e.g. '/panda-pinyin.png' to use a custom illustration
-    name:     { zh:'拼音', en:'Pinyin', it:'Pinyin' },
-    desc:     { zh:'声母 · 韵母 · 四声 · 发音',
-                en:'Initials · finals · tones · speech',
-                it:'Iniziali · finali · toni · voce' },
+    name:     { zh:'æ‹¼éŸ³', en:'Pinyin', it:'Pinyin' },
+    desc:     { zh:'å£°æ¯ Â· éŸµæ¯ Â· å››å£° Â· å‘éŸ³',
+                en:'Initials Â· finals Â· tones Â· speech',
+                it:'Iniziali Â· finali Â· toni Â· voce' },
     features: [
-      { zh:'声母韵母表', en:'Initials & finals',     it:'Iniziali e finali' },
-      { zh:'四声练习',   en:'Tone practice',         it:'Pratica toni' },
-      { zh:'听音识调',   en:'Listen & identify',     it:'Ascolta e identifica' },
-      { zh:'发音打分',   en:'Speech scoring',        it:'Punteggio voce' },
+      { zh:'å£°æ¯éŸµæ¯è¡¨', en:'Initials & finals',     it:'Iniziali e finali' },
+      { zh:'å››å£°ç»ƒä¹ ',   en:'Tone practice',         it:'Pratica toni' },
+      { zh:'å¬éŸ³è¯†è°ƒ',   en:'Listen & identify',     it:'Ascolta e identifica' },
+      { zh:'å‘éŸ³æ‰“åˆ†',   en:'Speech scoring',        it:'Punteggio voce' },
     ],
-    tag:      { zh:'发音', en:'Pronunciation', it:'Pronuncia' },
+    tag:      { zh:'å‘éŸ³', en:'Pronunciation', it:'Pronuncia' },
     color:    '#E3F2FD',
     border:   '#1565C0',
     text:     '#0C3C7A',
@@ -74,19 +74,19 @@ const MODULES = [
 
   {
     id:       'words',
-    emoji:    '🐼',
+    emoji:    'ðŸ¼',
     iconImage: null,
-    name:     { zh:'词语', en:'Vocabulary', it:'Vocabolario' },
-    desc:     { zh:'生词 · 闪卡 · 听写',
-                en:'Words · flashcards · dictation',
-                it:'Parole · flashcard · dettato' },
+    name:     { zh:'è¯è¯­', en:'Vocabulary', it:'Vocabolario' },
+    desc:     { zh:'ç”Ÿè¯ Â· é—ªå¡ Â· å¬å†™',
+                en:'Words Â· flashcards Â· dictation',
+                it:'Parole Â· flashcard Â· dettato' },
     features: [
-      { zh:'闪卡记忆',   en:'Flashcards',         it:'Flashcard' },
-      { zh:'听词选义',   en:'Listen & choose',    it:'Ascolta e scegli' },
-      { zh:'看义填词',   en:'Fill in blank',      it:'Completa' },
-      { zh:'主题分类',   en:'Browse by theme',    it:'Per tema' },
+      { zh:'é—ªå¡è®°å¿†',   en:'Flashcards',         it:'Flashcard' },
+      { zh:'å¬è¯é€‰ä¹‰',   en:'Listen & choose',    it:'Ascolta e scegli' },
+      { zh:'çœ‹ä¹‰å¡«è¯',   en:'Fill in blank',      it:'Completa' },
+      { zh:'ä¸»é¢˜åˆ†ç±»',   en:'Browse by theme',    it:'Per tema' },
     ],
-    tag:      { zh:'词汇', en:'Vocab', it:'Vocab' },
+    tag:      { zh:'è¯æ±‡', en:'Vocab', it:'Vocab' },
     color:    '#E8F5E9',
     border:   '#2E7D32',
     text:     '#1B5E20',
@@ -94,19 +94,19 @@ const MODULES = [
 
   {
     id:       'grammar',
-    emoji:    '🐼',
+    emoji:    'ðŸ¼',
     iconImage: null,
-    name:     { zh:'语法', en:'Grammar', it:'Grammatica' },
-    desc:     { zh:'循序渐进 · 自适应练习',
-                en:'Step by step · adaptive practice',
-                it:'Passo dopo passo · pratica adattiva' },
+    name:     { zh:'è¯­æ³•', en:'Grammar', it:'Grammatica' },
+    desc:     { zh:'å¾ªåºæ¸è¿› Â· è‡ªé€‚åº”ç»ƒä¹ ',
+                en:'Step by step Â· adaptive practice',
+                it:'Passo dopo passo Â· pratica adattiva' },
     features: [
-      { zh:'基础句式', en:'Basic sentences',     it:'Frasi base' },
-      { zh:'讲解例句', en:'Examples & rules',    it:'Esempi e regole' },
-      { zh:'量身练习', en:'Adaptive difficulty', it:'Difficoltà adattiva' },
-      { zh:'进度查看', en:'Mastery tracking',   it:'Monitoraggio livello' },
+      { zh:'åŸºç¡€å¥å¼', en:'Basic sentences',     it:'Frasi base' },
+      { zh:'è®²è§£ä¾‹å¥', en:'Examples & rules',    it:'Esempi e regole' },
+      { zh:'é‡èº«ç»ƒä¹ ', en:'Adaptive difficulty', it:'DifficoltÃ  adattiva' },
+      { zh:'è¿›åº¦æŸ¥çœ‹', en:'Mastery tracking',   it:'Monitoraggio livello' },
     ],
-    tag:      { zh:'结构', en:'Structure', it:'Struttura' },
+    tag:      { zh:'ç»“æž„', en:'Structure', it:'Struttura' },
     color:    '#F5E8E8',
     border:   '#7B3F3F',
     text:     '#4A2020',
@@ -114,19 +114,19 @@ const MODULES = [
 
   {
     id:       'chengyu',
-    emoji:    '🐼',
+    emoji:    'ðŸ¼',
     iconImage: null,
-    name:     { zh:'成语', en:'Idioms', it:'Proverbi' },
-    desc:     { zh:'中华成语 · 典故 · 游戏',
-                en:'Chinese idioms · stories · games',
-                it:'Proverbi cinesi · storie · giochi' },
+    name:     { zh:'æˆè¯­', en:'Idioms', it:'Proverbi' },
+    desc:     { zh:'ä¸­åŽæˆè¯­ Â· å…¸æ•… Â· æ¸¸æˆ',
+                en:'Chinese idioms Â· stories Â· games',
+                it:'Proverbi cinesi Â· storie Â· giochi' },
     features: [
-      { zh:'闪卡记忆',   en:'Flashcards',       it:'Flashcard' },
-      { zh:'选义测验',   en:'Meaning quiz',     it:'Quiz significato' },
-      { zh:'配对游戏',   en:'Matching game',    it:'Abbinamento' },
-      { zh:'成语接龙',   en:'Idiom chain',      it:'Catena proverbi' },
+      { zh:'é—ªå¡è®°å¿†',   en:'Flashcards',       it:'Flashcard' },
+      { zh:'é€‰ä¹‰æµ‹éªŒ',   en:'Meaning quiz',     it:'Quiz significato' },
+      { zh:'é…å¯¹æ¸¸æˆ',   en:'Matching game',    it:'Abbinamento' },
+      { zh:'æˆè¯­æŽ¥é¾™',   en:'Idiom chain',      it:'Catena proverbi' },
     ],
-    tag:      { zh:'典故', en:'Classics', it:'Classici' },
+    tag:      { zh:'å…¸æ•…', en:'Classics', it:'Classici' },
     color:    '#FFF3E0',
     border:   '#8B4513',
     text:     '#5D2E0C',
@@ -134,78 +134,78 @@ const MODULES = [
 
   {
     id:       'poetry',
-    emoji:    '🪷',
+    emoji:    'ðŸª·',
     iconImage: null,
-    name:     { zh:'诗歌', en:'Poetry', it:'Poesia' },
-    desc:     { zh:'唐诗宋词 · 拼音 · 朗读',
-                en:'Classical poems · pinyin · recitation',
-                it:'Poesia classica · pinyin · recitazione' },
+    name:     { zh:'è¯—æ­Œ', en:'Poetry', it:'Poesia' },
+    desc:     { zh:'å”è¯—å®‹è¯ Â· æ‹¼éŸ³ Â· æœ—è¯»',
+                en:'Classical poems Â· pinyin Â· recitation',
+                it:'Poesia classica Â· pinyin Â· recitazione' },
     features: [
-      { zh:'唐诗宋词', en:'Tang & Song poems', it:'Poesie Tang e Song' },
-      { zh:'逐字拼音', en:'Per-character pinyin', it:'Pinyin per carattere' },
-      { zh:'三语翻译', en:'Trilingual translation', it:'Traduzione trilingue' },
-      { zh:'意境插图', en:'Atmospheric illustrations', it:'Illustrazioni' },
+      { zh:'å”è¯—å®‹è¯', en:'Tang & Song poems', it:'Poesie Tang e Song' },
+      { zh:'é€å­—æ‹¼éŸ³', en:'Per-character pinyin', it:'Pinyin per carattere' },
+      { zh:'ä¸‰è¯­ç¿»è¯‘', en:'Trilingual translation', it:'Traduzione trilingue' },
+      { zh:'æ„å¢ƒæ’å›¾', en:'Atmospheric illustrations', it:'Illustrazioni' },
     ],
-    tag:      { zh:'风雅', en:'Classics', it:'Classici' },
-    color:    '#FFF8E1',     // 淡金色背景
-    border:   '#C8972A',     // 金色（跟 PoetryAdminTab GOLD 一致）
-    text:     '#6b4c2a',     // 深棕色字
+    tag:      { zh:'é£Žé›…', en:'Classics', it:'Classici' },
+    color:    '#FFF8E1',     // æ·¡é‡‘è‰²èƒŒæ™¯
+    border:   '#C8972A',     // é‡‘è‰²ï¼ˆè·Ÿ PoetryAdminTab GOLD ä¸€è‡´ï¼‰
+    text:     '#6b4c2a',     // æ·±æ£•è‰²å­—
   },
 
   {
     id:       'riddles',
-    emoji:    '🏮',
+    emoji:    'ðŸ®',
     iconImage: null,
-    name:     { zh:'灯谜', en:'Riddles', it:'Indovinelli' },
-    desc:     { zh:'拆字 · 谐音 · 文化典故',
-                en:'Wordplay · puns · cultural allusions',
-                it:'Indovinelli classici · giochi di parole' },
+    name:     { zh:'ç¯è°œ', en:'Riddles', it:'Indovinelli' },
+    desc:     { zh:'æ‹†å­— Â· è°éŸ³ Â· æ–‡åŒ–å…¸æ•…',
+                en:'Wordplay Â· puns Â· cultural allusions',
+                it:'Indovinelli classici Â· giochi di parole' },
                   features: [
-      { zh:'因人而异',     en:'Tailored to your level',   it:'Su misura per te' },
-      { zh:'拆字 · 谐音',   en:'Wordplay & decomposition', it:'Giochi di parole' },
-      { zh:'渐进提示',     en:'Progressive hints',        it:'Suggerimenti graduali' },
-      { zh:'谜底解析',     en:'Answer explanations',      it:'Spiegazioni' },
+      { zh:'å› äººè€Œå¼‚',     en:'Tailored to your level',   it:'Su misura per te' },
+      { zh:'æ‹†å­— Â· è°éŸ³',   en:'Wordplay & decomposition', it:'Giochi di parole' },
+      { zh:'æ¸è¿›æç¤º',     en:'Progressive hints',        it:'Suggerimenti graduali' },
+      { zh:'è°œåº•è§£æž',     en:'Answer explanations',      it:'Spiegazioni' },
     ],
-    tag:      { zh:'文化', en:'Culture', it:'Cultura' },
-    color:    '#FFEBEE',     // 浅红背景，呼应灯笼喜庆
-    border:   '#C62828',     // 喜庆红
-    text:     '#5D1010',     // 深红字
+    tag:      { zh:'æ–‡åŒ–', en:'Culture', it:'Cultura' },
+    color:    '#FFEBEE',     // æµ…çº¢èƒŒæ™¯ï¼Œå‘¼åº”ç¯ç¬¼å–œåº†
+    border:   '#C62828',     // å–œåº†çº¢
+    text:     '#5D1010',     // æ·±çº¢å­—
   },
 
   {
     id:       'scenario',
-    emoji:    '💬',
+    emoji:    'ðŸ’¬',
     iconImage: null,
-    name:     { zh:'场景对话', en:'Scenario Dialogues', it:'Dialoghi di Scenari' },
-    desc:     { zh:'生活场景 · 三语字幕 · 朗读',
-                en:'Real-life scenes · trilingual · TTS',
-                it:'Scene di vita · trilingue · TTS' },
+    name:     { zh:'åœºæ™¯å¯¹è¯', en:'Scenario Dialogues', it:'Dialoghi di Scenari' },
+    desc:     { zh:'ç”Ÿæ´»åœºæ™¯ Â· ä¸‰è¯­å­—å¹• Â· æœ—è¯»',
+                en:'Real-life scenes Â· trilingual Â· TTS',
+                it:'Scene di vita Â· trilingue Â· TTS' },
     features: [
-      { zh:'面包店买早餐',     en:'Bakery breakfast',     it:'Colazione al bar' },
-      { zh:'学校开学第一天',   en:'First day of school',  it:'Primo giorno di scuola' },
-      { zh:'家庭晚餐',         en:'Family dinner',        it:'Cena in famiglia' },
-      { zh:'问路与交通',       en:'Asking directions',    it:'Chiedere indicazioni' },
+      { zh:'é¢åŒ…åº—ä¹°æ—©é¤',     en:'Bakery breakfast',     it:'Colazione al bar' },
+      { zh:'å­¦æ ¡å¼€å­¦ç¬¬ä¸€å¤©',   en:'First day of school',  it:'Primo giorno di scuola' },
+      { zh:'å®¶åº­æ™šé¤',         en:'Family dinner',        it:'Cena in famiglia' },
+      { zh:'é—®è·¯ä¸Žäº¤é€š',       en:'Asking directions',    it:'Chiedere indicazioni' },
     ],
-    tag:      { zh:'对话', en:'Dialogue', it:'Dialogo' },
+    tag:      { zh:'å¯¹è¯', en:'Dialogue', it:'Dialogo' },
     color:    '#E1F5FE',
     border:   '#0277BD',
     text:     '#01579B',
   },
   {
     id:       'story',
-    emoji:    '📖',
+    emoji:    'ðŸ“–',
     iconImage: null,
-    name:     { zh:'故事会', en:'Story Time', it:'Ora delle Storie' },
-    desc:     { zh:'听故事 · 看绘本 · 学中文',
-                en:'Listen · read · learn',
-                it:'Ascolta · leggi · impara' },
+    name:     { zh:'æ•…äº‹ä¼š', en:'Story Time', it:'Ora delle Storie' },
+    desc:     { zh:'å¬æ•…äº‹ Â· çœ‹ç»˜æœ¬ Â· å­¦ä¸­æ–‡',
+                en:'Listen Â· read Â· learn',
+                it:'Ascolta Â· leggi Â· impara' },
     features: [
-      { zh:'小猫钓鱼',         en:'Kitten goes fishing',     it:'Il gattino pesca' },
-      { zh:'龟兔赛跑',         en:'Tortoise & hare',         it:'La lepre e la tartaruga' },
-      { zh:'中秋玉兔',         en:'Mid-Autumn jade rabbit',  it:'Coniglio di giada' },
-      { zh:'熊猫找朋友',       en:'Panda finds friends',     it:'Panda trova amici' },
+      { zh:'å°çŒ«é’“é±¼',         en:'Kitten goes fishing',     it:'Il gattino pesca' },
+      { zh:'é¾Ÿå…”èµ›è·‘',         en:'Tortoise & hare',         it:'La lepre e la tartaruga' },
+      { zh:'ä¸­ç§‹çŽ‰å…”',         en:'Mid-Autumn jade rabbit',  it:'Coniglio di giada' },
+      { zh:'ç†ŠçŒ«æ‰¾æœ‹å‹',       en:'Panda finds friends',     it:'Panda trova amici' },
     ],
-    tag:      { zh:'绘本', en:'Picture Book', it:'Libro Illustrato' },
+    tag:      { zh:'ç»˜æœ¬', en:'Picture Book', it:'Libro Illustrato' },
     color:    '#F1F8E9',
     border:   '#558B2F',
     text:     '#33691E',
@@ -214,17 +214,17 @@ const MODULES = [
 
 
 
-  // ── Future modules — uncomment and adjust as they come online ──
+  // â”€â”€ Future modules â€” uncomment and adjust as they come online â”€â”€
   // {
-  //   id:    'hsk', emoji:'📚',
-  //   name:  { zh:'HSK考级', en:'HSK Levels', it:'Livelli HSK' },
+  //   id:    'hsk', emoji:'ðŸ“š',
+  //   name:  { zh:'HSKè€ƒçº§', en:'HSK Levels', it:'Livelli HSK' },
   //   ...
   // },
 ];
 
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Main component
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout, allowedModules }) {
   const { lang } = useLang();
   const t = (zh, en, it) => lang === 'zh' ? zh : lang === 'it' ? (it || en) : en;
@@ -246,7 +246,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
   ? MODULES
   : MODULES.filter(m => allowedModules.includes(m.id));
   // Fetch panda assets once per session. For each module:
-  //   1. If a row in jgw_panda_assets has module_id matching the module → use it
+  //   1. If a row in jgw_panda_assets has module_id matching the module â†’ use it
   //   2. Otherwise, fall back to deterministic hash of module id over all pandas
   // This means admins can pin specific pandas in PandaStudio, but unassigned
   // modules still get a stable random panda.
@@ -281,7 +281,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
         const all = (data || []).filter(r => r.image_url);
         if (all.length === 0) { PANDA_CACHE = {}; setPandaMap({}); return; }
 
-        // Build module_id → image_url map for pinned assignments
+        // Build module_id â†’ image_url map for pinned assignments
         const pinned = {};
         all.forEach(r => {
           if (r.module_id) pinned[r.module_id] = r.image_url;
@@ -305,7 +305,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
           } else if (unpinnedUrls.length > 0) {
             map[m.id] = unpinnedUrls[hashId(m.id) % unpinnedUrls.length];
           }
-          // else: no panda for this module — emoji fallback in JSX handles it
+          // else: no panda for this module â€” emoji fallback in JSX handles it
         });
         PANDA_CACHE = map;
         setPandaMap(map);
@@ -321,16 +321,16 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 40 }}>
 
-      {/* ── Top bar: title + language + settings ── */}
+      {/* â”€â”€ Top bar: title + language + settings â”€â”€ */}
       <div style={{ padding: '14px 16px 6px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)',
             fontFamily: "'STKaiti','KaiTi',Georgia,serif" }}>
-            {t('大卫学中文', 'Hanzi Platform', 'Hanzi Platform')}
+            {t('å¤§å«å­¦ä¸­æ–‡', 'Hanzi Platform', 'Hanzi Platform')}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-            {t('选择学习路径，再选模块', 'Pick a path, then a module', 'Scegli percorso e modulo')}
+            {t('é€‰æ‹©å­¦ä¹ è·¯å¾„ï¼Œå†é€‰æ¨¡å—', 'Pick a path, then a module', 'Scegli percorso e modulo')}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -339,12 +339,12 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
             <button onClick={onSettings} style={{
               width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border)',
               background: 'var(--card)', cursor: 'pointer', fontSize: 14,
-            }}>⚙</button>
+            }}>âš™</button>
           )}
         </div>
       </div>
 
-      {/* ── Learning path (applies to all modules) ── */}
+      {/* â”€â”€ Learning path (applies to all modules) â”€â”€ */}
       <div style={{ padding: '6px 16px 14px' }}>
         <PathSelector
           currentPath={currentPath}
@@ -353,7 +353,7 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
         />
       </div>
 
-      {/* ── Module grid ── */}
+      {/* â”€â”€ Module grid â”€â”€ */}
       <div style={{ padding: '0 16px',
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
@@ -365,19 +365,19 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
         ))}
       </div>
 
-      {/* ── Footer ── */}
+      {/* â”€â”€ Footer â”€â”€ */}
       <div style={{ textAlign: 'center', padding: '24px 16px 0',
         fontSize: 11, color: 'var(--text-3)' }}>
         {userLabel && <div style={{ marginBottom: 6 }}>{userLabel}</div>}
-        zhongwen-world.netlify.app · {t('汉字学习平台', 'Hanzi learning platform', 'Piattaforma Hanzi')}
+        david-zhongwen.net Â· {t('æ±‰å­—å­¦ä¹ å¹³å°', 'Hanzi learning platform', 'Piattaforma Hanzi')}
       </div>
     </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-// ModuleCard — large gateway card per module
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ModuleCard â€” large gateway card per module
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ModuleCard({ mod, lang, onClick, pandaUrl }) {
   const name = mod.name?.[lang] || mod.name?.en || mod.id;
   const desc = mod.desc?.[lang] || mod.desc?.en || '';
@@ -412,7 +412,7 @@ function ModuleCard({ mod, lang, onClick, pandaUrl }) {
 
       {/* Icon + title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-        {/* Icon square — panda image (deterministic per module) with
+        {/* Icon square â€” panda image (deterministic per module) with
             emoji as a small corner badge overlay. If panda fails to load
             or no panda exists, emoji becomes the main icon. */}
         <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -433,14 +433,14 @@ function ModuleCard({ mod, lang, onClick, pandaUrl }) {
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={e => { e.currentTarget.style.display = 'none'; }}/>
                 : null}
-            {/* Main-icon fallback — only visible when no panda renders */}
+            {/* Main-icon fallback â€” only visible when no panda renders */}
             <span data-emoji-fallback
               style={{ display: pandaUrl ? 'none' : 'inline' }}>
               {mod.emoji}
             </span>
           </div>
 
-          {/* Emoji corner badge — only when a panda image is present */}
+          {/* Emoji corner badge â€” only when a panda image is present */}
           {pandaUrl && mod.emoji && (
             <div style={{
               position: 'absolute', bottom: -4, right: -4,
@@ -483,12 +483,12 @@ function ModuleCard({ mod, lang, onClick, pandaUrl }) {
       {/* CTA */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 12, color: mod.border, opacity: 0.85 }}>
-          {lang === 'zh' ? '点击进入' : lang === 'it' ? 'Tocca per iniziare' : 'Tap to enter'}
+          {lang === 'zh' ? 'ç‚¹å‡»è¿›å…¥' : lang === 'it' ? 'Tocca per iniziare' : 'Tap to enter'}
         </div>
         <div style={{ width: 32, height: 32, borderRadius: '50%',
           background: mod.border, color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18 }}>›</div>
+          fontSize: 18 }}>â€º</div>
       </div>
     </button>
   );

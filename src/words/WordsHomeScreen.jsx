@@ -1,4 +1,4 @@
-﻿// src/words/WordsHomeScreen.jsx
+// src/words/WordsHomeScreen.jsx
 // Home screen for 词语 (Vocabulary) module.
 // Reads platform-level learning path from localStorage (clf_current_path)
 // and filters word list accordingly.

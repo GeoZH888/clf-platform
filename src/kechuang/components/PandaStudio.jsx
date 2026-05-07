@@ -1,4 +1,4 @@
-﻿// src/components/PandaStudio.jsx
+// src/components/PandaStudio.jsx
 // 🐼 Panda Studio — 大卫学中文 · 吉祥物资产 + API Key 管理
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';

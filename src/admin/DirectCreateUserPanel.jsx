@@ -31,6 +31,10 @@ export default function DirectCreateUserPanel() {
   const [expiryDays, setExpiryDays] = useState(30);
   const [label, setLabel] = useState('');
 
+  // Role (NEW)
+  const [role, setRole] = useState('student');
+
+
   async function call(body) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('未登录');
@@ -54,6 +58,9 @@ export default function DirectCreateUserPanel() {
       ? new Date(Date.now() + expiryDays * 864e5).toISOString()
       : null,
   };
+
+  const roleOptions = { role };
+
 
   return (
     <div style={{
@@ -83,12 +90,14 @@ export default function DirectCreateUserPanel() {
         label={label} setLabel={setLabel}
         showLabelField={mode === 'single'}/>
 
+      <RolePicker role={role} setRole={setRole}/>
+
       {mode === 'single'
         ? <SingleForm call={call} creating={creating} setCreating={setCreating}
-            qrOptions={qrOptions} label={label}
+            qrOptions={qrOptions} roleOptions={roleOptions} label={label}
             onResult={r => setResults(prev => [r, ...prev])}/>
         : <BatchForm call={call} creating={creating} setCreating={setCreating}
-            qrOptions={qrOptions} labelPrefix={label}
+            qrOptions={qrOptions} roleOptions={roleOptions} labelPrefix={label}
             onResults={(rs, es) => { setResults(rs); setErrors(es); }}/>}
 
       {results.length > 0 && <ResultsDisplay results={results}/>}
@@ -163,7 +172,34 @@ function QrOptionsPanel({ generateQr, setGenerateQr, maxDevices, setMaxDevices,
   );
 }
 
-function SingleForm({ call, creating, setCreating, qrOptions, label, onResult }) {
+
+function RolePicker({ role, setRole }) {
+  return (
+    <div style={{
+      background: '#fdf6e3', border: `1px solid ${V.border}`,
+      borderRadius: 8, padding: 10, marginBottom: 10,
+    }}>
+      <label style={{ fontSize: 12, color: V.text3, display: 'block', marginBottom: 4 }}>
+        角色 Role
+      </label>
+      <select value={role} onChange={e => setRole(e.target.value)}
+        style={{
+          width: '100%', padding: '7px 10px', fontSize: 13,
+          border: `1px solid ${V.border}`, borderRadius: 6,
+          background: '#fff', color: V.text, boxSizing: 'border-box',
+        }}>
+        <option value="student">学生 · student</option>
+        <option value="teacher">教师 · teacher</option>
+        <option value="parent">家长 · parent</option>
+        <option value="school_master">校长 · school_master</option>
+        <option value="super_admin">超管 · super_admin</option>
+        <option value="">访客 · (no role / visitor)</option>
+      </select>
+    </div>
+  );
+}
+
+function SingleForm({ call, creating, setCreating, qrOptions, roleOptions, label, onResult }) {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -179,7 +215,7 @@ function SingleForm({ call, creating, setCreating, qrOptions, label, onResult })
         mode: 'single',
         name, username: username || undefined,
         password: password || undefined, email: email || undefined,
-        ...qrOptions, label: label || null,
+        ...qrOptions, ...roleOptions, label: label || null,
       });
       onResult(result);
       setName(''); setUsername(''); setPassword(''); setEmail('');
@@ -215,7 +251,7 @@ function SingleForm({ call, creating, setCreating, qrOptions, label, onResult })
   );
 }
 
-function BatchForm({ call, creating, setCreating, qrOptions, labelPrefix, onResults }) {
+function BatchForm({ call, creating, setCreating, qrOptions, roleOptions, labelPrefix, onResults }) {
   const [names, setNames] = useState('');
   const [err, setErr] = useState('');
 
@@ -227,7 +263,7 @@ function BatchForm({ call, creating, setCreating, qrOptions, labelPrefix, onResu
     setCreating(true);
     try {
       const data = await call({ mode: 'batch', names: list,
-        ...qrOptions, labelPrefix: labelPrefix || null });
+        ...qrOptions, ...roleOptions, labelPrefix: labelPrefix || null });
       onResults(data.results || [], data.errors || []);
       if (data.results?.length > 0) setNames('');
     } catch (e) {

@@ -60,7 +60,7 @@ async function requireSuperAdmin(authHeader) {
 }
 
 // Create one account. Returns { name, username, password, user_id, qr_token }.
-async function createOne({ name, username, password, email, adminUser, role,
+async function createOne({ name, username, password, email, adminUser, role, tier_id,
                           generateQrToken, maxDevices, expiresAt, label }) {
   const finalUsername = (username || genUsername(name)).toLowerCase().trim();
   const finalPassword = password || genPassword();
@@ -97,6 +97,7 @@ async function createOne({ name, username, password, email, adminUser, role,
     role: finalRole,
     display_name: name.trim(),
     is_active: true,
+    tier_id: tier_id || null,
   };
   // Heuristic: if name is CJK, also store in display_name_zh
   if (/[\u4e00-\u9fff]/.test(name)) {
@@ -105,7 +106,7 @@ async function createOne({ name, username, password, email, adminUser, role,
 
   const { error: profErr } = await supabase
     .from('clf_user_profiles')
-    .insert(profileRow);
+    .upsert(profileRow, { onConflict: 'user_id' });
 
   if (profErr) {
     // Rollback: delete the auth user we just created
@@ -205,6 +206,7 @@ export async function handler(event) {
         const r = await createOne({
           name: rawName, adminUser,
           role: body.role,
+          tier_id: body.tier_id,
           ...qrOpts,
           label: body.labelPrefix ? `${body.labelPrefix} #${i + 1}` : null,
         });

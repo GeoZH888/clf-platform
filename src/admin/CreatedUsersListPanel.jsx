@@ -59,6 +59,7 @@ export default function CreatedUsersListPanel() {
       username: p.email?.split('@')[0] || '',
       name: p.display_name_zh || p.display_name || p.email,
       email: p.email,
+      role: p.role || null,
       created_at: p.created_at,
       reason: null,                       // not stored in clf_user_profiles
       token: tokByUser.get(p.user_id) || null,
@@ -260,6 +261,7 @@ function UserRow({ row, onShowCard, onRegen, onReset, onRevoke, onDelete }) {
     }}>
       <div style={{ color: V.text2, fontWeight: 500 }}>{row.name}</div>
       <code style={{ color: V.accent, fontSize: 11 }}>{row.username}</code>
+        {row.role && <RoleBadge role={row.role}/>}
       <div style={{ fontSize: 10, color: V.text3 }}>
         {t ? `${t.device_count}/${t.max_devices} 台` : '无 QR'}
       </div>
@@ -416,3 +418,24 @@ const btnPrimary = { padding: '6px 14px', background: V.accent, color: '#fff',
   border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
 const btnSecondary = { padding: '6px 10px', background: V.card, color: V.accent,
   border: `1px solid ${V.accent}`, borderRadius: 6, cursor: 'pointer', fontSize: 12 };
+
+
+function RoleBadge({ role }) {
+  const map = {
+    super_admin:   { label: '超管', bg: '#c41e3a', fg: '#fff' },
+    school_master: { label: '校长', bg: '#a07850', fg: '#fff' },
+    teacher:       { label: '教师', bg: '#3b82f6', fg: '#fff' },
+    student:       { label: '学生', bg: '#10b981', fg: '#fff' },
+    parent:        { label: '家长', bg: '#8b5cf6', fg: '#fff' },
+  };
+  const cfg = map[role] || { label: role, bg: '#6b7280', fg: '#fff' };
+  return (
+    <span style={{
+      marginLeft: 8, padding: '2px 8px', borderRadius: 10,
+      background: cfg.bg, color: cfg.fg,
+      fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+    }}>
+      {cfg.label}
+    </span>
+  );
+}

@@ -1,4 +1,4 @@
-﻿// src/pages/KnowledgeBaseManagerPage.jsx
+// src/pages/KnowledgeBaseManagerPage.jsx
 // 知识库管理 — 重新设计版
 // ✅ 支持大文件 (10MB+) — 文件直接上传到 Supabase Storage，不经过 base64
 // ✅ PDF 逐页提取，不占满内存

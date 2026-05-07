@@ -31,6 +31,9 @@ import PromptTemplatesTab from './PromptTemplatesTab.jsx';
 import RiddleAdminTab from './RiddleAdminTab';
 import ScenarioAdminTab from './ScenarioAdminTab.jsx';
 import StoryAdminTab from './StoryAdminTab.jsx';
+import AIConfigTab from './AIConfigTab';
+import SchemaDiscoveryTab from './SchemaDiscoveryTab';
+import ContentManagementTab from './ContentManagementTab';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',

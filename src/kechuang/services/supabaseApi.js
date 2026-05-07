@@ -1,4 +1,4 @@
-﻿import { supabase, db, storage } from './supabase';
+import { supabase, db, storage } from './supabase';
 import bcrypt from 'bcryptjs';
 
 // ============================================================

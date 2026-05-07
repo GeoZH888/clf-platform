@@ -1,0 +1,9 @@
+bucket_id,name,created_at,size,mime
+corpus-files,hsk/1778112230853_cmhc_hsk30.csv,2026-05-07 00:15:29.890741+00,948891,text/csv
+corpus-files,hsk/1778112230262_1dr6_hsk30-expanded.csv,2026-05-07 00:15:29.666846+00,941057,text/csv
+corpus-files,hsk/1778112230262_9af9_hsk30-grammar.csv,2026-05-07 00:15:29.21855+00,38801,text/csv
+corpus-files,hsk/1778112230261_m1ux_hsk30-chars.csv,2026-05-07 00:15:28.985845+00,108366,text/csv
+corpus-files,hsk/1778112202894_3ikw_hsk30.csv,2026-05-07 00:15:02.195111+00,948891,text/csv
+corpus-files,hsk/1778112202015_6f16_hsk30-expanded.csv,2026-05-07 00:15:01.535112+00,941057,text/csv
+corpus-files,hsk/1778112202014_ls0u_hsk30-chars.csv,2026-05-07 00:15:01.181369+00,108366,text/csv
+corpus-files,hsk/1778112202015_wi75_hsk30-grammar.csv,2026-05-07 00:15:00.954269+00,38801,text/csv

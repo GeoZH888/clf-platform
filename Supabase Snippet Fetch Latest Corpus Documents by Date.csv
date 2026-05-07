@@ -1,0 +1,6 @@
+title,status,status_message,processed_at,chunk_count,storage_path,subject,grade_level,mime_type,created_at
+HSKHSK标准教程6下rec,ready,null,2026-04-20 19:37:56.423+00,21,hsk/1776713093699_tn9i_HSKHSK____6_rec.pdf,null,null,application/pdf,2026-04-20 19:37:21.202083+00
+HSKHSK标准教程6上rec,ready,null,2026-04-20 19:37:39.86+00,21,hsk/1776713053973_al9x_HSKHSK____6_rec.pdf,null,null,application/pdf,2026-04-20 19:37:05.78185+00
+HSKHSK标准教程5 上rec,ready,null,2026-04-20 19:36:37.055+00,17,hsk/1776713020528_ktbs_HSKHSK____5__rec.pdf,null,null,application/pdf,2026-04-20 19:36:09.98662+00
+HSKHSK标准教程  4  下rec,ready,null,2026-04-20 19:35:59.551+00,15,hsk/1776712998062_i99o_HSKHSK______4___rec.pdf,null,null,application/pdf,2026-04-20 19:35:30.266099+00
+HSKHSK标准教程  4  上rec,ready,null,2026-04-20 19:35:41.679+00,13,hsk/1776712990484_zkj6_HSKHSK______4___rec.pdf,null,null,application/pdf,2026-04-20 19:35:15.722974+00

@@ -18,31 +18,31 @@
 
 export const MODULES = [
   // ── Always-on infrastructure ────────────────────────────────────────
-  { id: 'home',       label: '主页',     icon: '🏠', gateable: false, defaultEnabled: true,  category: 'core' },
-  { id: 'profile',    label: '我的',     icon: '👤', gateable: false, defaultEnabled: true,  category: 'core' },
-  { id: 'progress',   label: '学习进度', icon: '📊', gateable: false, defaultEnabled: true,  category: 'core' },
+  { id: 'home',       label: '主页',     icon: '🏠', gateable: false, defaultEnabled: true,  category: 'core' , pillar: 'home' },
+  { id: 'profile',    label: '我的',     icon: '👤', gateable: false, defaultEnabled: true,  category: 'core' , pillar: 'profile' },
+  { id: 'progress',   label: '学习进度', icon: '📊', gateable: false, defaultEnabled: true,  category: 'core' , pillar: 'progress' },
 
   // ── Standard bundle (defaultEnabled: true) ──────────────────────────
-  { id: 'lianzi',     label: '练字',     icon: '✍️', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'words',      label: '词语',     icon: '📚', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'pinyin',     label: '拼音',     icon: '🔤', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'chengyu',    label: '成语',     icon: '🎋', gateable: true,  defaultEnabled: true,  category: 'cultural' },
-  { id: 'poetry',     label: '诗歌',     icon: '🪶', gateable: true,  defaultEnabled: true,  category: 'cultural' },
-  { id: 'grammar',    label: '语法',     icon: '📐', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'hsk',        label: 'HSK',     icon: '🎯', gateable: true,  defaultEnabled: true,  category: 'learning' },
-  { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' },
-  { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: true,  category: 'practice' },
-  { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' },
+  { id: 'lianzi',     label: '练字',     icon: '✍️', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },
+  { id: 'words',      label: '词语',     icon: '📚', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },
+  { id: 'pinyin',     label: '拼音',     icon: '🔤', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },
+  { id: 'chengyu',    label: '成语',     icon: '🎋', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community' },
+  { id: 'poetry',     label: '诗歌',     icon: '🪶', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community' },
+  { id: 'grammar',    label: '语法',     icon: '📐', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },
+  { id: 'hsk',        label: 'HSK',     icon: '🎯', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'hsk' },
+  { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'game' },
+  { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community' },
+  { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community' },
 
   // ── Premium / opt-in (defaultEnabled: false) ────────────────────────
-  { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' },
-  { id: 'chat',       label: '问答聊天', icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' },
-  { id: 'voice',      label: '语音评测', icon: '🎤', gateable: true,  defaultEnabled: false, category: 'practice' },
-  { id: 'homework',   label: '作业',     icon: '✏️', gateable: true,  defaultEnabled: false, category: 'practice' },
+  { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' , pillar: 'community' },
+  { id: 'chat',       label: '问答聊天', icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community' },
+  { id: 'voice',      label: '语音评测', icon: '🎤', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community' },
+  { id: 'homework',   label: '作业',     icon: '✏️', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community' },
 
   // ── Future placeholder (defaultEnabled: false, hidden until built) ──
-  { id: 'shop',       label: '小卖部',   icon: '🛒', gateable: true,  defaultEnabled: false, category: 'future' },
-  { id: 'parents',    label: '家长',     icon: '👨‍👩‍👧', gateable: true,  defaultEnabled: false, category: 'future' },
+  { id: 'shop',       label: '小卖部',   icon: '🛒', gateable: true,  defaultEnabled: false, category: 'future' , pillar: 'community' },
+  { id: 'parents',    label: '家长',     icon: '👨‍👩‍👧', gateable: true,  defaultEnabled: false, category: 'future' , pillar: 'community' },
 ];
 
 // Module IDs that make up the "标准套餐" preset — what new students get by default.

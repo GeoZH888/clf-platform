@@ -1,4 +1,4 @@
-﻿// src/pages/TeacherToolsPage.jsx
+// src/pages/TeacherToolsPage.jsx
 // 教师 AI 工具中心 — 真实 AI 生成，连接知识库 RAG
 // 功能：PPT课件 · 测验题库 · 智能聊天 · 问答助手 · 练习册
 

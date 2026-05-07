@@ -1,4 +1,4 @@
-﻿// src/components/TeacherUploadPanel.jsx
+// src/components/TeacherUploadPanel.jsx
 // Teacher-facing upload panel
 // - Drag & drop or click to upload
 // - Supports: PDF, Word, PPT, ZIP, MP3/MP4, images, text

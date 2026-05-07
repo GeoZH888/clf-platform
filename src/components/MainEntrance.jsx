@@ -1,4 +1,4 @@
-﻿// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // MainEntrance.jsx  —  Drop into clf-platform/src/components/
 //
 // Top-level gateway with two doors:
@@ -18,7 +18,7 @@
 //   )}
 //
 // If 大卫学中文 is a separate domain, replace onKetang with:
-//   onKetang={() => window.open('https://admin.zhongwen-world.netlify.app', '_blank')}
+//   onKetang={() => window.open('https://admin.david-zhongwen.net', '_blank')}
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react'
@@ -365,12 +365,7 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
               textColor="#3d2410"
               accentColor="#a0522d"
               badge={t('即将上线', 'Coming Soon', 'In arrivo', lang)}
-              onClick={() => alert(t(
-                '非遗专区正在建设中,敬请期待。',
-                'Heritage section is under construction. Stay tuned.',
-                'Sezione patrimonio in costruzione. Resta sintonizzato.',
-                lang
-              ))}
+              onClick={() => { window.location.href = '/feiyi'; }}
             />
           </div>
         </div>
@@ -388,7 +383,7 @@ export default function MainEntrance({ onKetang, onShequ, lang = 'zh', userLabel
           ))}
         </div>
         <div style={{ fontSize:11, color:'rgba(255,255,255,0.25)', letterSpacing:1 }}>
-          zhongwen-world.netlify.app · {t('大卫中文教育平台 v2', 'David Chinese Education Platform v2', 'Piattaforma Educativa David Cinese v2', lang)}
+          david-zhongwen.net · {t('大卫中文教育平台 v2', 'David Chinese Education Platform v2', 'Piattaforma Educativa David Cinese v2', lang)}
         </div>
       </div>
     </div>

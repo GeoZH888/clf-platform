@@ -1,4 +1,4 @@
-﻿// src/words/Flashcards.jsx
+// src/words/Flashcards.jsx
 // Classic flashcard practice: front shows word, flip to see meaning.
 // User rates "know it" vs "not yet" → score recorded to progress store.
 //

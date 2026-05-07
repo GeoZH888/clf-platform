@@ -1,4 +1,4 @@
-﻿// src/pages/ChangePasswordPage.jsx
+// src/pages/ChangePasswordPage.jsx
 // 修改密码 — 首次登录强制修改 + 普通修改
 
 import React, { useState } from 'react';

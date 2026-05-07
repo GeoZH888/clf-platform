@@ -1,4 +1,4 @@
-﻿// AI Service Module - 智能服务模块
+// AI Service Module - 智能服务模块
 // Supports: OpenAI, Anthropic (Claude), DeepSeek, Qwen, ERNIE
 
 class AIService {

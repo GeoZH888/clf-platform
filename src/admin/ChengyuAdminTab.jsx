@@ -1,4 +1,4 @@
-﻿// src/admin/ChengyuAdminTab.jsx
+// src/admin/ChengyuAdminTab.jsx
 // SuperAdmin panel: batch generate 成语 + AI illustration with style selector
 // v2 features:
 //   【1】 Click a row to edit (modal with all fields + image preview)
