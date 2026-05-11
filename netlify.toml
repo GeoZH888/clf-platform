@@ -63,11 +63,6 @@
 
 # Proxy /feiyi/tangka-exhibition/* to the tangka exhibition site
 # (status 200 = rewrite, not redirect — URL stays as david-zhongwen.net)
-[[redirects]]
-  from   = "/feiyi/tangka-exhibition/*"
-  to     = "https://feiyitangka.netlify.app/feiyi/tangka-exhibition/:splat"
-  status = 200
-  force  = true
 
 [[redirects]]
   from   = "/*"
