@@ -159,7 +159,7 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
         )}
         <button onClick={() => {
           if (window.confirm(t(
-            '确定要退出登录吗？退出后下次需要重新输入账号密码。',
+            '确定要退出登录吗?退出后下次需要重新输入账号密码。',
             'Log out? You will need to enter your username and password again next time.',
             'Esci? Dovrai inserire nome utente e password al prossimo accesso.'
           ))) {
@@ -253,7 +253,7 @@ function PWAInstallBanner() {
       <div style={{ background:'#1a0a05', padding:'8px 14px', display:'flex',
         alignItems:'center', justifyContent:'space-between', gap:10 }}>
         <span style={{ fontSize:12, color:'#fdf6e3' }}>
-          📲 安装到桌面，下次直接打开
+          📲 安装到桌面,下次直接打开
         </span>
         <div style={{ display:'flex', gap:8, flexShrink:0 }}>
           <button onClick={() => {
@@ -508,7 +508,7 @@ function UserApp() {
             )}
             {screen === 'feiyi' && (
               <ComingSoonScreen
-                title="éžé—"  titleEn="Heritage"  titleIt="Patrimonio"
+                title="非遗"  titleEn="Heritage"  titleIt="Patrimonio"
                 emoji="🏮"  onBack={() => setScreen('entrance')}/>
             )}
           {screen === 'words' && (
