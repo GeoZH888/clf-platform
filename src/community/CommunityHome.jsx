@@ -666,7 +666,7 @@ function FeiyiTile({ cat, lang }) {
   const desc = cat[`desc_${lang}`] || cat.desc_zh;
   return (
     <button
-      onClick={() => alert(label + ' · ' + (lang === 'zh' ? '内容建设中…' : lang === 'en' ? 'Coming soon...' : 'In arrivo...'))}
+      onClick={() => { window.location.href = `/feiyi/${cat.slug}`; }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
