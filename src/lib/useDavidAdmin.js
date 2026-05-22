@@ -23,13 +23,10 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
 
-// ── Same Supabase as Admin ────────────────────────────────
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://yqcojudvvjntaajnrilr.supabase.co'
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-
-export const adminDb = SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null
+// ── Use the canonical Supabase client (no duplicate createClient) ─────
+import { supabase } from './supabase.js'
+export const adminDb = supabase
 
 // ─────────────────────────────────────────────────────────────
 // useAIConfig — read the AI provider/model/key set by Admin
