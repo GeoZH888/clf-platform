@@ -3,6 +3,7 @@
 // Stats + toolbar + user cards. Per-user actions: 权限 (modal) / 角色 (dropdown) / 删除.
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { writeAuditLog } from '../../lib/adminAudit';
 import UserModulesButton from '../UserModulesButton';
 import { Search, RefreshCw, Plus, Trash2, X, ChevronDown } from 'lucide-react';
 
@@ -54,15 +55,39 @@ export default function AccountsManagement() {
   });
 
   const updateRole = async (userId, newRole) => {
+    const target = users.find(u => u.user_id === userId);
+    const oldRole = target?.role;
+    if (oldRole === newRole) return;
+
+    // Confirmation — role changes are privileged and the UI used to fire
+    // silently on a dropdown change. Confirm explicitly, especially for
+    // demotions and super_admin grants.
+    const targetLabel = target?.name || target?.email || userId.slice(0, 8);
+    const oldLbl = ROLES.find(r => r.id === oldRole)?.label || oldRole || '(none)';
+    const newLbl = ROLES.find(r => r.id === newRole)?.label || newRole;
+    const warn = newRole === 'super_admin' ? '\n\n⚠️ This grants full admin access. Confirm carefully.' : '';
+    if (!confirm(`将 "${targetLabel}" 的角色从「${oldLbl}」改为「${newLbl}」？${warn}`)) {
+      load(); // re-load to reset the dropdown to its on-screen old value
+      return;
+    }
+
     const { error } = await supabase
       .from('clf_user_profiles')
       .update({ role: newRole })
       .eq('user_id', userId);
     if (error) {
       alert('角色更新失败: ' + error.message);
-    } else {
       load();
+      return;
     }
+    // Best-effort audit log (never blocks)
+    writeAuditLog({
+      targetUserId: userId,
+      action: 'role_change',
+      before: { role: oldRole },
+      after:  { role: newRole },
+    });
+    load();
   };
 
   const updateInstitution = async (userId, institutionName, logoUrl) => {
@@ -83,15 +108,29 @@ export default function AccountsManagement() {
 
   const removeUser = async (user) => {
     if (!confirm(`确定删除用户 \"${user.name || user.email}\"？此操作不可撤销。`)) return;
+    // Snapshot the row BEFORE delete so the audit log has the full record.
+    const beforeSnapshot = {
+      user_id: user.user_id,
+      name:    user.name,
+      email:   user.email,
+      role:    user.role,
+      institution_name: user.institution_name,
+    };
     const { error } = await supabase
       .from('clf_user_profiles')
       .delete()
       .eq('user_id', user.user_id);
     if (error) {
       alert('删除失败: ' + error.message);
-    } else {
-      load();
+      return;
     }
+    writeAuditLog({
+      targetUserId: user.user_id,
+      action: 'user_delete',
+      before: beforeSnapshot,
+      after:  null,
+    });
+    load();
   };
 
   return (
