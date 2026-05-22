@@ -1,20 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-// NEW Supabase credentials
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://yqcojudvvjntaajnrilr.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY29qdWR2dmpudGFham5yaWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNDkxNzQsImV4cCI6MjA5MDkyNTE3NH0.pJuxsTRieYTnZtEysOLcPfUZ9Map0z74o2lKtc8uGAk';
-
-console.log('🔗 Connecting to Supabase:', supabaseUrl);
-
-let supabase = null;
-try {
-  supabase = createClient(supabaseUrl, supabaseKey);
-  window.supabase = supabase; // Expose for debugging
-  console.log('✅ Supabase client created successfully');
-} catch (error) {
-  console.error('❌ Failed to create Supabase client:', error);
-}
+// Use the canonical Supabase client — do NOT createClient() here. Multiple
+// clients against the same URL produce session mismatches and the
+// "Multiple GoTrueClient instances" warning.
+import { supabase } from '../../lib/supabase.js';
 
 const AuthContext = createContext(null);
 

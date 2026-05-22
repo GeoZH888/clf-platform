@@ -1,19 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-
-// ============================================================
-// SUPABASE CONFIGURATION
-// ============================================================
-// Get these values from your Supabase project:
-// 1. Go to https://app.supabase.com
-// 2. Select your project
-// 3. Go to Settings > API
-// 4. Copy the URL and anon/public key
-// ============================================================
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://yqcojudvvjntaajnrilr.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY29qdWR2dmpudGFham5yaWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNDkxNzQsImV4cCI6MjA5MDkyNTE3NH0.pJuxsTRieYTnZtEysOLcPfUZ9Map0z74o2lKtc8uGAk';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Canonical client lives in src/lib/supabase.js — re-export it here so the
+// many existing importers of '../school/services/supabase' keep working.
+// The auth/db/storage helpers below still work, they just use the shared client.
+import { supabase } from '../../lib/supabase.js';
+export { supabase };
 
 // ============================================================
 // AUTH HELPERS
