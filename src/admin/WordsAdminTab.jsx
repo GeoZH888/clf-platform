@@ -405,7 +405,9 @@ export default function WordsAdminTab() {
   }
 
   async function loadWords() {
-    const { data } = await supabase.from('jgw_words').select('*').order('theme,hsk_level');
+    // .order('theme,hsk_level') was a bug — the JS client treats it as a single
+    // column literally named 'theme,hsk_level'. Chain two .order() calls instead.
+    const { data } = await supabase.from('jgw_words').select('*').order('theme').order('hsk_level');
     setWords(data || []);
     setLoading(false);
   }
