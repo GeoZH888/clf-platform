@@ -3,6 +3,7 @@
 // Stats + toolbar + user cards. Per-user actions: 权限 (modal) / 角色 (dropdown) / 删除.
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { writeAuditLog } from '../../lib/adminAudit';
 import UserModulesButton from '../UserModulesButton';
 import { Search, RefreshCw, Plus, Trash2, X, ChevronDown } from 'lucide-react';
 
@@ -54,15 +55,39 @@ export default function AccountsManagement() {
   });
 
   const updateRole = async (userId, newRole) => {
+    const target = users.find(u => u.user_id === userId);
+    const oldRole = target?.role;
+    if (oldRole === newRole) return;
+
+    // Confirmation — role changes are privileged and the UI used to fire
+    // silently on a dropdown change. Confirm explicitly, especially for
+    // demotions and super_admin grants.
+    const targetLabel = target?.name || target?.email || userId.slice(0, 8);
+    const oldLbl = ROLES.find(r => r.id === oldRole)?.label || oldRole || '(none)';
+    const newLbl = ROLES.find(r => r.id === newRole)?.label || newRole;
+    const warn = newRole === 'super_admin' ? '\n\n⚠️ This grants full admin access. Confirm carefully.' : '';
+    if (!confirm(`将 "${targetLabel}" 的角色从「${oldLbl}」改为「${newLbl}」？${warn}`)) {
+      load(); // re-load to reset the dropdown to its on-screen old value
+      return;
+    }
+
     const { error } = await supabase
       .from('clf_user_profiles')
       .update({ role: newRole })
       .eq('user_id', userId);
     if (error) {
       alert('角色更新失败: ' + error.message);
-    } else {
       load();
+      return;
     }
+    // Best-effort audit log (never blocks)
+    writeAuditLog({
+      targetUserId: userId,
+      action: 'role_change',
+      before: { role: oldRole },
+      after:  { role: newRole },
+    });
+    load();
   };
 
   const updateInstitution = async (userId, institutionName, logoUrl) => {
@@ -81,17 +106,66 @@ export default function AccountsManagement() {
     }
   };
 
+  const resetPassword = async (user) => {
+    const label = user.name || user.email || user.user_id.slice(0, 8);
+    if (!confirm(`为 "${label}" 重置密码？将生成一个新的临时密码并显示一次。`)) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/.netlify/functions/admin-manage-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ action: 'reset_password', user_id: user.user_id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert('重置失败: ' + (data.error || res.status));
+        return;
+      }
+      writeAuditLog({
+        targetUserId: user.user_id,
+        action: 'password_reset',
+        before: null,
+        after: { reset_at: new Date().toISOString() },  // never log the password
+      });
+      // Show the new password ONCE so admin can share out-of-band.
+      // Wrap in prompt for easy copy (most browsers preselect content in prompt).
+      window.prompt(
+        `✓ ${label} 的新密码已生成。请复制并通过线下渠道告知用户（仅显示一次）：`,
+        data.new_password
+      );
+    } catch (e) {
+      alert('重置失败: ' + (e?.message || 'Network error'));
+    }
+  };
+
   const removeUser = async (user) => {
     if (!confirm(`确定删除用户 \"${user.name || user.email}\"？此操作不可撤销。`)) return;
+    // Snapshot the row BEFORE delete so the audit log has the full record.
+    const beforeSnapshot = {
+      user_id: user.user_id,
+      name:    user.name,
+      email:   user.email,
+      role:    user.role,
+      institution_name: user.institution_name,
+    };
     const { error } = await supabase
       .from('clf_user_profiles')
       .delete()
       .eq('user_id', user.user_id);
     if (error) {
       alert('删除失败: ' + error.message);
-    } else {
-      load();
+      return;
     }
+    writeAuditLog({
+      targetUserId: user.user_id,
+      action: 'user_delete',
+      before: beforeSnapshot,
+      after:  null,
+    });
+    load();
   };
 
   return (
@@ -164,6 +238,7 @@ export default function AccountsManagement() {
               onPermsClick={() => setPermsUser(u)}
               onInstitutionClick={() => setInstUser(u)}
               onRoleChange={(newRole) => updateRole(u.user_id, newRole)}
+              onResetPassword={() => resetPassword(u)}
               onDelete={() => removeUser(u)}/>
           ))}
         </div>
@@ -212,7 +287,7 @@ function StatCard({ label, value, bg, fg }) {
   );
 }
 
-function UserCard({ user, onPermsClick, onInstitutionClick, onRoleChange, onDelete }) {
+function UserCard({ user, onPermsClick, onInstitutionClick, onRoleChange, onResetPassword, onDelete }) {
   const role = ROLES.find(r => r.id === user.role);
   const lastLogin = user.last_sign_in_at
     ? new Date(user.last_sign_in_at).toLocaleDateString('zh-CN')
@@ -293,6 +368,12 @@ function UserCard({ user, onPermsClick, onInstitutionClick, onRoleChange, onDele
           border: '1px solid #9333ea40', borderRadius: 6,
           cursor: 'pointer', fontWeight: 600,
         }}/>
+        <button onClick={onResetPassword} title="重置密码" style={{
+          padding: '6px 8px', fontSize: 11,
+          background: '#fff7ed', color: '#9a3412',
+          border: '1px solid #f59e0b40', borderRadius: 6,
+          cursor: 'pointer', fontWeight: 600,
+        }}>🔑</button>
         <button onClick={onDelete} style={{
           padding: '6px 8px', fontSize: 11,
           background: '#fef2f2', color: '#991b1b',
@@ -528,38 +609,175 @@ function InstitutionModal({ user, onClose, onSave }) {
 }
 
 function CreateUserModal({ onClose, onCreated }) {
+  const [name, setName]         = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [email, setEmail]       = useState('');
+  const [role, setRole]         = useState('student');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]       = useState('');
+  const [result, setResult]     = useState(null);   // shown after success: { username, password, ... }
+
+  const submit = async () => {
+    setError('');
+    if (!name.trim()) { setError('姓名必填'); return; }
+    if (password && password.length < 8) {
+      setError('密码至少 8 位');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/.netlify/functions/admin-create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          mode: 'single',
+          name: name.trim(),
+          username: username.trim() || undefined,
+          password: password.trim() || undefined,    // server generates if blank
+          email: email.trim() || undefined,
+          role,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setError(data.error || `Create failed (${res.status})`);
+        setSubmitting(false);
+        return;
+      }
+      setResult(data.result);
+      writeAuditLog({
+        targetUserId: data.result.user_id,
+        action: 'user_create',
+        before: null,
+        after: { username: data.result.username, role, name: name.trim() },
+      });
+      onCreated?.(data.result);
+    } catch (e) {
+      setError(e?.message || 'Network error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // After successful creation, show credentials so admin can share out-of-band.
+  if (result) {
+    return (
+      <div onClick={onClose} style={modalBackdrop}>
+        <div onClick={e => e.stopPropagation()} style={{
+          background: '#fff', borderRadius: 14, padding: 24,
+          maxWidth: 460, width: '92%',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#166534' }}>✓ 用户已创建</div>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, color: '#8b6f47' }}>
+              <X size={18}/>
+            </button>
+          </div>
+          <div style={{ background: '#fef3e2', border: '1px solid #f59e0b40', borderRadius: 10, padding: 12, fontSize: 12, color: '#92400e', marginBottom: 12 }}>
+            请妥善保存以下凭证（密码仅显示一次）。建议通过线下渠道告知用户。
+          </div>
+          <CredentialRow label="姓名"     value={result.name}/>
+          <CredentialRow label="用户名"   value={result.username} copyable/>
+          <CredentialRow label="初始密码" value={result.password} copyable mono/>
+          {result.qr_token && <CredentialRow label="QR token" value={result.qr_token} copyable mono/>}
+          <button onClick={onClose} style={{ ...btnPrimary, width: '100%', marginTop: 12 }}>完成</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div onClick={onClose} style={modalBackdrop}>
       <div onClick={e => e.stopPropagation()} style={{
         background: '#fff', borderRadius: 14, padding: 24,
-        maxWidth: 420, width: '90%',
+        maxWidth: 460, width: '92%',
       }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: 14,
-        }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a0a05' }}>
-            新建用户
-          </div>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            padding: 6, color: '#8b6f47',
-          }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a0a05' }}>新建用户</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, color: '#8b6f47' }}>
             <X size={18}/>
           </button>
         </div>
-        <div style={{
-          background: '#fef3e2', border: '1px solid #f59e0b40',
-          borderRadius: 10, padding: 12, fontSize: 12, color: '#92400e',
-        }}>
-          创建用户的完整流程仍在旧 /admin 后台。
-          请前往 <a href="/admin" style={{ color: '#92400e', textDecoration: 'underline' }}>旧后台</a> 创建用户，
-          完成后返回此处刷新即可。
+
+        <FormField label="姓名 *" hint="必填，可中文">
+          <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} autoFocus/>
+        </FormField>
+
+        <FormField label="用户名" hint="留空则由系统自动生成。仅小写字母数字下划线。">
+          <input value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} style={inputStyle} placeholder="自动"/>
+        </FormField>
+
+        <FormField label="角色">
+          <select value={role} onChange={e => setRole(e.target.value)} style={inputStyle}>
+            {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+        </FormField>
+
+        <FormField label="初始密码" hint="留空则系统生成。至少 8 位。">
+          <input value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace' }} placeholder="自动"/>
+        </FormField>
+
+        <FormField label="真实邮箱（可选）" hint="如需密码自助重置，需提供真实邮箱。">
+          <input value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} type="email" placeholder="留空使用合成邮箱"/>
+        </FormField>
+
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: 8, padding: 10, fontSize: 12, marginTop: 8 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <button onClick={submit} disabled={submitting} style={{ ...btnPrimary, flex: 1, opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? '创建中…' : '创建'}
+          </button>
+          <button onClick={onClose} disabled={submitting} style={btnSecondary}>取消</button>
         </div>
       </div>
     </div>
   );
 }
+
+function FormField({ label, hint, children }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#5d4630', marginBottom: 4 }}>{label}</label>
+      {children}
+      {hint && <div style={{ fontSize: 10, color: '#a07850', marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function CredentialRow({ label, value, copyable, mono }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch { /* ignore */ }
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f5e6c8' }}>
+      <div style={{ width: 80, fontSize: 11, color: '#5d4630', fontWeight: 600 }}>{label}</div>
+      <div style={{ flex: 1, fontSize: 13, color: '#1a0a05', fontFamily: mono ? 'ui-monospace, monospace' : 'inherit', wordBreak: 'break-all' }}>{value}</div>
+      {copyable && (
+        <button onClick={copy} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 11 }}>
+          {copied ? '✓ 已复制' : '复制'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const inputStyle = {
+  width: '100%', padding: '8px 10px', fontSize: 13,
+  border: '1px solid #e8d5b0', borderRadius: 8,
+  background: '#fff', color: '#1a0a05',
+  boxSizing: 'border-box',
+};
 
 const btnPrimary = {
   padding: '8px 14px', fontSize: 13, fontWeight: 600,
