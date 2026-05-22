@@ -10,6 +10,7 @@ import { LogOut, Globe, ChevronDown, ChevronRight } from 'lucide-react';
 
 // We'll wrap the existing user management page so accounts tab uses real logic
 import AccountsManagement from './v2/AccountsManagement';
+import PlatformAnalyticsTab from './v2/PlatformAnalyticsTab';
 import HskPillar from './v2/pillars/HskPillar';
 import GamePillar from './v2/pillars/GamePillar';
 import CommunityPillar from './v2/pillars/CommunityPillar';
@@ -28,7 +29,7 @@ const FOUNDATION_TABS = [
   { id: 'accounts',    icon: '👥', label: '账户管理',    desc: '用户、角色、学校、班级' },
   { id: 'ai-config',   icon: '🤖', label: 'AI 配置',     desc: '各 AI 提供商 API Key + 默认提供商' },
   { id: 'rag',         icon: '📚', label: 'RAG 管理',    desc: '知识库、文档上传、嵌入、检索（暨南教材等）' },
-  { id: 'logs',        icon: '📜', label: '系统日志',    desc: '操作日志、错误日志、审计' },
+  { id: 'platform',    icon: '📊', label: '平台分析',    desc: '用户、信号、审计日志' },
 ];
 
 const MODULE_TABS = [
@@ -263,12 +264,12 @@ function TabContent({ activeTab }) {
     );
   }
 
-  // 系统日志 — placeholder
-  if (activeTab === 'logs') {
+  // 平台分析 — global metrics + audit log
+  if (activeTab === 'platform') {
     return (
       <div>
-        <SectionHeader icon="📜" title="系统日志" subtitle="操作日志、错误日志、审计" color="#c41e3a"/>
-        <Placeholder hints={['(待建)']}/>
+        <SectionHeader icon="📊" title="平台分析" subtitle="用户、信号、审计日志" color="#c41e3a"/>
+        <PlatformAnalyticsTab/>
       </div>
     );
   }
