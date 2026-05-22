@@ -35,12 +35,65 @@ export function useStudentAuth() {
     let unsub = null;
 
     (async () => {
+      console.log('[useStudentAuth] mount: checking session…');
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session) {
-        setState(s => ({ ...s, status: 'guest' }));
+      console.log('[useStudentAuth] supabase session:', { has: !!session, error });
+      if (session && !error) {
+        console.log('[useStudentAuth] using supabase session');
+        await loadProfile(session);
         return;
       }
-      await loadProfile(session);
+
+      // Bridge: the community login (school/contexts/AuthContext) stores user
+      // info under custom 'user'/'token' keys after a successful Supabase
+      // signin. If those exist but supabase.auth has no session (separate
+      // client instance, storage quirk), trust the saved profile so the user
+      // doesn't have to log in twice.
+      try {
+        const savedUser    = localStorage.getItem('user');
+        const savedToken   = localStorage.getItem('token');
+        const savedRefresh = localStorage.getItem('refresh_token');
+        console.log('[useStudentAuth] bridge check:', {
+          hasUser: !!savedUser, hasToken: !!savedToken, hasRefresh: !!savedRefresh,
+        });
+        if (savedUser && savedToken) {
+          const u = JSON.parse(savedUser);
+          console.log('[useStudentAuth] parsed user:', {
+            id: u?.id, role: u?.role, hasName: !!(u?.display_name || u?.name),
+          });
+          if (u?.id) {
+            // CRITICAL: hand the tokens to THIS supabase client so RLS-protected
+            // queries (e.g. clf_chengyu) see auth.uid() and pass. Without this,
+            // the bridge gives UI-auth but no data-auth — every protected
+            // SELECT silently returns []. Requires refresh_token to be saved.
+            if (savedRefresh) {
+              const { error: setErr } = await supabase.auth.setSession({
+                access_token:  savedToken,
+                refresh_token: savedRefresh,
+              });
+              if (setErr) {
+                console.warn('[useStudentAuth] setSession failed:', setErr.message);
+              } else {
+                console.log('[useStudentAuth] supabase session hydrated from bridge');
+              }
+            } else {
+              console.warn('[useStudentAuth] no refresh_token in localStorage — ' +
+                'RLS queries may return empty. Log out + back in to populate it.');
+            }
+            await loadProfileFromBridge(u, savedToken);
+            return;
+          } else {
+            console.warn('[useStudentAuth] bridge: u.id missing, falling to guest');
+          }
+        } else {
+          console.warn('[useStudentAuth] bridge: no saved user/token, falling to guest');
+        }
+      } catch (e) {
+        console.error('[useStudentAuth] bridge parse error:', e);
+      }
+
+      console.log('[useStudentAuth] → status: guest');
+      setState(s => ({ ...s, status: 'guest' }));
     })();
 
     // Listen to auth state changes (signOut from another tab, etc.)
@@ -58,6 +111,39 @@ export function useStudentAuth() {
 
     return () => unsub?.unsubscribe();
   }, []);
+
+  // Bridge helper: adapt the community-AuthContext user shape into our state.
+  async function loadProfileFromBridge(u, _token) {
+    try {
+      console.log('[useStudentAuth] loadProfileFromBridge: start', u.id);
+      const userId      = u.id;
+      const role        = u.role || null;
+      const displayName = u.display_name_zh || u.display_name || u.name
+                        || u.email || u.username || '';
+
+      const modules = ['super_admin', 'school_master'].includes(role)
+        ? buildFullModuleList()
+        : await resolveModules(userId);
+      console.log('[useStudentAuth] loadProfileFromBridge: modules resolved', modules.length);
+
+      setState({
+        status:   'authed',
+        label:    displayName,
+        role,
+        expiresAt: null,   // not tracked via the bridge
+        daysLeft:  null,
+        expiring:  false,
+        modules,
+        error:    '',
+        userId,
+        username: u.username || u.email?.split('@')[0] || null,
+      });
+      console.log('[useStudentAuth] → status: authed via bridge');
+    } catch (e) {
+      console.error('[useStudentAuth] bridge fatal error:', e);
+      setState(s => ({ ...s, status: 'guest', error: e.message }));
+    }
+  }
 
   async function loadProfile(session) {
     try {

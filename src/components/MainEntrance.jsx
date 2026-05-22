@@ -147,33 +147,33 @@ function DoorCard({ emoji, title, subtitle, desc, features, color, bgGrad, textC
       )}
 
       {/* Icon + title */}
-      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:12 }}>
-        <div style={{ width:56, height:56, borderRadius:16, background:`${color}18`,
-          display:'flex', alignItems:'center', justifyContent:'center', fontSize:30,
+      <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:14 }}>
+        <div style={{ width:96, height:96, borderRadius:22, background:`${color}18`,
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:56,
           border:`1.5px solid ${color}30`, flexShrink:0 }}>
           {emoji}
         </div>
         <div>
-          <div style={{ fontSize:26, fontWeight:900, color:textColor, lineHeight:1.1,
-            fontFamily:"'STKaiti','KaiTi','FangSong',serif" }}>
+          <div style={{ fontSize:63, fontWeight:900, color:textColor, lineHeight:1.15,
+            fontFamily:"'STKaiti','KaiTi','FangSong',serif", letterSpacing:2 }}>
             {title}
           </div>
-          <div style={{ fontSize:13, color:accentColor, marginTop:2, fontWeight:600 }}>
+          <div style={{ fontSize:22, color:accentColor, marginTop:6, fontWeight:600 }}>
             {subtitle}
           </div>
         </div>
       </div>
 
       {/* Description */}
-      <div style={{ fontSize:13, color:textColor, lineHeight:1.7, marginBottom:14,
-        opacity:0.8, borderLeft:`3px solid ${color}40`, paddingLeft:10 }}>
+      <div style={{ fontSize:15, color:textColor, lineHeight:1.8, marginBottom:16,
+        opacity:0.85, borderLeft:`3px solid ${color}40`, paddingLeft:12 }}>
         {desc}
       </div>
 
       {/* Feature pills */}
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 }}>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:18 }}>
         {features.map((f, i) => (
-          <span key={i} style={{ fontSize:11, padding:'3px 10px', borderRadius:20,
+          <span key={i} style={{ fontSize:13, padding:'4px 12px', borderRadius:20,
             background:`${color}12`, color:textColor, border:`1px solid ${color}25`,
             fontWeight:500 }}>
             {f}
@@ -183,7 +183,7 @@ function DoorCard({ emoji, title, subtitle, desc, features, color, bgGrad, textC
 
       {/* Enter arrow */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <span style={{ fontSize:12, color:accentColor, opacity:0.7 }}>点击进入 →</span>
+        <span style={{ fontSize:14, color:accentColor, opacity:0.7 }}>点击进入 →</span>
         <div style={{ width:36, height:36, borderRadius:'50%', background:color,
           display:'flex', alignItems:'center', justifyContent:'center',
           color:'white', fontSize:18, fontWeight:700,

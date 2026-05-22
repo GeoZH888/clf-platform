@@ -353,7 +353,10 @@ export default function PlatformHome({ onSelect, userLabel, onSettings, onLogout
         />
       </div>
 
-      {/* â”€â”€ Module grid â”€â”€ */}
+      {/* ── Quick-jump strip (compact icon row, mirrors the big cards) ── */}
+      <ModuleStrip modules={visibleModules} lang={lang} onSelect={onSelect} />
+
+      {/* ── Module grid ── */}
       <div style={{ padding: '0 16px',
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
@@ -491,5 +494,80 @@ function ModuleCard({ mod, lang, onClick, pandaUrl }) {
           fontSize: 18 }}>â€º</div>
       </div>
     </button>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// ModuleStrip — compact horizontal icon row above the big cards.
+// Uses the same `onSelect` so every tap goes through App.jsx's existing
+// setScreen() routing. No new screen cases needed.
+// ──────────────────────────────────────────────────────────────────────
+function ModuleStrip({ modules, lang, onSelect }) {
+  // Fixed display order for the 6 core learning modules.
+  // Add more ids here if you want more cards in the strip.
+  const STRIP_IDS = ['lianzi', 'words', 'pinyin', 'chengyu', 'poetry', 'grammar'];
+
+  // Emoji per id — swap to /icons/*.png later if you want custom art.
+  const ICONS = {
+    lianzi:  '✍️',
+    words:   '📚',
+    pinyin:  '🔤',
+    chengyu: '🌵',
+    poetry:  '🪶',
+    grammar: '📐',
+  };
+
+  const items = STRIP_IDS
+    .map(id => modules.find(m => m.id === id))
+    .filter(Boolean);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 10,
+      overflowX: 'auto',
+      padding: '4px 16px 14px',
+      WebkitOverflowScrolling: 'touch',
+      scrollbarWidth: 'none',
+    }}>
+      {items.map(m => (
+        <button
+          key={m.id}
+          onClick={() => onSelect?.(m.id)}
+          style={{
+            flex: '0 0 auto',
+            minWidth: 72,
+            background: m.color,
+            border: `1.5px solid ${m.border}`,
+            borderRadius: 14,
+            padding: '10px 6px',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            fontFamily: 'inherit',
+            WebkitTapHighlightColor: 'transparent',
+            transition: 'transform 0.12s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+          <div style={{ fontSize: 24, lineHeight: 1 }}>
+            {ICONS[m.id] || m.emoji}
+          </div>
+          <div style={{
+            fontSize: 12,
+            fontWeight: 500,
+            color: m.text,
+            fontFamily: "'STKaiti','KaiTi',Georgia,serif",
+            whiteSpace: 'nowrap',
+          }}>
+            {m.name?.[lang] || m.name?.en || m.id}
+          </div>
+        </button>
+      ))}
+    </div>
   );
 }

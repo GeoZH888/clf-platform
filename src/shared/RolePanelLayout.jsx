@@ -1,9 +1,14 @@
 // src/shared/RolePanelLayout.jsx
 // LIGHT THEME (Phase E.2): warm beige bg, red gradient sidebar, dark text.
+// ─────────────────────────────────────────────────────────────────────────
+// Stage A1 fixes:
+//   1) Dedup: don't render COMMON_NAV items the role's NAV already provides
+//   2) Footer "去社区" → "主页" (navigates to platform root /)
+// ─────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../school/contexts/AuthContext';
-import { LogOut, Globe } from 'lucide-react';
+import { LogOut, Home } from 'lucide-react';
 
 const COMMON_NAV = [
   { path: '/messages', icon: '💬', label: '消息通知' },
@@ -23,7 +28,16 @@ export default function RolePanelLayout({ title, subtitle, children, nav, accent
   }, []);
 
   const isActive = (p) => p === '/' ? location.pathname === '/' : location.pathname.startsWith(p);
-  const fullNav = [...nav, ...COMMON_NAV];
+
+  // ── Stage A1 fix #1: filter COMMON_NAV by role NAV paths ───────────────
+  const rolePaths = new Set(nav.map(n => n.path));
+  const filteredCommonNav = COMMON_NAV.filter(c => !rolePaths.has(c.path));
+
+  // For mobile bottom-bar, still concatenate (full nav is needed for nav coverage)
+  const fullNav = [...nav, ...filteredCommonNav];
+
+  // ── Stage A1 fix #2: navigate to platform root, not /community ─────────
+  const goToHome = () => { window.location.href = '/'; };
 
   if (isMobile) {
     return (
@@ -48,14 +62,16 @@ export default function RolePanelLayout({ title, subtitle, children, nav, accent
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => window.location.href = '/community'}
+            <button onClick={goToHome}
               style={{ background: 'transparent', border: 'none', color: '#fff5e6',
-                cursor: 'pointer', padding: 4 }}>
-              <Globe size={16}/>
+                cursor: 'pointer', padding: 4 }}
+              title="主页">
+              <Home size={16}/>
             </button>
             <button onClick={logout}
               style={{ background: 'transparent', border: 'none', color: '#fff5e6',
-                cursor: 'pointer', padding: 4 }}>
+                cursor: 'pointer', padding: 4 }}
+              title="退出">
               <LogOut size={16}/>
             </button>
           </div>
@@ -145,43 +161,48 @@ export default function RolePanelLayout({ title, subtitle, children, nav, accent
             );
           })}
 
-          <div style={{
-            margin: '14px 4px 8px', paddingTop: 12,
-            borderTop: '1px solid rgba(255,255,255,0.15)',
-            fontSize: 10, color: 'rgba(255,245,230,0.5)', letterSpacing: 2,
-          }}>
-            通用
-          </div>
-
-          {COMMON_NAV.map(n => {
-            const active = isActive(n.path);
-            return (
-              <button key={n.path} onClick={() => navigate(n.path)} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', borderRadius: 10,
-                background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
-                color: '#fff5e6',
-                border: active ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent',
-                cursor: 'pointer', fontSize: 13,
-                fontWeight: active ? 700 : 500,
-                textAlign: 'left', transition: 'all 0.15s',
+          {/* Stage A1: only render the 通用 section if there's anything to show */}
+          {filteredCommonNav.length > 0 && (
+            <>
+              <div style={{
+                margin: '14px 4px 8px', paddingTop: 12,
+                borderTop: '1px solid rgba(255,255,255,0.15)',
+                fontSize: 10, color: 'rgba(255,245,230,0.5)', letterSpacing: 2,
               }}>
-                <span style={{ fontSize: 16 }}>{n.icon}</span>
-                {n.label}
-              </button>
-            );
-          })}
+                通用
+              </div>
+
+              {filteredCommonNav.map(n => {
+                const active = isActive(n.path);
+                return (
+                  <button key={n.path} onClick={() => navigate(n.path)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 10,
+                    background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+                    color: '#fff5e6',
+                    border: active ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent',
+                    cursor: 'pointer', fontSize: 13,
+                    fontWeight: active ? 700 : 500,
+                    textAlign: 'left', transition: 'all 0.15s',
+                  }}>
+                    <span style={{ fontSize: 16 }}>{n.icon}</span>
+                    {n.label}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
 
         <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
           borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-          <button onClick={() => window.location.href = '/community'} style={{
+          <button onClick={goToHome} style={{
             padding: '8px 12px', background: 'rgba(255,255,255,0.1)', color: '#fff5e6',
             border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8,
             cursor: 'pointer', fontSize: 12,
             display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center',
           }}>
-            <Globe size={14}/> 去社区
+            <Home size={14}/> 主页
           </button>
           <button onClick={logout} style={{
             padding: '8px 12px', background: 'rgba(0,0,0,0.2)', color: '#fff5e6',

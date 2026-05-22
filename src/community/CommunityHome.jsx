@@ -5,6 +5,14 @@ import { useAuth } from '../school/contexts/AuthContext';
 import PersonalDashboard from './dashboard/PersonalDashboard';
 import { supabase } from '../school/services/supabase';
 import { MODULES, ALWAYS_ON } from '../config/modules';
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, arrayMove, rectSortingStrategy, useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const ROLE_HOME = {
   super_admin:   '/admin',
@@ -22,9 +30,21 @@ const ROLE_LABEL = {
 };
 const ROUTES = {
   home:'/', profile:'/profile', progress:'/progress',
-  lianzi:'/characters', words:'/words', pinyin:'/pinyin',
-  chengyu:'/chengyu', poetry:'/poetry', grammar:'/grammar', hsk:'/hsk',
-  riddles:'/riddles', scenario:'/scenario', story:'/story', lessons:'/lessons',
+  // Learning modules — deep-link into UserApp via /learn?module=X.
+  // App.jsx mounts <UserApp/> on /learn and reads the ?module param to set
+  // the initial screen. Keep these in sync with App.jsx's UserApp screens.
+  lianzi:  '/learn?module=lianzi',
+  words:   '/learn?module=words',
+  pinyin:  '/learn?module=pinyin',
+  chengyu: '/learn?module=chengyu',
+  poetry:  '/learn?module=poetry',
+  grammar: '/learn?module=grammar',
+  hsk:     '/learn?module=hsk',
+  riddles: '/learn?module=riddles',
+  scenario:'/learn?module=scenario',
+  story:   '/learn?module=story',
+  // Non-learning links — leave as before until those routes are built
+  lessons:'/lessons',
   chat:'/chat', voice:'/voice', homework:'/homework', shop:'/shop', parents:'/parents',
 };
 
@@ -125,18 +145,35 @@ export default function CommunityHome() {
   const [openSection, setOpenSection] = useState(null);
   const [institution, setInstitution] = useState(null);
   const [feiyiLang, setFeiyiLang] = useState('zh');
+  const [moduleOrder, setModuleOrder] = useState(null);  // custom drag order (array of ids)
+
+  // Drag sensors: mouse needs an 8px move before dragging (so taps still click);
+  // touch needs a 220ms long-press (so scroll/tap still work, drag is deliberate).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
+  );
 
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
       if (user.role === 'super_admin') {
         setAllowedIds(MODULES.map(m => m.id));
+        // super_admin still gets a saved order if present
+        try {
+          const { data: p } = await supabase
+            .from('clf_user_profiles')
+            .select('module_order')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (p?.module_order && Array.isArray(p.module_order)) setModuleOrder(p.module_order);
+        } catch { /* ignore */ }
         return;
       }
       try {
         const { data: profileData } = await supabase
           .from('clf_user_profiles')
-          .select('institution_name, institution_logo_url')
+          .select('institution_name, institution_logo_url, module_order')
           .eq('user_id', user.id)
           .maybeSingle();
         if (profileData) {
@@ -144,13 +181,23 @@ export default function CommunityHome() {
             name: profileData.institution_name,
             logo: profileData.institution_logo_url,
           });
+          if (profileData.module_order && Array.isArray(profileData.module_order)) {
+            setModuleOrder(profileData.module_order);
+          }
         }
         const { data } = await supabase
           .from('clf_user_modules')
-          .select('module_id, enabled')
+          .select('module_id, available, selected')
           .eq('user_id', user.id);
         const overrides = {};
-        (data || []).forEach(r => { overrides[r.module_id] = r.enabled; });
+        // A module is enabled iff BOTH admin made it available AND user kept
+        // it selected. Either being explicitly false hides the module.
+        // Treat null/undefined as the column's DB default (true).
+        (data || []).forEach(r => {
+          const available = r.available !== false;
+          const selected  = r.selected  !== false;
+          overrides[r.module_id] = available && selected;
+        });
         const allowed = MODULES.filter(m => {
           if (!m.gateable) return true;
           if (m.id in overrides) return overrides[m.id];
@@ -176,6 +223,47 @@ export default function CommunityHome() {
     m.pillar === 'community' || m.pillar === 'home' || m.pillar === 'profile' || m.pillar === 'progress'
   );
   const gameModules = visibleModules.filter(m => m.pillar === 'game');
+
+  // ── Draggable community tiles ──────────────────────────────────────
+  // The tiles shown in the 可用模块 grid (excludes home/profile/progress).
+  const baseTiles = communityModules.filter(
+    m => !['home', 'profile', 'progress'].includes(m.id)
+  );
+  // Apply the user's saved drag order; any modules not yet in the saved
+  // order (e.g. newly enabled) are appended at the end in default order.
+  const orderedTiles = (() => {
+    if (!moduleOrder) return baseTiles;
+    const byId = Object.fromEntries(baseTiles.map(m => [m.id, m]));
+    const inOrder = moduleOrder.map(id => byId[id]).filter(Boolean);
+    const seen = new Set(moduleOrder);
+    const rest = baseTiles.filter(m => !seen.has(m.id));
+    return [...inOrder, ...rest];
+  })();
+
+  // Persist a new order to clf_user_profiles.module_order for this user.
+  async function saveOrder(ids) {
+    setModuleOrder(ids);  // optimistic
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('clf_user_profiles')
+        .update({ module_order: ids })
+        .eq('user_id', user.id);
+      if (error) console.warn('[CommunityHome] saveOrder failed:', error);
+    } catch (e) {
+      console.warn('[CommunityHome] saveOrder error:', e);
+    }
+  }
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = orderedTiles.map(m => m.id);
+    const from = ids.indexOf(active.id);
+    const to   = ids.indexOf(over.id);
+    if (from < 0 || to < 0) return;
+    saveOrder(arrayMove(ids, from, to));
+  }
 
   const toggleSection = (s) => setOpenSection(prev => prev === s ? null : s);
 
@@ -264,8 +352,8 @@ export default function CommunityHome() {
             title="社区"
             subtitle="Community"
             desc={"中文学习社区。汉字、拼音、词汇、成语…按节奏学习。"}
-            features={communityModules.length > 0
-              ? communityModules.slice(0, 4).map(m => m.label)
+            features={baseTiles.length > 0
+              ? baseTiles.slice(0, 4).map(m => m.label)
               : ['学习']}
             color="#3b82f6"
             bgGrad="linear-gradient(135deg, #f0f6ff 0%, #e3f0ff 100%)"
@@ -332,9 +420,17 @@ export default function CommunityHome() {
             ) : communityModules.length === 0 ? (
               <Empty/>
             ) : (
-              <TileGrid>
-                {communityModules.map(m => <ModuleTile key={m.id} mod={m} hoverColor="#3b82f6"/>)}
-              </TileGrid>
+              <DndContext sensors={sensors} collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}>
+                <SortableContext items={orderedTiles.map(m => m.id)}
+                  strategy={rectSortingStrategy}>
+                  <TileGrid>
+                    {orderedTiles.map(m => (
+                      <SortableModuleTile key={m.id} mod={m} hoverColor="#3b82f6"/>
+                    ))}
+                  </TileGrid>
+                </SortableContext>
+              </DndContext>
             )}
           </ExpandedSection>
         )}
@@ -465,8 +561,8 @@ function TileGrid({ children }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-      gap: 12,
+      gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+      gap: 18,
     }}>
       {children}
     </div>
@@ -498,7 +594,7 @@ function ModuleTile({ mod, hoverColor = '#c41e3a' }) {
       style={{
         background: '#fff',
         border: `1.5px solid ${hovered ? hoverColor : '#e8d5b0'}`,
-        borderRadius: 14, padding: '16px 10px',
+        borderRadius: 16, padding: '28px 16px',
         cursor: 'pointer',
         transition: 'all 0.2s',
         transform: hovered ? 'translateY(-3px)' : 'none',
@@ -507,12 +603,60 @@ function ModuleTile({ mod, hoverColor = '#c41e3a' }) {
           : '0 2px 6px rgba(0,0,0,0.04)',
         textAlign: 'center', color: '#1a0a05',
       }}>
-      <div style={{ fontSize: 32, marginBottom: 6, lineHeight: 1 }}>{mod.icon}</div>
-      <div style={{ fontSize: 13, fontWeight: 700,
-        fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 2 }}>
+      <div style={{ fontSize: 48, marginBottom: 12, lineHeight: 1 }}>{mod.icon}</div>
+      <div style={{ fontSize: 28, fontWeight: 700,
+        fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 3 }}>
         {mod.label}
       </div>
     </button>
+  );
+}
+
+// Sortable version of ModuleTile — drag to reorder, tap to open.
+// dnd-kit's PointerSensor (8px) / TouchSensor (220ms) ensure a quick tap
+// does NOT start a drag, so navigation still works on click.
+function SortableModuleTile({ mod, hoverColor = '#3b82f6' }) {
+  const [hovered, setHovered] = useState(false);
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: mod.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.85 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <button
+        onClick={() => { if (!isDragging) window.location.href = ROUTES[mod.id] || '/'; }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          width: '100%',
+          background: '#fff',
+          border: `1.5px solid ${isDragging ? hoverColor : hovered ? hoverColor : '#e8d5b0'}`,
+          borderRadius: 16, padding: '28px 16px',
+          cursor: isDragging ? 'grabbing' : 'pointer',
+          transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+          transform: isDragging ? 'scale(1.06)' : hovered ? 'translateY(-3px)' : 'none',
+          boxShadow: isDragging
+            ? `0 16px 36px ${hoverColor}55`
+            : hovered ? `0 10px 24px ${hoverColor}33` : '0 2px 6px rgba(0,0,0,0.04)',
+          textAlign: 'center', color: '#1a0a05',
+          touchAction: 'manipulation',
+          WebkitTapHighlightColor: 'transparent',
+        }}>
+        <div style={{ fontSize: 48, marginBottom: 12, lineHeight: 1,
+          pointerEvents: 'none' }}>{mod.icon}</div>
+        <div style={{ fontSize: 28, fontWeight: 700, pointerEvents: 'none',
+          fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 3 }}>
+          {mod.label}
+        </div>
+      </button>
+    </div>
   );
 }
 

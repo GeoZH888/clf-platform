@@ -45,7 +45,7 @@ import StudentApp       from './student/StudentApp.jsx';
 import ParentApp        from './parent/ParentApp.jsx';
 import CommunityApp from './community/CommunityApp.jsx';
 import KnowledgeMapGate from './knowledge/KnowledgeMapGate.jsx';
-// â”€â”€ Fix title + random panda favicon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fix title + random panda favicon ─────────────────────────────
 document.title = '大卫学中文';
 
 const PANDA_EMOTIONS = ['normal','excited','happy','thinking','cheering','surprised','writing'];
@@ -99,14 +99,15 @@ const IS_TEACHER        = window.location.pathname.startsWith('/teacher');
 const IS_SCHOOL_MASTER  = window.location.pathname.startsWith('/school-master');
 const IS_STUDENT        = window.location.pathname.startsWith('/student');
 const IS_PARENT         = window.location.pathname.startsWith('/parent');
-// â”€â”€ Minimal Settings screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const IS_LEARN          = window.location.pathname.startsWith('/learn');
+// ── Minimal Settings screen ───────────────────────────────────────
 // Language switcher + user info + logout. Split into own file when it grows.
 function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
   const { lang, setLang } = useLang();
   const t = (zh, en, it) => lang === 'zh' ? zh : lang === 'it' ? (it||en) : en;
 
   const LANGS = [
-    { id:'zh', label:'ä¸­æ–‡' },
+    { id:'zh', label:'中文' },
     { id:'en', label:'English' },
     { id:'it', label:'Italiano' },
   ];
@@ -117,9 +118,9 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
         <button onClick={onBack} style={{
           padding:'6px 12px', fontSize:13, cursor:'pointer', borderRadius:8,
           border:'1px solid #e8d5b0', background:'#fff', color:'#8B4513',
-        }}>â† {t('è¿”å›ž','Back','Indietro')}</button>
+        }}>← {t('返回','Back','Indietro')}</button>
         <h2 style={{ margin:0, fontSize:20, color:'#8B4513' }}>
-          âš™ï¸ {t('è®¾ç½®','Settings','Impostazioni')}
+          ⚙️ {t('设置','Settings','Impostazioni')}
         </h2>
       </div>
 
@@ -127,7 +128,7 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
       <div style={{ background:'#fff', borderRadius:12, padding:'14px', marginBottom:14,
         border:'1px solid #e8d5b0' }}>
         <div style={{ fontSize:12, color:'#a07850', marginBottom:8 }}>
-          ðŸŒ {t('è¯­è¨€','Language','Lingua')}
+          🌐 {t('语言','Language','Lingua')}
         </div>
         <div style={{ display:'flex', gap:6 }}>
           {LANGS.map(L => (
@@ -145,20 +146,20 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
       <div style={{ background:'#fff', borderRadius:12, padding:'14px', marginBottom:14,
         border:'1px solid #e8d5b0' }}>
         <div style={{ fontSize:12, color:'#a07850', marginBottom:8 }}>
-          ðŸ‘¤ {t('è´¦æˆ·','Account','Account')}
+          👤 {t('账户','Account','Account')}
         </div>
         <div style={{ fontSize:14, color:'#5D2E0C', marginBottom:4 }}>
-          {userLabel || t('è®¿å®¢','Guest','Ospite')}
+          {userLabel || t('访客','Guest','Ospite')}
         </div>
         {expiresAt && (
           <div style={{ fontSize:11, color:'#a07850' }}>
-            {t('æœ‰æ•ˆæœŸ','Expires','Scade')}: {new Date(expiresAt).toLocaleDateString()}
-            {typeof daysLeft === 'number' && ` Â· ${daysLeft} ${t('å¤©','days','giorni')}`}
+            {t('有效期','Expires','Scade')}: {new Date(expiresAt).toLocaleDateString()}
+            {typeof daysLeft === 'number' && ` · ${daysLeft} ${t('天','days','giorni')}`}
           </div>
         )}
         <button onClick={() => {
           if (window.confirm(t(
-            'ç¡®å®šè¦é€€å‡ºç™»å½•å—ï¼Ÿé€€å‡ºåŽä¸‹æ¬¡éœ€è¦é‡æ–°è¾“å…¥è´¦å·å¯†ç ã€‚',
+            '确定要退出登录吗？退出后下次需要重新输入账号密码。',
             'Log out? You will need to enter your username and password again next time.',
             'Esci? Dovrai inserire nome utente e password al prossimo accesso.'
           ))) {
@@ -168,17 +169,17 @@ function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
           marginTop:10, padding:'8px 16px', fontSize:13, cursor:'pointer',
           borderRadius:8, border:'1px solid #c0392b', background:'#fff',
           color:'#c0392b',
-        }}>{t('é€€å‡ºç™»å½•','Log out','Esci')}</button>
+        }}>{t('退出登录','Log out','Esci')}</button>
       </div>
 
       <div style={{ fontSize:10, color:'#a07850', textAlign:'center', marginTop:20 }}>
-        å¤§å«å­¦ä¸­æ–‡ Â· æ±‰å­—å­¦ä¹ å¹³å°
+        大卫学中文 · 汉字学习平台
       </div>
     </div>
   );
 }
 
-// â”€â”€ Placeholder for upcoming modules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Placeholder for upcoming modules ──────────────────────────
 function ComingSoonScreen({ title, titleEn, titleIt, emoji, onBack }) {
   return (
     <div style={{
@@ -190,14 +191,14 @@ function ComingSoonScreen({ title, titleEn, titleIt, emoji, onBack }) {
       <div style={{ fontSize:28, fontWeight:700, color:'#1a0a05',
         fontFamily:"'STKaiti','KaiTi',serif", letterSpacing:2 }}>{title}</div>
       <div style={{ fontSize:13, color:'#a07850', marginTop:2 }}>
-        {titleEn} Â· {titleIt}
+        {titleEn} · {titleIt}
       </div>
       <div style={{ marginTop:20, padding:'12px 18px', borderRadius:14,
         background:'#f5ede0', color:'#5D2E0C', fontSize:13, maxWidth:340,
         lineHeight:1.6, border:'1px solid #e8d5b0' }}>
-        æœ¬ä¸“åŒºæ­£åœ¨å»ºè®¾ä¸­,æ•¬è¯·æœŸå¾…ã€‚<br/>
+        本专区正在建设中,敬请期待。<br/>
         <span style={{ fontSize:11, opacity:0.7 }}>
-          Section under construction Â· Sezione in costruzione
+          Section under construction · Sezione in costruzione
         </span>
       </div>
       <button onClick={onBack} style={{
@@ -205,7 +206,7 @@ function ComingSoonScreen({ title, titleEn, titleIt, emoji, onBack }) {
         cursor:'pointer', borderRadius:8, border:'none',
         background:'#8B4513', color:'#fdf6e3',
       }}>
-        â† è¿”å›ž Back
+        ← 返回 Back
       </button>
     </div>
   );
@@ -216,7 +217,7 @@ function ComingSoonScreen({ title, titleEn, titleIt, emoji, onBack }) {
 
 
 
-// â”€â”€ PWA Install Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PWA Install Banner ────────────────────────────────────────────
 function PWAInstallBanner() {
   const [prompt,    setPrompt]    = React.useState(null);
   const [showGuide, setShowGuide] = React.useState(false);
@@ -225,7 +226,7 @@ function PWAInstallBanner() {
   );
 
   React.useEffect(() => {
-    // Chrome/Edge Android â€” native prompt
+    // Chrome/Edge Android — native prompt
     const handler = (e) => { e.preventDefault(); setPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
 
@@ -252,7 +253,7 @@ function PWAInstallBanner() {
       <div style={{ background:'#1a0a05', padding:'8px 14px', display:'flex',
         alignItems:'center', justifyContent:'space-between', gap:10 }}>
         <span style={{ fontSize:12, color:'#fdf6e3' }}>
-          ðŸ“² å®‰è£…åˆ°æ¡Œé¢ï¼Œä¸‹æ¬¡ç›´æŽ¥æ‰“å¼€
+          📲 安装到桌面，下次直接打开
         </span>
         <div style={{ display:'flex', gap:8, flexShrink:0 }}>
           <button onClick={() => {
@@ -265,12 +266,12 @@ function PWAInstallBanner() {
           }} style={{ padding:'5px 14px', fontSize:12, cursor:'pointer',
             borderRadius:8, border:'none', background:'#C8A050',
             color:'#1a0a05', fontWeight:500 }}>
-            å®‰è£…
+            安装
           </button>
           <button onClick={dismiss}
             style={{ padding:'5px 10px', fontSize:12, cursor:'pointer',
               borderRadius:8, border:'1px solid #555',
-              background:'transparent', color:'#aaa' }}>âœ•</button>
+              background:'transparent', color:'#aaa' }}>✕</button>
         </div>
       </div>
     </>
@@ -280,7 +281,7 @@ function PWAInstallBanner() {
 function UserApp() {
   const { status, label, expiresAt, daysLeft, expiring, error, logout,
     modules, loginWithPassword } = useDeviceAuth();
-  // â”€â”€ Start at entrance so users always see the two-door menu first â”€â”€
+  // ── Start at entrance so users always see the two-door menu first ──
   const [screen,     setScreen]  = useScreenHistory('entrance', 'app');
   const [activeSet,  setSet]     = useState(null);
   const [charIdx,    setCharIdx] = useState(0);
@@ -290,14 +291,14 @@ function UserApp() {
   const [pinyinInitialScreen, setPinyinInitialScreen] = useState(null);
   const { progress, stats, recordPractice, recordQuiz, resetProgress } = useProgress();
   const { sets: SETS, loading: setsLoading } = useCharacters();
-  // â”€â”€ Get language safely (UserApp wraps LanguageProvider so we default here) â”€â”€
+  // ── Get language safely (UserApp wraps LanguageProvider so we default here) ──
   const [uiLang, setUiLang] = useState(
     () => localStorage.getItem('david_lang') || 'zh'
   );
 
-  // â”€â”€ Phone back button: when user is on platform home, intercept the first
+  // ── Phone back button: when user is on platform home, intercept the first
   // back press, show "press again to exit" toast. Second press exits the PWA.
-  useExitConfirm(screen === 'platform' || screen === 'entrance', 'å†æŒ‰ä¸€æ¬¡é€€å‡º Â· Press again to exit');
+  useExitConfirm(screen === 'platform' || screen === 'entrance', '再按一次退出 · Press again to exit');
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -305,17 +306,71 @@ function UserApp() {
     if (c) {
       setSet({ id:'custom', chars:[{ c, p:'', m:'' }] });
       setCharIdx(0); setScreen('practice');
+      return;
+    }
+    // Deep-link from /community tiles (or any external link):
+    //   /learn?module=lianzi  → start on character-writing home
+    //   /learn?module=words   → start on WordsApp
+    //   /learn?module=pinyin  → start on PinyinApp
+    //   ...etc for chengyu, poetry, grammar, hsk, riddles
+    // 'lianzi' is special-cased like PlatformHome's onSelect does (→ 'home').
+    const m = p.get('module');
+    if (m) {
+      // A stale #app:entrance (or #app:platform) hash from a previous session
+      // can be restored by useScreenHistory and override the module routing,
+      // dumping the user on the entrance screen. Strip the hash first so the
+      // module param wins, then route.
+      if (window.location.hash) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      setScreen(m === 'lianzi' ? 'home' : m);
+    } else {
+      // No module param → there's nothing for /learn to show on its own.
+      // CommunityHome (/community) is THE home now; PlatformHome/entrance
+      // are retired. Bounce to the community hub.
+      window.location.replace('/community');
     }
   }, []);
 
   if (status === 'checking') return (
     <div style={{ minHeight:'100dvh', display:'flex', alignItems:'center',
       justifyContent:'center', background:'#fdf6e3', color:'#a07850', fontSize:14 }}>
-      Loadingâ€¦
+      Loading…
     </div>
   );
 
   if (['guest','expired','paused'].includes(status)) {
+    // TEMPORARY DEBUG MODE: instead of redirecting, show what's going on.
+    // Once we know why bridge fails on /learn, switch this back to a redirect.
+    if (IS_LEARN) {
+      const savedUser  = (() => { try { return localStorage.getItem('user'); } catch { return null; } })();
+      const savedToken = (() => { try { return localStorage.getItem('token'); } catch { return null; } })();
+      let parsed = null;
+      try { parsed = savedUser ? JSON.parse(savedUser) : null; } catch {}
+      return (
+        <div style={{ padding:24, fontFamily:'monospace', fontSize:13,
+          background:'#fff8e1', color:'#1a0a05', minHeight:'100dvh' }}>
+          <h2 style={{ margin:'0 0 16px' }}>🔍 /learn auth diagnostic</h2>
+          <div><b>pathname:</b> {window.location.pathname}</div>
+          <div><b>search:</b> {window.location.search}</div>
+          <div><b>status:</b> {status}</div>
+          <div><b>error:</b> {error || '(none)'}</div>
+          <div><b>label:</b> {label || '(none)'}</div>
+          <div style={{ marginTop:16 }}><b>localStorage.user present:</b> {String(!!savedUser)}</div>
+          <div><b>localStorage.token present:</b> {String(!!savedToken)}</div>
+          <div><b>parsed.id:</b> {parsed?.id || '(missing)'}</div>
+          <div><b>parsed.role:</b> {parsed?.role || '(missing)'}</div>
+          <div><b>parsed.email:</b> {parsed?.email || '(missing)'}</div>
+          <div style={{ marginTop:16 }}>
+            <a href="/community" style={{ color:'#c41e3a' }}>← back to /community</a>
+          </div>
+          <div style={{ marginTop:24, padding:12, background:'#fff', borderRadius:8 }}>
+            <b>Open browser DevTools Console</b> to see <code>[useStudentAuth]</code> logs that
+            preceded this screen. Copy ALL of them and paste back.
+          </div>
+        </div>
+      );
+    }
     return (
       <LanguageProvider>
         <QRGate status={status} error={error} loginWithPassword={loginWithPassword}/>
@@ -328,7 +383,7 @@ function UserApp() {
   if (setsLoading && SETS.length === 0) return (
     <div style={{ minHeight:'100dvh', display:'flex', alignItems:'center',
       justifyContent:'center', background:'var(--bg)', color:'var(--text2)', fontSize:14 }}>
-      Loading charactersâ€¦
+      Loading characters…
     </div>
   );
 
@@ -349,7 +404,7 @@ function UserApp() {
     : 'practice';
 
   function handleNav(id) {
-    if (id === 'home')     setScreen('entrance');
+    if (id === 'home')     { window.location.href = '/community'; return; }
     if (id === 'practice') setScreen('practice-session');
     if (id === 'progress') setScreen('progress');
     if (id === 'settings') setScreen('settings');
@@ -360,40 +415,18 @@ function UserApp() {
       <div style={{ maxWidth:430, margin:'0 auto', minHeight:'100dvh',
         display:'flex', flexDirection:'column', background:'var(--bg)' }}>
 
-        {/* â”€â”€ PWA install banner (shows once after first scan) â”€â”€ */}
-        {expiring && (
-          <div style={{ background: daysLeft <= 2 ? '#FFEBEE' : '#FFF8E1',
-            borderBottom: `1px solid ${daysLeft <= 2 ? '#ffcccc' : '#ffe082'}`,
-            padding:'8px 14px', fontSize:12, display:'flex',
-            alignItems:'center', justifyContent:'space-between', gap:8 }}>
-            <span style={{ color: daysLeft <= 2 ? '#c0392b' : '#8B6914' }}>
-              {daysLeft <= 0
-                ? 'âš ï¸ Access expires today.'
-                : `â³ Access expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`}
-            </span>
-          </div>
-        )}
+        {/* ── PWA install banner (shows once after first scan) ── */}
         <PWAInstallBanner/>
         <PWAInstallCard lang={uiLang}/>
 
         <div style={{ flex:1, overflowY:'auto', paddingBottom:72 }}>
-        {screen === 'entrance' && (
-            <MainEntrance
-              onKetang={() => { window.location.href = '/school'; }}
-              onShequ={() => setScreen('platform')}
-              onFeiyi={() => setScreen('feiyi')}
-            />
-        )}
-
-          {screen === 'platform' && (
-            <PlatformHome
-              onSelect={mod => setScreen(mod==='lianzi'?'home':mod)}
-              allowedModules={modules || []}
-              onSettings={() => setScreen('settings')}
-              onLogout={logout}
-              userLabel={label}
-              onBack={() => setScreen('entrance')}/>
-          )}
+        {(screen === 'entrance' || screen === 'platform') && (() => {
+            // entrance & platform (MainEntrance / PlatformHome) are retired —
+            // CommunityHome is THE home. Anything that lands here (e.g. a stale
+            // restored hash) bounces to /community.
+            window.location.replace('/community');
+            return null;
+          })()}
           {screen === 'practice-session' && (
             <PracticeSession onExit={() => setScreen('platform')}/>
           )}
@@ -416,7 +449,7 @@ function UserApp() {
             <HomeScreen sets={SETS} progress={progress} stats={stats}
               onSelectSet={s=>{ setSet(s); setCharIdx(0); setScreen('set'); }}
               onGames={()=>setScreen('games')}
-              onBack={()=>setScreen('platform')}/>
+              onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'set' && activeSet && (
             <SetScreen set={activeSet} progress={progress}
@@ -456,42 +489,42 @@ function UserApp() {
               expiresAt={expiresAt}
               daysLeft={daysLeft}
               onLogout={logout}
-              onBack={()=>setScreen('platform')}/>
+              onBack={()=>{ window.location.href = '/community'; }}/>
           )}
         {screen === 'pinyin' && (
               <PinyinApp
-                onBack={()=>{ setPinyinInitialScreen(null); setScreen('platform'); }}/>
+                onBack={()=>{ setPinyinInitialScreen(null); window.location.href = '/community'; }}/>
             )}
 
             {screen === 'scenario' && (
               <ComingSoonScreen
-                title="åœºæ™¯å¯¹è¯"  titleEn="Scenario Dialogues"  titleIt="Dialoghi di Scenari"
-                emoji="ðŸ’¬"  onBack={() => setScreen('platform')}/>
+                title="场景对话"  titleEn="Scenario Dialogues"  titleIt="Dialoghi di Scenari"
+                emoji="💬"  onBack={() => setScreen('platform')}/>
             )}
             {screen === 'story' && (
               <ComingSoonScreen
-                title="æ•…äº‹ä¼š"  titleEn="Story Time"  titleIt="Ora delle Storie"
-                emoji="ðŸ“–"  onBack={() => setScreen('platform')}/>
+                title="故事会"  titleEn="Story Time"  titleIt="Ora delle Storie"
+                emoji="📖"  onBack={() => setScreen('platform')}/>
             )}
             {screen === 'feiyi' && (
               <ComingSoonScreen
                 title="éžé—"  titleEn="Heritage"  titleIt="Patrimonio"
-                emoji="ðŸ®"  onBack={() => setScreen('entrance')}/>
+                emoji="🏮"  onBack={() => setScreen('entrance')}/>
             )}
           {screen === 'words' && (
-            <WordsApp onBack={()=>setScreen('platform')}/>
+            <WordsApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'grammar' && (
-            <GrammarApp onBack={()=>setScreen('platform')}/>
+            <GrammarApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'hsk' && (
-            <HSKApp onBack={()=>setScreen('platform')}/>
+            <HSKApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'poetry' && (
-            <PoetryApp onBack={()=>setScreen('platform')}/>
+            <PoetryApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'chengyu' && (
-            <ChengyuApp onBack={()=>setScreen('platform')}/>
+            <ChengyuApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'games' && (
             <GamesApp onBack={()=>setScreen('platform')}/>
@@ -525,7 +558,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.error) return (
       <div style={{ padding:'2rem', textAlign:'center', color:'#c0392b' }}>
-        <div style={{ fontSize:32, marginBottom:8 }}>âš ï¸</div>
+        <div style={{ fontSize:32, marginBottom:8 }}>⚠️</div>
         <div style={{ fontSize:14 }}>{this.state.error.message}</div>
         <button onClick={()=>window.location.reload()}
           style={{ marginTop:16, padding:'8px 20px', cursor:'pointer', borderRadius:8,
@@ -551,6 +584,7 @@ class ErrorBoundary extends React.Component {
         : IS_SCHOOL_MASTER  ? <SchoolMasterApp/>
         : IS_STUDENT        ? <StudentApp/>
         : IS_PARENT         ? <ParentApp/>
+        : IS_LEARN          ? <LanguageProvider><UserApp/></LanguageProvider>
         : IS_KECHUANG ? <LanguageProvider><KechuangApp/></LanguageProvider>
         : IS_COMMUNITY      ? <CommunityApp/>
         :              <LoginGate/>}

@@ -28,13 +28,13 @@ function PoemCard({ poem, lang, onSelect, compact=false }) {
     <button onClick={onSelect}
       style={{ width:'100%', textAlign:'left', cursor:'pointer', padding:0,
         background:'none', border:'none', marginBottom:compact?6:10 }}>
-      <div style={{ background:`linear-gradient(135deg,#2a1a00,#1a0f00)`,
-        border:`1px solid ${GOLD}33`, borderRadius:16, padding:compact?'12px 14px':'16px',
+      <div style={{ background:'#fff',
+        border:'1px solid #e8d5b0', borderRadius:16, padding:compact?'12px 14px':'16px',
         transition:'transform 0.15s, box-shadow 0.15s',
-        boxShadow:`0 2px 12px ${GOLD}11` }}>
+        boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:compact?15:18, fontWeight:700, color:GOLD,
+            <div style={{ fontSize:compact?15:18, fontWeight:700, color:'#8B4513',
               fontFamily:"'STKaiti','KaiTi',serif", letterSpacing:2, marginBottom:4 }}>
               {title}
             </div>
@@ -42,7 +42,7 @@ function PoemCard({ poem, lang, onSelect, compact=false }) {
               {dynasty && `${dynasty} · `}{author}
             </div>
             {!compact && preview && (
-              <div style={{ fontSize:13, color:'#fdf6e3cc', fontFamily:"'STKaiti','KaiTi',serif",
+              <div style={{ fontSize:13, color:'#5D2E0C', fontFamily:"'STKaiti','KaiTi',serif",
                 letterSpacing:1, lineHeight:1.8 }}>
                 {preview}
               </div>
@@ -50,11 +50,11 @@ function PoemCard({ poem, lang, onSelect, compact=false }) {
           </div>
           <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
             {poem.dynasty_en && (
-              <span style={{ fontSize:9, background:`${GOLD}22`, color:GOLD,
+              <span style={{ fontSize:9, background:'#8B451322', color:'#8B4513',
                 padding:'2px 7px', borderRadius:8 }}>{poem.dynasty_en||dynasty}</span>
             )}
             {poem.difficulty && (
-              <span style={{ fontSize:9, color:'#a07850' }}>
+              <span style={{ fontSize:9, color:'#C8972A' }}>
                 {'★'.repeat(poem.difficulty)}{'☆'.repeat(3-poem.difficulty)}
               </span>
             )}
@@ -567,14 +567,17 @@ export default function PoetryApp({ onBack }) {
   });
 
   return (
-    <div style={{ minHeight:'100dvh', background:POETRY_BG, paddingBottom:80 }}>
+    <div style={{ minHeight:'100dvh',
+      background:'linear-gradient(160deg, #fdf6e3 0%, #f5e6c8 50%, #f0d9b5 100%)',
+      paddingBottom:80 }}>
       {/* Header */}
-      <div style={{ background:'rgba(0,0,0,0.5)', padding:'16px 16px 20px' }}>
+      <div style={{ background:'linear-gradient(135deg, #8B4513 0%, #5D2E0C 100%)',
+        padding:'16px 16px 22px', borderBottomLeftRadius:20, borderBottomRightRadius:20 }}>
         <button onClick={onBack} style={{ border:'none', background:'none',
-          fontSize:22, color:GOLD, cursor:'pointer', display:'block', marginBottom:8 }}>‹</button>
-        <div style={{ fontSize:24, fontWeight:700, color:GOLD,
+          fontSize:22, color:'#fdf6e3', cursor:'pointer', display:'block', marginBottom:8 }}>‹</button>
+        <div style={{ fontSize:28, fontWeight:700, color:'#fdf6e3',
           fontFamily:"'STKaiti','KaiTi',serif", letterSpacing:3 }}>诗 歌</div>
-        <div style={{ fontSize:12, color:'#a07850', marginTop:4 }}>
+        <div style={{ fontSize:13, color:'rgba(253,246,227,0.8)', marginTop:4 }}>
           {t('古典诗歌 · 阅读 · 默写 · 测验', 'Classical Poetry · Read · Memorize · Quiz',
              'Poesia classica · Leggi · Memorizza · Quiz')}
         </div>
@@ -583,19 +586,21 @@ export default function PoetryApp({ onBack }) {
       <div style={{ padding:'14px 16px' }}>
         <AdaptiveCard module="poetry" lang={lang}/>
 
-        {/* Mode buttons */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+        {/* Mode buttons — varied colors */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
           {[
-            {id:'quiz',  icon:'✅', label:t('诗句测验','Line Quiz','Quiz Versi')},
-            {id:'browse',icon:'📖', label:t('浏览诗歌','Browse Poems','Sfoglia')},
+            {id:'quiz',  icon:'✅', label:t('诗句测验','Line Quiz','Quiz Versi'),
+             bg:'#E8F5E9', accent:'#2E7D32'},
+            {id:'browse',icon:'📖', label:t('浏览诗歌','Browse Poems','Sfoglia'),
+             bg:'#E3F2FD', accent:'#1565C0'},
           ].map(m => (
             <button key={m.id} onClick={()=>m.id==='browse'?null:setScreen(m.id)}
-              style={{ padding:'14px', borderRadius:16, border:`1.5px solid ${GOLD}44`,
-                background:`linear-gradient(135deg,#2a1a00,#1a0f00)`,
-                color:GOLD, cursor:'pointer', fontSize:13, fontWeight:600,
+              style={{ padding:'16px', borderRadius:16, border:`1.5px solid ${m.accent}33`,
+                background:m.bg,
+                color:m.accent, cursor:'pointer', fontSize:14, fontWeight:600,
                 display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-                boxShadow:`0 2px 12px ${GOLD}11` }}>
-              <span style={{fontSize:22}}>{m.icon}</span>{m.label}
+                boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
+              <span style={{fontSize:24}}>{m.icon}</span>{m.label}
             </button>
           ))}
         </div>
@@ -603,8 +608,8 @@ export default function PoetryApp({ onBack }) {
         {/* Search */}
         <input value={search} onChange={e=>setSearch(e.target.value)}
           placeholder={t('搜索诗名、作者…','Search title, author…','Cerca titolo, autore…')}
-          style={{ width:'100%', padding:'9px 12px', fontSize:13, borderRadius:10,
-            border:`1px solid ${GOLD}33`, background:'#2a1a0066', color:'#fdf6e3',
+          style={{ width:'100%', padding:'10px 14px', fontSize:14, borderRadius:12,
+            border:'1px solid #e8d5b0', background:'#fff', color:'#5D2E0C',
             boxSizing:'border-box', outline:'none', marginBottom:12 }}/>
 
         {/* Dynasty filter */}
@@ -612,10 +617,11 @@ export default function PoetryApp({ onBack }) {
           <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
             {['all',...dynasties].map(d => (
               <button key={d} onClick={()=>setFilter(d)}
-                style={{ padding:'4px 12px', borderRadius:20, fontSize:12,
-                  border:`1.5px solid ${filter===d?GOLD:GOLD+'33'}`,
-                  background:filter===d?GOLD:'transparent',
-                  color:filter===d?'#1a0f00':GOLD, cursor:'pointer' }}>
+                style={{ padding:'5px 14px', borderRadius:20, fontSize:13,
+                  border:`1.5px solid ${filter===d?'#8B4513':'#e8d5b0'}`,
+                  background:filter===d?'#8B4513':'#fff',
+                  color:filter===d?'#fdf6e3':'#5D2E0C', cursor:'pointer',
+                  fontWeight:filter===d?600:400 }}>
                 {d==='all'?t('全部','All','Tutti'):d}
               </button>
             ))}

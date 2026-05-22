@@ -73,9 +73,21 @@ export default function ChengyuApp({ onBack }) {
   });
 
   useEffect(() => {
+    // NOTE: Multi-column server-side ORDER BY (hsk_level + difficulty + sort_order)
+    // triggers an RLS-recursion 500 on this Supabase project. Single-column order
+    // is safe; we sort the remaining keys client-side below.
     supabase.from('clf_chengyu')
-      .select('*').eq('active', true).order('hsk_level').order('difficulty').order('sort_order')
-      .then(({ data }) => { setIdioms(data ?? []); setLoading(false); });
+      .select('*').eq('active', true).order('hsk_level')
+      .then(({ data, error }) => {
+        if (error) console.error('[ChengyuApp] clf_chengyu query failed:', error);
+        const rows = (data ?? []).slice().sort((a, b) =>
+          (a.hsk_level ?? 0) - (b.hsk_level ?? 0) ||
+          (a.difficulty ?? 0) - (b.difficulty ?? 0) ||
+          (a.sort_order ?? 0) - (b.sort_order ?? 0)
+        );
+        setIdioms(rows);
+        setLoading(false);
+      });
   }, []);
 
   const filtered = theme === 'all' ? idioms : idioms.filter(i => i.theme === theme);
@@ -86,6 +98,21 @@ export default function ChengyuApp({ onBack }) {
   const adaptiveQueue = adaptive.getAdaptiveQueue(filtered.length).filter(i =>
     theme === 'all' ? true : i.theme === theme
   );
+
+  // Sub-screens — but only after the idioms query finishes. Deep-links like
+  // /learn?module=chengyu#chengyu:flash restore screen='flash' synchronously
+  // via useScreenHistory, while the supabase fetch is async; rendering a
+  // sub-screen before idioms arrive shows "暂无成语" for ~50ms before the
+  // data populates. Show a loading state until ready.
+  if (loading) {
+    return (
+      <div style={{ minHeight:'100dvh', display:'flex', alignItems:'center',
+        justifyContent:'center', background:'var(--bg, #fdf6e3)',
+        color:'var(--text2, #a07850)', fontSize:14 }}>
+        {t('加载成语中…', 'Loading idioms…', 'Caricamento…')}
+      </div>
+    );
+  }
 
   // Sub-screens
   if (screen === 'flash') return <ChengyuFlash  idioms={adaptiveQueue.length ? adaptiveQueue : filtered} lang={lang} onBack={() => setScreen('home')}/>;

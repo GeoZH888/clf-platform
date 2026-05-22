@@ -120,6 +120,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('refresh_token', data.session.refresh_token);
       localStorage.setItem('user', JSON.stringify(fullUser));
       setUser(fullUser);
       setToken(data.session.access_token);
@@ -189,6 +190,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     setUser(null);
     setToken(null);
