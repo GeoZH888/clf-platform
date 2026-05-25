@@ -57,7 +57,7 @@
 # ─── Routing ───────────────────────────────────────────────────────────
 [[redirects]]
   from = "/feiyi/tangka-2026june/*"
-  to = "https://feiyi.david-zhongwen.net/mostra/tangka-2026june/:splat"
+  to = "https://feiyitangka.netlify.app/feiyi/tangka-2026june/:splat"
   status = 200
   force = true
 
