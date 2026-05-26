@@ -10,12 +10,54 @@ import { cookieStorage } from './cookieStorage.js';
 // david-zhongwen.net is visible to feiyi.david-zhongwen.net. See
 // docs/cross-subdomain-auth.md and src/lib/cookieStorage.js.
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  || 'https://yqcojudvvjntaajnrilr.supabase.co';
+// Fallbacks point at the production project (anon key is public by design,
+// RLS-protected — see netlify.toml).
+const FALLBACK_URL = 'https://yqcojudvvjntaajnrilr.supabase.co';
+const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY29qdWR2dmpudGFham5yaWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNDkxNzQsImV4cCI6MjA5MDkyNTE3NH0.pJuxsTRieYTnZtEysOLcPfUZ9Map0z74o2lKtc8uGAk';
 
-// Anon key is public by design (RLS-protected). See netlify.toml.
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY29qdWR2dmpudGFham5yaWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNDkxNzQsImV4cCI6MjA5MDkyNTE3NH0.pJuxsTRieYTnZtEysOLcPfUZ9Map0z74o2lKtc8uGAk';
+// IMPORTANT: a plain `import.meta.env.VITE_SUPABASE_URL || fallback` only
+// catches empty/undefined. A *malformed-but-truthy* value (e.g. a Netlify
+// env var pasted without `https://`, or with stray quotes/whitespace) slips
+// past `||` and makes createClient() throw "Invalid supabaseUrl", which crashes
+// the entire app at import time (blank white screen). Validate, then fall back.
+function validUrl(raw) {
+  if (typeof raw !== 'string') return null;
+  const v = raw.trim().replace(/^["']+|["']+$/g, ''); // strip wrapping quotes/space
+  try {
+    const u = new URL(v);
+    if (u.protocol === 'https:' || u.protocol === 'http:') return v;
+  } catch { /* not a parseable URL */ }
+  return null;
+}
+
+// The project ref is the subdomain: https://<ref>.supabase.co
+function projectRef(url) {
+  try { return new URL(url).hostname.split('.')[0] || null; }
+  catch { return null; }
+}
+
+// The anon key is a JWT whose payload carries { ref: "<project>" }. A wrong or
+// truncated key is still a non-empty string, so it would sail past a `|| key`
+// guard and Supabase then rejects every call with "Invalid API key". Decode the
+// JWT and confirm it actually belongs to the same project as the URL; otherwise
+// the env key is untrustworthy and we use the matching fallback. This keeps the
+// URL and key a consistent pair no matter what a build injects.
+function keyMatchesRef(key, ref) {
+  if (typeof key !== 'string' || !ref) return false;
+  const parts = key.trim().split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return payload?.ref === ref;
+  } catch { return false; }
+}
+
+const supabaseUrl = validUrl(import.meta.env.VITE_SUPABASE_URL) || FALLBACK_URL;
+
+const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = keyMatchesRef(envKey, projectRef(supabaseUrl))
+  ? envKey.trim()
+  : FALLBACK_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
