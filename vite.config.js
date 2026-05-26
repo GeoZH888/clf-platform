@@ -6,6 +6,10 @@ export default defineConfig({
   server: {
     port: 5174,   // different port from lingua-learn (5173)
     open:  true,
+    // Allow temporary public dev tunnels (localtunnel / ngrok / cloudflare /
+    // netlify --live) to reach the dev server. Vite 5 otherwise blocks any
+    // Host header it doesn't recognise. Dev-server only — no effect on builds.
+    allowedHosts: ['.loca.lt', '.ngrok-free.app', '.trycloudflare.com', '.netlify.live'],
   },
   build: {
     outDir:         'dist',
