@@ -5,6 +5,7 @@ import { useAuth } from '../school/contexts/AuthContext';
 import PersonalDashboard from './dashboard/PersonalDashboard';
 import { supabase } from '../school/services/supabase';
 import { MODULES, ALWAYS_ON } from '../config/modules';
+import { usePhone } from '../hooks/useMediaQuery';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors,
@@ -141,6 +142,7 @@ function DoorCard({ emoji, title, subtitle, desc, features, color, bgGrad, textC
 
 export default function CommunityHome() {
   const { user, logout } = useAuth();
+  const isPhone = usePhone();
   const [allowedIds, setAllowedIds] = useState(null);
   const [openSection, setOpenSection] = useState(null);
   const [institution, setInstitution] = useState(null);
@@ -274,34 +276,39 @@ export default function CommunityHome() {
       color: '#1a0a05',
     }}>
       <header style={{
-        padding: '18px 24px',
+        padding: isPhone ? '12px 16px' : '18px 24px',
+        paddingTop: `calc(${isPhone ? 12 : 18}px + var(--safe-top))`,
         background: 'linear-gradient(90deg, #c41e3a 0%, #8b0000 100%)',
         color: '#fff5e6',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        gap: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700,
-              fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 4 }}>大卫学中文</div>
-            <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+        {/* min-width:0 lets the flex child shrink so the logout button always fits */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isPhone ? 10 : 14, minWidth: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: isPhone ? 19 : 22, fontWeight: 700,
+              fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: isPhone ? 2 : 4 }}>大卫学中文</div>
+            <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.name || user?.email} · {myRole || 'visitor'}
             </div>
           </div>
           {institution && (institution.name || institution.logo) && (
             <>
-              <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.25)' }}/>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.25)', flexShrink: 0 }}/>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 {institution.logo && (
                   <img src={institution.logo} alt=""
                     onError={e => { e.target.style.display = 'none'; }}
                     style={{
-                      width: 32, height: 32, borderRadius: 6,
+                      width: 32, height: 32, borderRadius: 6, flexShrink: 0,
                       objectFit: 'cover', background: '#fff',
                     }}/>
                 )}
                 {institution.name && (
                   <div style={{ fontSize: 14, fontWeight: 600, opacity: 0.95,
-                    fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 1 }}>
+                    fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 1,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {institution.name}
                   </div>
                 )}
@@ -312,14 +319,14 @@ export default function CommunityHome() {
         <button onClick={logout} style={{
           background: 'rgba(255,255,255,0.15)', color: '#fff5e6',
           border: '1px solid rgba(255,255,255,0.3)',
-          padding: '8px 14px', borderRadius: 20,
+          padding: '8px 14px', borderRadius: 20, flexShrink: 0,
           cursor: 'pointer', fontSize: 12, fontWeight: 600,
         }}>退出</button>
       </header>
 
-      <div style={{
+      <div className="app-container" style={{
         display: 'flex', alignItems: 'center', gap: 14,
-        padding: '24px 24px 0', maxWidth: 1300, margin: '0 auto',
+        paddingTop: 24,
       }}>
         <div style={{ flex: 1, height: 1,
           background: 'linear-gradient(to right, transparent, rgba(196,30,58,0.4))' }}/>
@@ -330,9 +337,11 @@ export default function CommunityHome() {
           background: 'linear-gradient(to left, transparent, rgba(196,30,58,0.4))' }}/>
       </div>
 
-      <main style={{ padding: '20px 24px 40px', maxWidth: 1300, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gap: 14, marginTop: 20,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      <main className="app-container" style={{ paddingTop: 20, paddingBottom: 40 }}>
+        <div style={{ display: 'grid', gap: isPhone ? 12 : 14, marginTop: 20,
+          gridTemplateColumns: isPhone
+            ? 'repeat(auto-fit, minmax(150px, 1fr))'
+            : 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           {schoolUrl && (
             <DoorCard
               emoji="🏫"
@@ -558,11 +567,16 @@ function ExpandedSection({ color, label, extras, children }) {
 }
 
 function TileGrid({ children }) {
+  const isPhone = usePhone();
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-      gap: 18,
+      // Phones: 2-up tiles (140px min fits two columns at ~360px wide).
+      // Larger screens: roomy auto-fill at 180px.
+      gridTemplateColumns: isPhone
+        ? 'repeat(auto-fill, minmax(140px, 1fr))'
+        : 'repeat(auto-fill, minmax(180px, 1fr))',
+      gap: isPhone ? 12 : 18,
     }}>
       {children}
     </div>

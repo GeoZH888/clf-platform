@@ -20,6 +20,11 @@
   --radius-sm: 8px;
   --shadow: 0 2px 12px rgba(0,0,0,0.07);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  /* Horizontal page padding that grows with the viewport: tight on phones,
+     roomy on desktop. Use via .app-container or var(--page-pad). */
+  --page-pad: clamp(14px, 4vw, 28px);
+  --content-max: 1200px;
 }
 
 html, body, #root {
@@ -29,7 +34,32 @@ html, body, #root {
   color: var(--text);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  /* Mobile-comfort defaults inherited by every screen: */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;   /* don't let iOS inflate font sizes on rotate */
+  text-size-adjust: 100%;
 }
+
+/* Stray-wide content (a long word, a 1300px grid on a 360px phone) must never
+   force the whole page to scroll sideways — a classic mobile annoyance. */
+html, body { overflow-x: hidden; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+/* Responsive content wrapper: full-comfort on phones, centered + capped on
+   desktop. Replaces hard-coded `maxWidth:1300; padding:'… 24px'` patterns. */
+.app-container {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding-inline: var(--page-pad);
+}
+
+/* Guarantee a comfortable touch target (Apple/Google guidance: ~44px). */
+.tap-target { min-height: 44px; min-width: 44px; }
 
 /* ─── App shell ─────────────────────────────────────────────── */
 .app-shell {
