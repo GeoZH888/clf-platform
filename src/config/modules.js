@@ -30,7 +30,7 @@ export const MODULES = [
   { id: 'poetry',     label: '诗歌',     icon: '🪶', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community' },
   { id: 'grammar',    label: '语法',     icon: '📐', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },
   { id: 'hsk',        label: 'HSK',     icon: '🎯', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'hsk' },
-  { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'game' },
+  { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community' },  // 游戏 merged into 社区
   { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community' },
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community' },
 

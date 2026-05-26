@@ -224,7 +224,6 @@ export default function CommunityHome() {
   const communityModules = visibleModules.filter(m =>
     m.pillar === 'community' || m.pillar === 'home' || m.pillar === 'profile' || m.pillar === 'progress'
   );
-  const gameModules = visibleModules.filter(m => m.pillar === 'game');
 
   // ── Draggable community tiles ──────────────────────────────────────
   // The tiles shown in the 可用模块 grid (excludes home/profile/progress).
@@ -383,20 +382,6 @@ export default function CommunityHome() {
             onClick={() => toggleSection('hsk')}
           />
           <DoorCard
-            emoji="🎮"
-            title="游戏"
-            subtitle="Games"
-            desc={"寓教于乐。趣味中文游戏，学习与娱乐结合。"}
-            features={gameModules.length > 0
-              ? gameModules.map(m => m.label)
-              : ['即将上线']}
-            color="#10b981"
-            bgGrad="linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
-            textColor="#1a0a05" accentColor="#047857"
-            isOpen={openSection === 'game'} compact
-            onClick={() => toggleSection('game')}
-          />
-          <DoorCard
             emoji="🏮"
             title="非遗"
             subtitle="Heritage"
@@ -490,17 +475,6 @@ export default function CommunityHome() {
           </ExpandedSection>
         )}
 
-        {openSection === 'game' && (
-          <ExpandedSection color="#10b981" label="趣味游戏">
-            {gameModules.length === 0 ? (
-              <Empty msg="还没有游戏模块。"/>
-            ) : (
-              <TileGrid>
-                {gameModules.map(m => <ModuleTile key={m.id} mod={m} hoverColor="#10b981"/>)}
-              </TileGrid>
-            )}
-          </ExpandedSection>
-        )}
 
         {openSection === 'feiyi' && (
           <ExpandedSection color="#d97706"
