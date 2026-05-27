@@ -6,6 +6,7 @@ import PersonalDashboard from './dashboard/PersonalDashboard';
 import { supabase } from '../school/services/supabase';
 import { MODULES, ALWAYS_ON } from '../config/modules';
 import { usePhone } from '../hooks/useMediaQuery';
+import { IS_ALLINONE, TEACHING_URL } from '../lib/appMode.js';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors,
@@ -352,7 +353,16 @@ export default function CommunityHome() {
               bgGrad="linear-gradient(135deg, #fff5f0 0%, #ffe8e0 100%)"
               textColor="#1a0a05" accentColor="#8b0a18"
               isOpen={false} compact
-              onClick={() => window.location.href = schoolUrl}
+              onClick={() => {
+                // Teaching lives on the teaching site (david-zhongwen.net) in the
+                // shared-DB split. From the allinone site, send teaching roles
+                // there; super_admin's panel (/admin) stays on this site.
+                if (myRole !== 'super_admin' && IS_ALLINONE) {
+                  window.location.href = TEACHING_URL;
+                } else {
+                  window.location.href = schoolUrl;
+                }
+              }}
             />
           )}
           <DoorCard
