@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { cookieStorage } from './cookieStorage.js';
-import { IS_TEACHING } from './appMode.js';
 
 // THE canonical Supabase client. Every other file MUST import `supabase`
 // from this module — do not call createClient() elsewhere. Multiple clients
@@ -53,29 +52,17 @@ function keyMatchesRef(key, ref) {
   } catch { return false; }
 }
 
-// Mode selects which project this deployment talks to (see appMode.js).
-//   teaching → VITE_TEACHING_SUPABASE_*  (new project)
-//   allinone → VITE_SUPABASE_*           (current project, the default)
-// Teaching has no hardcoded fallback (project-specific, not in repo); if its
-// env isn't set yet we fall back to the main project so the app never crashes
-// at import — teaching mode just isn't functional until its key is provided.
-const rawUrl = IS_TEACHING
-  ? import.meta.env.VITE_TEACHING_SUPABASE_URL
-  : import.meta.env.VITE_SUPABASE_URL;
-const rawKey = IS_TEACHING
-  ? import.meta.env.VITE_TEACHING_SUPABASE_ANON_KEY
-  : import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Single shared project for BOTH deployments (teaching + allinone). The
+// VITE_APP_MODE split only changes the UI/routing per site, not the database —
+// one user base, role-based access via RLS. See appMode.js.
+const supabaseUrl = validUrl(import.meta.env.VITE_SUPABASE_URL) || FALLBACK_URL;
 
-const supabaseUrl = validUrl(rawUrl) || FALLBACK_URL;
-if (IS_TEACHING && !validUrl(rawUrl)) {
-  console.warn('[supabase] teaching mode but VITE_TEACHING_SUPABASE_URL is unset/invalid — falling back to the main project. Set the teaching env vars.');
-}
-
-// Prefer the env key when it matches the resolved project; else the main
-// fallback (valid pair for the main project). keyMatchesRef guards against a
-// wrong/truncated key being used (which would cause "Invalid API key").
-const supabaseKey = keyMatchesRef(rawKey, projectRef(supabaseUrl))
-  ? rawKey.trim()
+// Prefer the env key when it matches the resolved project; else the fallback
+// (valid pair for the project). keyMatchesRef guards against a wrong/truncated
+// key being used (which would otherwise cause "Invalid API key").
+const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = keyMatchesRef(envKey, projectRef(supabaseUrl))
+  ? envKey.trim()
   : FALLBACK_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
