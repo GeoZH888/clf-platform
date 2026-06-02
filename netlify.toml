@@ -59,7 +59,7 @@
 # domain so old bookmarks/links don't break. Conditioned on the Host header.
 [[redirects]]
   from = "https://zhongwen-allinone.netlify.app/*"
-  to   = "https://zhongwen-allinone.ci-world.com/:splat"
+  to   = "https://zhongwen.ci-world.com/:splat"
   status = 301
   force  = true
 

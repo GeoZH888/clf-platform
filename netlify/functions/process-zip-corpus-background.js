@@ -262,7 +262,7 @@ export const handler = async (event) => {
         }
 
         // 7. Fire off individual processing (fire-and-forget background)
-        fetch(`${process.env.URL || 'https://zhongwen-allinone.ci-world.com'}/.netlify/functions/process-document-background`, {
+        fetch(`${process.env.URL || 'https://zhongwen.ci-world.com'}/.netlify/functions/process-document-background`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
