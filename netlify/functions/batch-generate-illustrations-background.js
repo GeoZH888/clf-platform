@@ -663,7 +663,7 @@ async function resolveWordPromptTemplate(style, supabase) {
 // ─── Image generation (shared) ────────────────────────────────────────────
 
 async function generateImage(provider, prompt) {
-  const baseUrl = process.env.URL || 'https://zhongwen-world.netlify.app';
+  const baseUrl = process.env.URL || 'https://zhongwen-allinone.ci-world.com';
 
   if (provider === 'stability') {
     const res = await fetch(`${baseUrl}/.netlify/functions/stability-proxy`, {

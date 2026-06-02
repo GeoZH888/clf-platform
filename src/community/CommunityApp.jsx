@@ -1,10 +1,10 @@
 // src/community/CommunityApp.jsx
-// 社区 home: module grid + 学校 button, all roles land here after login.
-import React, { useEffect, useState } from 'react';
+// 社区 home: public landing for everyone. Anonymous visitors see the default
+// module bundle; signed-in users see their personal modules + 我的 dashboard.
+import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider, useAuth } from '../school/contexts/AuthContext';
+import { AuthProvider } from '../school/contexts/AuthContext';
 import { LanguageProvider } from '../school/contexts/LanguageContext';
-import RequireRole from '../auth/RequireRole';
 import CommunityHome from './CommunityHome';
 
 export default function CommunityApp() {
@@ -12,12 +12,10 @@ export default function CommunityApp() {
     <LanguageProvider>
       <AuthProvider>
         <BrowserRouter basename="/community">
-          <RequireRole allow={['super_admin', 'school_master', 'teacher', 'student', 'parent']}>
-            <Routes>
-              <Route path="/" element={<CommunityHome />} />
-              <Route path="*" element={<CommunityHome />} />
-            </Routes>
-          </RequireRole>
+          <Routes>
+            <Route path="/" element={<CommunityHome />} />
+            <Route path="*" element={<CommunityHome />} />
+          </Routes>
         </BrowserRouter>
       </AuthProvider>
     </LanguageProvider>

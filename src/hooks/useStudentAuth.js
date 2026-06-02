@@ -14,7 +14,7 @@ function daysUntil(d) {
 
 // Module fallback (in case the server didn't return modules)
 const ALWAYS_ON = ['home', 'profile', 'progress'];
-const STANDARD_BUNDLE = ['lianzi','words','pinyin','chengyu','poetry','grammar','hsk','riddles'];
+const STANDARD_BUNDLE = ['lianzi','words','pinyin','chengyu','poetry','grammar','riddles'];
 
 export function useStudentAuth() {
   const [state, setState] = useState({

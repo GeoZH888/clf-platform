@@ -5,7 +5,6 @@ import LianziPage from './content/LianziPage';
 import WordsPage from './content/WordsPage';
 import PinyinPage from './content/PinyinPage';
 import GrammarPage from './content/GrammarPage';
-import HskPage from './content/HskPage';
 import LessonsPage from './content/LessonsPage';
 import ChengyuPage from './content/ChengyuPage';
 import PoetryPage from './content/PoetryPage';
@@ -20,7 +19,7 @@ import ParentsPage from './content/ParentsPage';
 
 const PAGES = {
   lianzi: LianziPage, words: WordsPage, pinyin: PinyinPage, grammar: GrammarPage,
-  hsk: HskPage, lessons: LessonsPage, chengyu: ChengyuPage, poetry: PoetryPage,
+  lessons: LessonsPage, chengyu: ChengyuPage, poetry: PoetryPage,
   riddles: RiddlesPage, scenario: ScenarioPage, story: StoryPage, chat: ChatPage,
   voice: VoicePage, homework: HomeworkPage, shop: ShopPage, parents: ParentsPage,
 };

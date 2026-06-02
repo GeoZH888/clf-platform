@@ -16,7 +16,6 @@ import AdminPinyinAudio from './AdminPinyinAudio.jsx';
 import CLFWordsAdminTab from './CLFWordsAdminTab.jsx';   // CLF words (clf_words)
 import ChengyuAdminTab from './ChengyuAdminTab.jsx';
 import GrammarAdminTab from './GrammarAdminTab.jsx';
-import HSKAdminTab     from './HSKAdminTab.jsx';
 import ExtractFromCorpusWizard from './ExtractFromCorpusWizard.jsx';
 // Phase 2B: 新 Wizard 支持 3 种来源 (corpus / HSK / manual)
 import CharacterImportWizard from './CharacterImportWizard.jsx';
@@ -1108,7 +1107,7 @@ export default function AdminApp() {
   const [dragToIdx,   setDragToIdx]  = useState(-1);
   const [ghostStyle,  setGhostStyle] = useState(null);
   const [tabOrder, setTabOrder]      = useState(() => {
-    const DEFAULT = ['characters','words','hsk','poetry','register-invites','pinyin','pinyin-audio','chengyu','grammar','users','analytics','apikeys','panda'];
+    const DEFAULT = ['characters','words','poetry','register-invites','pinyin','pinyin-audio','chengyu','grammar','users','analytics','apikeys','panda'];
     try {
       const saved = localStorage.getItem('admin_tab_order');
       if (saved) {
@@ -1256,7 +1255,6 @@ export default function AdminApp() {
     { id:'characters', label:'📝 字符管理' },
     { id:'corpus',     label:'📚 语料库 RAG' },
     { id:'words',      label:'📝 词语' },
-    { id:'hsk',        label:'🎓 HSK' },
     { id:'poetry',     label:'📜 诗歌' },
     { id: 'riddles', label: '🏮 灯谜', component: RiddleAdminTab },
     { id:'register-invites', label:'📬 邀请注册' },
@@ -1645,7 +1643,6 @@ export default function AdminApp() {
         {tab==='grammar'   && <GrammarAdminTab/>}
         {tab==='scenarios' && <ScenarioAdminTab/>}
         {tab==='stories'   && <StoryAdminTab/>}
-        {tab==='hsk'       && <HSKAdminTab/>}
         {tab==='poetry'    && <PoetryAdminTab/>}
         {tab==='apikeys'   && <ApiKeyManager/>}
         {tab==='panda'     && <PandaStudio/>}

@@ -34,14 +34,13 @@ const STEPS = [
 // 3 种来源类型
 const SOURCE_TYPES = {
   corpus: { label: '从 Corpus 抽取', icon: '📚', desc: '用 RAG 从教材 PDF 抽字. 绑定教材和课文位置.' },
-  hsk:    { label: 'HSK 标准字表',   icon: '🎯', desc: 'AI 直接生成 HSK 标准字表 (2021 版). 干净, 无噪音.' },
   manual: { label: '手动/CSV 导入',   icon: '📝', desc: '粘贴字符列表, 上传 CSV, 或粘贴整段文本.' },
 };
 
 export default function CharacterImportWizard({ open, onClose, onComplete }) {
   const [step, setStep] = useState(1);
-  const [sourceType, setSourceType] = useState(null);  // 'corpus' | 'hsk' | 'manual'
-  
+  const [sourceType, setSourceType] = useState(null);  // 'corpus' | 'manual'
+
   // Corpus state
   const [collections, setCollections] = useState([]);
   const [selectedCollection, setSelectedCollection] = useState(null);
@@ -50,11 +49,7 @@ export default function CharacterImportWizard({ open, onClose, onComplete }) {
   const [corpusMode, setCorpusMode] = useState('document');
   const [corpusMethod, setCorpusMethod] = useState('shizi_biao');
   const [minFrequency, setMinFrequency] = useState(5);
-  
-  // HSK state
-  const [hskLevels, setHskLevels] = useState(new Set([1]));
-  const [hskExcludeExisting, setHskExcludeExisting] = useState(true);
-  
+
   // Manual state
   const [manualInputType, setManualInputType] = useState('list');  // 'list' | 'csv' | 'text'
   const [manualText, setManualText] = useState('');
@@ -126,31 +121,6 @@ export default function CharacterImportWizard({ open, onClose, onComplete }) {
       };
 
       await fetch('/.netlify/functions/extract-characters-candidates-background', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      
-      await pollJob();
-    } catch (err) {
-      setExtractError(err.message);
-      setExtracting(false);
-    }
-  }
-
-  async function startHSKImport() {
-    setExtracting(true);
-    setExtractError(null);
-    setStep(3);
-    
-    try {
-      const body = {
-        levels: [...hskLevels].sort(),
-        exclude_existing: hskExcludeExisting,
-        hsk_version: '2021',
-      };
-
-      await fetch('/.netlify/functions/import-hsk-characters-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -382,36 +352,29 @@ export default function CharacterImportWizard({ open, onClose, onComplete }) {
       }
       return selectedCollection?.name_zh || 'Corpus';
     }
-    if (sourceType === 'hsk') {
-      return `HSK ${[...hskLevels].sort().join(',')}`;
-    }
     if (sourceType === 'manual') {
       return manualSourceLabel || '手动导入';
     }
     return '未知';
   }
-  
+
   function getSubjectSlug() {
     if (sourceType === 'corpus') return selectedDoc?.subject_slug || null;
-    if (sourceType === 'hsk') return 'hsk';
     return null;
   }
-  
+
   function getCollectionSlug() {
     if (sourceType === 'corpus') return selectedCollection?.slug || null;
-    if (sourceType === 'hsk') return 'hsk';
     return null;
   }
-  
+
   function getGradeLevel() {
     if (sourceType === 'corpus') return selectedDoc?.grade_level || null;
-    if (sourceType === 'hsk') return `HSK ${[...hskLevels][0]}`;
     return null;
   }
-  
+
   function getBackendSourceType() {
     if (sourceType === 'corpus') return corpusMode === 'document' ? 'corpus_document' : 'corpus_collection';
-    if (sourceType === 'hsk') return 'hsk_official';
     return 'manual';
   }
   
@@ -434,9 +397,6 @@ export default function CharacterImportWizard({ open, onClose, onComplete }) {
         if (corpusMode === 'document' && !selectedDoc) { alert('请选择文档'); return; }
         if (corpusMode === 'collection' && !selectedCollection) { alert('请选择 collection'); return; }
         startCorpusExtract();
-      } else if (sourceType === 'hsk') {
-        if (hskLevels.size === 0) { alert('请至少选一个 HSK 级别'); return; }
-        startHSKImport();
       } else if (sourceType === 'manual') {
         if (!manualText.trim()) { alert('请输入内容'); return; }
         startManualParse();
@@ -494,12 +454,6 @@ export default function CharacterImportWizard({ open, onClose, onComplete }) {
               corpusMode={corpusMode} setCorpusMode={setCorpusMode}
               method={corpusMethod} setMethod={setCorpusMethod}
               minFrequency={minFrequency} setMinFrequency={setMinFrequency}
-            />
-          )}
-          {step === 2 && sourceType === 'hsk' && (
-            <Step2HSK
-              hskLevels={hskLevels} setHskLevels={setHskLevels}
-              excludeExisting={hskExcludeExisting} setExcludeExisting={setHskExcludeExisting}
             />
           )}
           {step === 2 && sourceType === 'manual' && (
@@ -644,68 +598,6 @@ function Step2Corpus({ collections, selectedCollection, setSelectedCollection, d
           <input type="range" min="2" max="20" value={minFrequency} onChange={e => setMinFrequency(+e.target.value)} style={{ width: '100%' }}/>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────
-// Step 2b: HSK 配置
-// ─────────────────────────────────────────────────────
-
-function Step2HSK({ hskLevels, setHskLevels, excludeExisting, setExcludeExisting }) {
-  const toggle = (lv) => {
-    const next = new Set(hskLevels);
-    if (next.has(lv)) next.delete(lv);
-    else next.add(lv);
-    setHskLevels(next);
-  };
-  
-  const LEVEL_INFO = [
-    { lv: 1, count: 300, label: '入门' },
-    { lv: 2, count: 300, label: '基础' },
-    { lv: 3, count: 300, label: '进阶' },
-    { lv: 4, count: 300, label: '中级' },
-    { lv: 5, count: 300, label: '中高级' },
-    { lv: 6, count: 300, label: '高级' },
-    { lv: 7, count: 1200, label: '高级进阶 (7-9)' },
-  ];
-  
-  return (
-    <div>
-      <h3 style={h3Style}>🎯 HSK 标准字表 (2021 版)</h3>
-      <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
-        AI 直接生成, 无噪音. 每级约 300 字, 一次性全自动入库.
-      </p>
-      
-      <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>选择级别 (可多选):</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {LEVEL_INFO.map(({ lv, count, label }) => (
-            <div key={lv}
-              onClick={() => toggle(lv)}
-              style={{
-                padding: 12, border: `2px solid ${hskLevels.has(lv) ? '#8B4513' : '#e5e5e5'}`,
-                borderRadius: 8, background: hskLevels.has(lv) ? '#FFF8F0' : '#fff',
-                cursor: 'pointer', textAlign: 'center',
-              }}>
-              <div style={{ fontSize: 20, fontWeight: 600, color: hskLevels.has(lv) ? '#8B4513' : '#333' }}>
-                HSK {lv}
-              </div>
-              <div style={{ fontSize: 11, color: '#999' }}>{label}</div>
-              <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>~{count} 字</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-        <input type="checkbox" checked={excludeExisting} onChange={e => setExcludeExisting(e.target.checked)}/>
-        排除已在库的字符 (避免重复)
-      </label>
-      
-      <div style={{ marginTop: 16, padding: 12, background: '#fffaef', borderRadius: 8, fontSize: 12, color: '#a66' }}>
-        💡 HSK 1 约 300 字, 每级生成需 2-3 分钟. 多级勾选时耐心等待.
-      </div>
     </div>
   );
 }

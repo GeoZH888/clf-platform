@@ -14,7 +14,6 @@ import PracticeSession    from './components/PracticeSession.jsx';
 import PinyinApp      from './pinyin/PinyinApp.jsx';
 import WordsApp       from './words/WordsApp.jsx';
 import GrammarApp     from './grammar/GrammarApp.jsx';
-import HSKApp         from './hsk/HSKApp.jsx';
 import PoetryApp      from './poetry/PoetryApp.jsx';
 import GamesApp       from './games/GamesApp.jsx';
 import RiddleGame     from './games/RiddleGame.jsx';
@@ -35,7 +34,6 @@ import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
 import KechuangApp from './kechuang/KechuangApp.jsx';
 import LoginGate         from './auth/LoginGate.jsx';
-import HeritageApp      from './heritage/HeritageApp.jsx';
 import RoleRedirectGate from './auth/RoleRedirectGate.jsx';
 import TeacherApp       from './teacher/TeacherApp.jsx';
 import SchoolMasterApp  from './school-master/SchoolMasterApp.jsx';
@@ -44,7 +42,7 @@ import ParentApp        from './parent/ParentApp.jsx';
 import CommunityApp from './community/CommunityApp.jsx';
 import KnowledgeMapGate from './knowledge/KnowledgeMapGate.jsx';
 // ── Fix title + random panda favicon ─────────────────────────────
-document.title = '大卫学中文';
+document.title = '中文世界';
 
 const PANDA_EMOTIONS = ['normal','excited','happy','thinking','cheering','surprised','writing'];
 
@@ -90,7 +88,6 @@ const IS_ADMIN    = window.location.pathname.startsWith('/admin') && !IS_ADMIN_V
 const IS_KECHUANG = window.location.pathname.startsWith('/kechuang');
 const IS_LOGIN          = window.location.pathname.startsWith('/login');
   const IS_COMMUNITY      = window.location.pathname.startsWith('/community');
-const IS_INTANGIBLE_HERITAGE      = window.location.pathname.startsWith('/feiyi');
 const IS_KNOWLEDGE_MAP            = window.location.pathname.startsWith('/knowledge-map');
 const IS_ROLE_REDIRECT  = window.location.pathname.startsWith('/role-redirect');
 const IS_TEACHER        = window.location.pathname.startsWith('/teacher');
@@ -310,7 +307,7 @@ function UserApp() {
     //   /learn?module=lianzi  → start on character-writing home
     //   /learn?module=words   → start on WordsApp
     //   /learn?module=pinyin  → start on PinyinApp
-    //   ...etc for chengyu, poetry, grammar, hsk, riddles
+    //   ...etc for chengyu, poetry, grammar, riddles
     // 'lianzi' is special-cased like PlatformHome's onSelect does (→ 'home').
     const m = p.get('module');
     if (m) {
@@ -504,19 +501,11 @@ function UserApp() {
                 title="故事会"  titleEn="Story Time"  titleIt="Ora delle Storie"
                 emoji="📖"  onBack={() => setScreen('platform')}/>
             )}
-            {screen === 'feiyi' && (
-              <ComingSoonScreen
-                title="非遗"  titleEn="Heritage"  titleIt="Patrimonio"
-                emoji="🏮"  onBack={() => setScreen('entrance')}/>
-            )}
           {screen === 'words' && (
             <WordsApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'grammar' && (
             <GrammarApp onBack={()=>{ window.location.href = '/community'; }}/>
-          )}
-          {screen === 'hsk' && (
-            <HSKApp onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'poetry' && (
             <PoetryApp onBack={()=>{ window.location.href = '/community'; }}/>
@@ -550,6 +539,14 @@ function UserApp() {
   );
 }
 
+// Public home is /community (CommunityApp). Anything that fell through to the
+// catch-all (e.g. someone landing on /) gets bounced there. Replace, not push,
+// so the browser back button still escapes the SPA.
+function RootRedirect() {
+  React.useEffect(() => { window.location.replace('/community'); }, []);
+  return null;
+}
+
 class ErrorBoundary extends React.Component {
   state = { error: null };
   static getDerivedStateFromError(e) { return { error: e }; }
@@ -575,7 +572,6 @@ class ErrorBoundary extends React.Component {
          {IS_ADMIN_V2 ? <LanguageProvider><AuthProvider><AdminAppV2/></AuthProvider></LanguageProvider>
          : IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
         : IS_LOGIN          ? <LoginGate/>
-        : IS_INTANGIBLE_HERITAGE      ? <HeritageApp/>
         : IS_KNOWLEDGE_MAP            ? <KnowledgeMapGate/>
         : IS_ROLE_REDIRECT  ? <RoleRedirectGate/>
         : IS_TEACHER        ? <TeacherApp/>
@@ -585,7 +581,7 @@ class ErrorBoundary extends React.Component {
         : IS_LEARN          ? <LanguageProvider><UserApp/></LanguageProvider>
         : IS_KECHUANG ? <LanguageProvider><KechuangApp/></LanguageProvider>
         : IS_COMMUNITY      ? <CommunityApp/>
-        :              <LoginGate/>}
+        :              <RootRedirect/>}
        </ErrorBoundary>
      );
    }

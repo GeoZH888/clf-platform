@@ -55,11 +55,37 @@
   timeout = 30
 
 # ─── Routing ───────────────────────────────────────────────────────────
+# Old hostname (zhongwen-allinone.netlify.app) — 301 to the canonical custom
+# domain so old bookmarks/links don't break. Conditioned on the Host header.
 [[redirects]]
-  from = "/feiyi/tangka-2026june/*"
-  to = "https://feiyitangka.netlify.app/feiyi/tangka-2026june/:splat"
-  status = 200
-  force = true
+  from = "https://zhongwen-allinone.netlify.app/*"
+  to   = "https://zhongwen-allinone.ci-world.com/:splat"
+  status = 301
+  force  = true
+
+# 非遗 moved to a dedicated site (feiyipedia.ci-world.com). Any deep links into
+# /feiyi/* now redirect there so old bookmarks/QR codes still work.
+[[redirects]]
+  from   = "/feiyi/*"
+  to     = "https://feiyipedia.ci-world.com/:splat"
+  status = 301
+  force  = true
+
+# HSK moved to the HSK-levelup project. Same idea as above.
+[[redirects]]
+  from   = "/hsk/*"
+  to     = "https://hsk-levelup.netlify.app/:splat"
+  status = 301
+  force  = true
+
+# /learn?module=hsk no longer has a target on this site — bounce HSK deep
+# links from /learn to the HSK-levelup project.
+[[redirects]]
+  from   = "/learn"
+  to     = "https://hsk-levelup.netlify.app/"
+  status = 301
+  force  = true
+  query  = { module = "hsk" }
 
 
 [[redirects]]
