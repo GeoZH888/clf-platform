@@ -5,7 +5,7 @@
 // inline below the grid.
 // 教学 → david-zhongwen.net (separate site).  HSK → hsk-levelup.netlify.app.
 // 非遗 → feiyipedia.ci-world.com.  游戏 is a 社区 tile (riddles).
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../school/contexts/AuthContext';
 import { useLanguage } from '../school/contexts/LanguageContext';
 import PersonalDashboard from './dashboard/PersonalDashboard';
@@ -62,7 +62,7 @@ function tr(L, key) {
 
 export default function CommunityHome() {
   const { user, logout } = useAuth();
-  const { language, setLanguage, languages } = useLanguage();
+  const { language } = useLanguage();
   const isPhone = usePhone();
   const [allowedIds, setAllowedIds] = useState(null);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -236,7 +236,6 @@ export default function CommunityHome() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <GlobeMenu current={language} languages={languages} onChange={setLanguage}/>
           {user && (
             <button onClick={() => setShowDashboard(v => !v)} style={{
               background: showDashboard ? '#fff5e6' : 'rgba(255,255,255,0.15)',
@@ -409,58 +408,3 @@ function SortableModuleTile({ mod, hoverColor = '#3b82f6' }) {
   );
 }
 
-// Header language switcher — globe icon button + small popover with flag+name.
-// Click outside to close.
-function GlobeMenu({ current, languages, onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('touchstart', onDocClick);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('touchstart', onDocClick);
-    };
-  }, [open]);
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(v => !v)} aria-label="Language" style={{
-        background: 'rgba(255,255,255,0.15)', color: '#fff5e6',
-        border: '1px solid rgba(255,255,255,0.3)',
-        width: 34, height: 34, borderRadius: 17, padding: 0,
-        cursor: 'pointer', fontSize: 16, fontWeight: 600,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>🌐</button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-          background: '#fff', borderRadius: 12,
-          boxShadow: '0 8px 28px rgba(0,0,0,0.15)',
-          border: '1px solid #e8d5b0',
-          padding: 4, minWidth: 140, zIndex: 50,
-        }}>
-          {languages.map(L => (
-            <button key={L.code} onClick={() => { onChange(L.code); setOpen(false); }} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              width: '100%', padding: '8px 12px', borderRadius: 8,
-              border: 'none', background: current === L.code ? '#fdf2f8' : 'transparent',
-              color: current === L.code ? '#c41e3a' : '#1a0a05',
-              cursor: 'pointer', fontSize: 13,
-              fontWeight: current === L.code ? 700 : 500,
-              textAlign: 'left',
-            }}>
-              <span style={{ fontSize: 16 }}>{L.flag}</span>
-              <span>{L.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}

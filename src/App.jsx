@@ -32,6 +32,8 @@ import { SETS } from './data/characters.js';
 import CLFApp from './clf/CLFApp.jsx';
 import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
+import FloatingLangMenu from './components/FloatingLangMenu.jsx';
+import BackChevron      from './components/BackChevron.jsx';
 import KechuangApp from './kechuang/KechuangApp.jsx';
 import LoginGate         from './auth/LoginGate.jsx';
 import RoleRedirectGate from './auth/RoleRedirectGate.jsx';
@@ -549,6 +551,11 @@ class ErrorBoundary extends React.Component {
  export default function App() {
      return (
        <ErrorBoundary>
+         {/* Universal floating widgets — present on every route. The chevron
+             auto-hides on the community root home; the language menu shows
+             everywhere. */}
+         <BackChevron/>
+         <FloatingLangMenu/>
          {IS_ADMIN_V2 ? <LanguageProvider><AuthProvider><AdminAppV2/></AuthProvider></LanguageProvider>
          : IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
         : IS_LOGIN          ? <LoginGate/>
