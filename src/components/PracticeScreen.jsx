@@ -443,6 +443,9 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
 
   const { getHideStrokeCount, pickNextChar, getNextLearningChar } = useCharacterProgress();
   const gridRef = useRef(null), drawRef = useRef(null), hzRef = useRef(null);
+  // Static background-guide HanziWriter (showCharacter:true, no animation).
+  // Renders from the same stroke data as the trace writer so they line up exactly.
+  const guideHzRef = useRef(null);
   const writer  = useRef(null), dataCache = useRef({});
   const painting = useRef(false), last = useRef({ x:0, y:0, t:0, w:0, pressure:0.5 }), recorded = useRef(false);
 
@@ -487,34 +490,38 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
     setIsAnim(false);
   }, [selScript?.id, char?.c]);
 
-  // ── Grid ──────────────────────────────────────────────────────────
-  const drawGrid = useCallback(async () => {
+  // ── Grid (mizi/tianzi lines only — guide character rendered by HanziWriter below) ──
+  const drawGrid = useCallback(() => {
     const canvas = gridRef.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, S, S);
     if (penMode === 'soft') drawMiziGrid(canvas, S);
     else drawTianziGrid(canvas, S);
-
-    if (showGuide && char?.c) {
-      const fontCss = selScript?.css || "'STKaiti','KaiTi',serif";
-      const fontSize = 230;
-
-      // Wait for font to be ready before drawing on canvas
-      try {
-        await document.fonts.load(`${fontSize}px ${fontCss}`);
-      } catch(e) { /* fallback ok */ }
-
-      ctx.save();
-      ctx.font = `${fontSize}px ${fontCss}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = penMode==='soft' ? 'rgba(139,69,19,0.16)' : 'rgba(0,100,180,0.12)';
-      // Draw at exact center (no +6 offset — that was pushing guide down
-      // relative to HanziWriter's stroke data)
-      ctx.fillText(char.c, S/2, S/2);
-      ctx.restore();
-    }
-  }, [char?.c, selScript, showGuide, penMode]);
+  }, [penMode]);
   useEffect(() => { drawGrid(); }, [drawGrid]);
+
+  // ── Static background-guide character ─────────────────────────────
+  // Rendered by HanziWriter with showCharacter:true, no animation.
+  // Uses the same stroke data + padding as the trace writer below, so the
+  // animated strokes land exactly on top of the faded guide. selScript is
+  // ignored here — HanziWriter's data is style-neutral.
+  useEffect(() => {
+    const el = guideHzRef.current;
+    if (!el) return;
+    el.innerHTML = '';
+    if (!showGuide || !char?.c) return;
+    if (mode === 'dictation' || mode === 'completion') return;
+    HanziWriter.create(el, char.c, {
+      width: S, height: S, padding: 20,
+      showOutline: false, showCharacter: true,
+      strokeColor: penMode === 'soft' ? 'rgba(139,69,19,0.16)' : 'rgba(0,100,180,0.12)',
+      charDataLoader(c, onComplete) {
+        if (dataCache.current[c]) { onComplete(dataCache.current[c]); return; }
+        fetch(`https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1/${c}.json`)
+          .then(r=>r.json()).then(d=>{ dataCache.current[c]=d; onComplete(d); }).catch(()=>{});
+      },
+    });
+  }, [char?.c, showGuide, penMode, mode]);
 
   // ── HanziWriter ───────────────────────────────────────────────────
   useEffect(() => {
@@ -830,6 +837,11 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
         {/* Grid canvas */}
         <div className="canvas-wrap">
           <canvas ref={gridRef} width={S} height={S} style={{zIndex:1}}/>
+          {/* Static guide character. Same coord space as the trace writer
+              below, so animated strokes land exactly on top. */}
+          <div ref={guideHzRef}
+            style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',
+              zIndex:1,pointerEvents:'none'}}/>
           <div ref={hzRef} className={`hz-layer ${mode==='quiz'?'quiz-active':''}`}
             style={{touchAction:'none', userSelect:'none'}}/>
           <canvas ref={drawRef} className="draw-canvas" width={S} height={S}

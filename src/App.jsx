@@ -83,6 +83,10 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
+// Toggle the PWA install nudges (top banner + bottom card). Off for now —
+// flip to true to re-enable both.
+const PWA_INSTALL_ENABLED = false;
+
 const IS_ADMIN_V2 = window.location.pathname.startsWith('/admin-v2');
 const IS_ADMIN    = window.location.pathname.startsWith('/admin') && !IS_ADMIN_V2;
 const IS_KECHUANG = window.location.pathname.startsWith('/kechuang');
@@ -224,12 +228,8 @@ function PWAInstallBanner() {
     // Chrome/Edge Android — native prompt
     const handler = (e) => { e.preventDefault(); setPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
-
-    // Show guide automatically on first visit after scan (once only)
-    const shown = localStorage.getItem('pwa_guide_shown');
-    if (!shown && !window.matchMedia('(display-mode: standalone)').matches) {
-      setTimeout(() => { setShowGuide(true); localStorage.setItem('pwa_guide_shown','1'); }, 3000);
-    }
+    // (Previously: auto-opened the install guide 3s after first visit.
+    //  Removed — the guide now appears only when the user taps 安装.)
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
@@ -384,9 +384,15 @@ function UserApp() {
       <div style={{ maxWidth:430, margin:'0 auto', minHeight:'100dvh',
         display:'flex', flexDirection:'column', background:'var(--bg)' }}>
 
-        {/* ── PWA install banner (shows once after first scan) ── */}
-        <PWAInstallBanner/>
-        <PWAInstallCard lang={uiLang}/>
+        {/* PWA install nudges — disabled via PWA_INSTALL_ENABLED. Flip the
+            flag at the top of this file to re-enable both the top banner
+            and the bottom install card. */}
+        {PWA_INSTALL_ENABLED && (
+          <>
+            <PWAInstallBanner/>
+            <PWAInstallCard lang={uiLang}/>
+          </>
+        )}
 
         <div style={{ flex:1, overflowY:'auto', paddingBottom:72 }}>
         {(screen === 'entrance' || screen === 'platform') && (() => {
