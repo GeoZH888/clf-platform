@@ -60,10 +60,9 @@ export default function FloatingLangMenu() {
     } catch { /* ignore */ }
     setCurrent(code);
     setOpen(false);
-    // Reload so every context picks up the new lang on next mount.
-    // location.reload() preserves the hash / search; users land exactly
-    // where they were, just translated.
-    window.location.reload();
+    // Broadcast the change so every LanguageContext can update its state
+    // in place — no page reload, buttons re-render immediately.
+    window.dispatchEvent(new CustomEvent('clf-langchange', { detail: { lang: code } }));
   }
 
   const activeLabel = LANGS.find(l => l.code === current);

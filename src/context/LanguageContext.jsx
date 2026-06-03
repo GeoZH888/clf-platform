@@ -16,6 +16,17 @@ export function LanguageProvider({ children }) {
     localStorage.setItem('jgw_lang', l);
   };
 
+  // Subscribe to the global 'clf-langchange' event so the floating language
+  // menu (mounted at App.jsx top level) can update us in place — no reload.
+  useEffect(() => {
+    const handler = (e) => {
+      const next = e.detail?.lang;
+      if (next === 'zh' || next === 'en' || next === 'it') setLangState(next);
+    };
+    window.addEventListener('clf-langchange', handler);
+    return () => window.removeEventListener('clf-langchange', handler);
+  }, []);
+
   const t = (key, vars = {}) => {
     const str = I18N[lang]?.[key] || I18N.en?.[key] || key;
     return Object.entries(vars).reduce((s, [k, v]) => s.replace(`{${k}}`, v), str);

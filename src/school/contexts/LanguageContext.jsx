@@ -145,6 +145,17 @@ export const LanguageProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('interfaceLanguage', interfaceLanguage); document.documentElement.lang = interfaceLanguage; }, [interfaceLanguage]);
   useEffect(() => { localStorage.setItem('contentLanguage', contentLanguage); }, [contentLanguage]);
 
+  // Subscribe to the global 'clf-langchange' event from FloatingLangMenu so
+  // language changes propagate in place — no reload, all consumers re-render.
+  useEffect(() => {
+    const handler = (e) => {
+      const next = e.detail?.lang;
+      if (next === 'zh' || next === 'en' || next === 'it') setInterfaceLanguage(next);
+    };
+    window.addEventListener('clf-langchange', handler);
+    return () => window.removeEventListener('clf-langchange', handler);
+  }, []);
+
   const t = (key) => {
     const keys = key.split('.');
     let result = translations[interfaceLanguage];
