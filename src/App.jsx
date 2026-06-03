@@ -334,10 +334,12 @@ function UserApp() {
     </div>
   );
 
-  if (['guest','expired','paused'].includes(status)) {
-    // Public home is at /community; module pages under /learn still require
-    // device-auth login. Show the QR login screen for everyone — the prior
-    // IS_LEARN debug panel is gone.
+  if (['expired','paused'].includes(status)) {
+    // Account is real but blocked (expired session / paused account) — force
+    // them through the login screen. Anonymous 'guest' status falls through
+    // to the module screens below: useProgress is localStorage-only and
+    // useCharacters has a static fallback, so /learn?module=X works without
+    // a Supabase session. Progress is local-only until they log in.
     return (
       <LanguageProvider>
         <QRGate status={status} error={error} loginWithPassword={loginWithPassword}/>
