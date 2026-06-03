@@ -5,8 +5,9 @@
 // inline below the grid.
 // 教学 → david-zhongwen.net (separate site).  HSK → hsk-levelup.netlify.app.
 // 非遗 → feiyipedia.ci-world.com.  游戏 is a 社区 tile (riddles).
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../school/contexts/AuthContext';
+import { useLanguage } from '../school/contexts/LanguageContext';
 import PersonalDashboard from './dashboard/PersonalDashboard';
 import { supabase } from '../school/services/supabase';
 import { MODULES, ALWAYS_ON, STANDARD_BUNDLE } from '../config/modules';
@@ -39,8 +40,29 @@ const ROUTES = {
   chat:'/chat', voice:'/voice', homework:'/homework', shop:'/shop', parents:'/parents',
 };
 
+// Home-only string bundle. We don't add these to LanguageContext because they
+// don't fit the existing namespaces (nav/dashboard/admin/...) and they'd grow
+// that file unnecessarily. Reference like `tr(L, 'visitor')`.
+const HOME_STRINGS = {
+  visitor:     { zh: '欢迎访客 · Visitor', en: 'Welcome, visitor',     it: 'Benvenuto, visitatore' },
+  visitor_tag: { zh: '访客',               en: 'visitor',              it: 'visitatore' },
+  modules:     { zh: '可用模块',           en: 'Modules',              it: 'Moduli' },
+  my_records:  { zh: '我的',               en: 'My',                   it: 'Personale' },
+  my_panel:    { zh: '我的学习记录',       en: 'My learning records',  it: 'I miei progressi' },
+  login:       { zh: '登录',               en: 'Log in',               it: 'Accedi' },
+  logout:      { zh: '退出',               en: 'Log out',              it: 'Esci' },
+  empty:       { zh: '还没有开启任何模块。请联系管理员分配。',
+                 en: 'No modules enabled yet. Please contact admin.',
+                 it: 'Nessun modulo attivo. Contatta l\'admin.' },
+};
+function tr(L, key) {
+  const code = L === 'en' || L === 'it' || L === 'zh' ? L : 'zh';
+  return HOME_STRINGS[key]?.[code] ?? HOME_STRINGS[key]?.zh ?? key;
+}
+
 export default function CommunityHome() {
   const { user, logout } = useAuth();
+  const { language, setLanguage, languages } = useLanguage();
   const isPhone = usePhone();
   const [allowedIds, setAllowedIds] = useState(null);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -187,7 +209,7 @@ export default function CommunityHome() {
               fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: isPhone ? 2 : 4 }}>中文世界</div>
             <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user ? `${user.name || user.email} · ${myRole || 'visitor'}` : '欢迎访客 · Visitor'}
+              {user ? `${user.name || user.email} · ${myRole || tr(language, 'visitor_tag')}` : tr(language, 'visitor')}
             </div>
           </div>
           {institution && (institution.name || institution.logo) && (
@@ -214,6 +236,7 @@ export default function CommunityHome() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <GlobeMenu current={language} languages={languages} onChange={setLanguage}/>
           {user && (
             <button onClick={() => setShowDashboard(v => !v)} style={{
               background: showDashboard ? '#fff5e6' : 'rgba(255,255,255,0.15)',
@@ -223,7 +246,7 @@ export default function CommunityHome() {
               cursor: 'pointer', fontSize: 12, fontWeight: 600,
               display: 'flex', alignItems: 'center', gap: 4,
             }}>
-              <span>🌸</span><span>我的</span>
+              <span>🌸</span><span>{tr(language, 'my_records')}</span>
             </button>
           )}
           {user ? (
@@ -232,24 +255,24 @@ export default function CommunityHome() {
               border: '1px solid rgba(255,255,255,0.3)',
               padding: '8px 14px', borderRadius: 20,
               cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            }}>退出</button>
+            }}>{tr(language, 'logout')}</button>
           ) : (
             <a href="/login" style={{
               background: 'rgba(255,255,255,0.15)', color: '#fff5e6',
               border: '1px solid rgba(255,255,255,0.3)',
               padding: '8px 14px', borderRadius: 20,
               textDecoration: 'none', fontSize: 12, fontWeight: 600,
-            }}>登录</a>
+            }}>{tr(language, 'login')}</a>
           )}
         </div>
       </header>
 
       <main className="app-container" style={{ paddingTop: 24, paddingBottom: 40 }}>
-        <ExpandedSection color="#3b82f6" label="可用模块">
+        <ExpandedSection color="#3b82f6" label={tr(language, 'modules')}>
           {allowedIds === null ? (
             <Loading/>
           ) : communityModules.length === 0 ? (
-            <Empty/>
+            <Empty msg={tr(language, 'empty')}/>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}>
@@ -278,7 +301,7 @@ export default function CommunityHome() {
               marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
               letterSpacing: 2,
             }}>
-              <span>🌸</span><span>我的学习记录</span>
+              <span>🌸</span><span>{tr(language, 'my_panel')}</span>
             </div>
             <PersonalDashboard user={user}/>
           </div>
@@ -386,3 +409,58 @@ function SortableModuleTile({ mod, hoverColor = '#3b82f6' }) {
   );
 }
 
+// Header language switcher — globe icon button + small popover with flag+name.
+// Click outside to close.
+function GlobeMenu({ current, languages, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('touchstart', onDocClick);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('touchstart', onDocClick);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(v => !v)} aria-label="Language" style={{
+        background: 'rgba(255,255,255,0.15)', color: '#fff5e6',
+        border: '1px solid rgba(255,255,255,0.3)',
+        width: 34, height: 34, borderRadius: 17, padding: 0,
+        cursor: 'pointer', fontSize: 16, fontWeight: 600,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>🌐</button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+          background: '#fff', borderRadius: 12,
+          boxShadow: '0 8px 28px rgba(0,0,0,0.15)',
+          border: '1px solid #e8d5b0',
+          padding: 4, minWidth: 140, zIndex: 50,
+        }}>
+          {languages.map(L => (
+            <button key={L.code} onClick={() => { onChange(L.code); setOpen(false); }} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              width: '100%', padding: '8px 12px', borderRadius: 8,
+              border: 'none', background: current === L.code ? '#fdf2f8' : 'transparent',
+              color: current === L.code ? '#c41e3a' : '#1a0a05',
+              cursor: 'pointer', fontSize: 13,
+              fontWeight: current === L.code ? 700 : 500,
+              textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 16 }}>{L.flag}</span>
+              <span>{L.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

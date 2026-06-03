@@ -335,37 +335,9 @@ function UserApp() {
   );
 
   if (['guest','expired','paused'].includes(status)) {
-    // TEMPORARY DEBUG MODE: instead of redirecting, show what's going on.
-    // Once we know why bridge fails on /learn, switch this back to a redirect.
-    if (IS_LEARN) {
-      const savedUser  = (() => { try { return localStorage.getItem('user'); } catch { return null; } })();
-      const savedToken = (() => { try { return localStorage.getItem('token'); } catch { return null; } })();
-      let parsed = null;
-      try { parsed = savedUser ? JSON.parse(savedUser) : null; } catch {}
-      return (
-        <div style={{ padding:24, fontFamily:'monospace', fontSize:13,
-          background:'#fff8e1', color:'#1a0a05', minHeight:'100dvh' }}>
-          <h2 style={{ margin:'0 0 16px' }}>🔍 /learn auth diagnostic</h2>
-          <div><b>pathname:</b> {window.location.pathname}</div>
-          <div><b>search:</b> {window.location.search}</div>
-          <div><b>status:</b> {status}</div>
-          <div><b>error:</b> {error || '(none)'}</div>
-          <div><b>label:</b> {label || '(none)'}</div>
-          <div style={{ marginTop:16 }}><b>localStorage.user present:</b> {String(!!savedUser)}</div>
-          <div><b>localStorage.token present:</b> {String(!!savedToken)}</div>
-          <div><b>parsed.id:</b> {parsed?.id || '(missing)'}</div>
-          <div><b>parsed.role:</b> {parsed?.role || '(missing)'}</div>
-          <div><b>parsed.email:</b> {parsed?.email || '(missing)'}</div>
-          <div style={{ marginTop:16 }}>
-            <a href="/community" style={{ color:'#c41e3a' }}>← back to /community</a>
-          </div>
-          <div style={{ marginTop:24, padding:12, background:'#fff', borderRadius:8 }}>
-            <b>Open browser DevTools Console</b> to see <code>[useStudentAuth]</code> logs that
-            preceded this screen. Copy ALL of them and paste back.
-          </div>
-        </div>
-      );
-    }
+    // Public home is at /community; module pages under /learn still require
+    // device-auth login. Show the QR login screen for everyone — the prior
+    // IS_LEARN debug panel is gone.
     return (
       <LanguageProvider>
         <QRGate status={status} error={error} loginWithPassword={loginWithPassword}/>
