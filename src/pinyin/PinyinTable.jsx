@@ -1,10 +1,11 @@
 // src/pinyin/PinyinTable.jsx
 // 声母韵母表 — IPA display + Azure TTS via SSML phoneme tags
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import VisemeMouth from './VisemeMouth';
 import { useAzureViseme } from '../hooks/useAzureViseme';
 import { INITIAL_IPA, FINAL_IPA } from '../data/pinyinIPA';
 import { getPinyinAudioUrl } from '../lib/pinyinAudio';
+import { supabase } from '../lib/supabase';
 
 // ── Teaching syllables: what Azure should actually pronounce for each sound ──
 // Using isolated IPA phonemes (/p/, /t/, /tɕ/) via SSML causes Azure to
@@ -234,10 +235,51 @@ function DetailPanel({ item, ipaData, color, lang, onClose, speak, speaking, cus
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
+// Reshape DB rows into the {label, color, items} grouping the rest of the
+// component expects. Preserves the row order Supabase returned (sorted by
+// display_order), so the visual order of cards matches the seeded order.
+function rowsToGroups(rows) {
+  const groups = [];
+  const byLabel = new Map();
+  for (const r of rows) {
+    const key = r.category_label || '';
+    let g = byLabel.get(key);
+    if (!g) {
+      g = { label: r.category_label || '', color: r.category_color || '#666', items: [] };
+      byLabel.set(key, g);
+      groups.push(g);
+    }
+    g.items.push({ py: r.py, eg: r.example_char, meaning: r.example_meaning });
+  }
+  return groups;
+}
+
 export default function PinyinTable({ lang='zh', onBack }) {
   const [tab,    setTab]    = useState('initial');
   const [active, setActive] = useState(null);
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it : en;
+
+  // Load 声母韵母表 from Supabase. If the table is empty / unreachable, the
+  // hardcoded INITIAL_GROUPS / FINAL_GROUPS above act as a safety fallback
+  // so the page still renders during local dev or migration rollout.
+  const [dbInitials, setDbInitials] = useState(null);
+  const [dbFinals,   setDbFinals]   = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('clf_pinyin_phonemes')
+        .select('kind, py, category_label, category_color, example_char, example_meaning, display_order')
+        .order('kind').order('display_order');
+      if (cancelled) return;
+      if (error) { console.warn('[PinyinTable] fetch failed, using static fallback:', error.message); return; }
+      const ini = rowsToGroups((data || []).filter(r => r.kind === 'initial'));
+      const fin = rowsToGroups((data || []).filter(r => r.kind === 'final'));
+      if (ini.length) setDbInitials(ini);
+      if (fin.length) setDbFinals(fin);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // speak() three-tier flow:
   //   1. Custom recording from admin panel (if exists for this sound)
@@ -290,7 +332,9 @@ export default function PinyinTable({ lang='zh', onBack }) {
   // Unified "is audio playing right now" flag for UI
   const isPlaying = speaking || customPlaying;
 
-  const groups = tab === 'initial' ? INITIAL_GROUPS : FINAL_GROUPS;
+  const groups = tab === 'initial'
+    ? (dbInitials || INITIAL_GROUPS)
+    : (dbFinals   || FINAL_GROUPS);
   const ipaMap  = tab === 'initial' ? INITIAL_IPA : FINAL_IPA;
 
   let activeItem = null, activeColor = '#1976D2';
