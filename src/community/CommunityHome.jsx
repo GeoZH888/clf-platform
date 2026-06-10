@@ -21,6 +21,18 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Tile palette — keyed by module category. Soft tints harmonize with the cream
+// page background; the accent is used for label + border + hover glow so each
+// tile reads instantly as 学习 / 文化 / 练习 without needing a legend.
+const CATEGORY_PALETTE = {
+  learning: { tint: '#ecfdf5', accent: '#0d9488', soft: '#a7f3d0' }, // teal — study
+  cultural: { tint: '#fef3c7', accent: '#b45309', soft: '#fcd34d' }, // amber — heritage
+  practice: { tint: '#ede9fe', accent: '#6d28d9', soft: '#c4b5fd' }, // violet — conversation
+  core:     { tint: '#dbeafe', accent: '#1d4ed8', soft: '#93c5fd' }, // blue — nav
+  future:   { tint: '#f3f4f6', accent: '#6b7280', soft: '#d1d5db' }, // gray — placeholder
+};
+const paletteFor = (cat) => CATEGORY_PALETTE[cat] || CATEGORY_PALETTE.core;
+
 const ROUTES = {
   home:'/', profile:'/profile', progress:'/progress',
   // Learning modules — deep-link into UserApp via /learn?module=X.
@@ -150,7 +162,7 @@ export default function CommunityHome() {
   // ── Draggable community tiles ──────────────────────────────────────
   // The tiles shown in the 可用模块 grid (excludes home/profile/progress).
   const baseTiles = communityModules.filter(
-    m => !['home', 'profile', 'progress'].includes(m.id)
+    m => !['home', 'profile', 'progress', 'lessons', 'homework'].includes(m.id)
   );
   // Apply the user's saved drag order; any modules not yet in the saved
   // order (e.g. newly enabled) are appended at the end in default order.
@@ -267,7 +279,7 @@ export default function CommunityHome() {
       </header>
 
       <main className="app-container" style={{ paddingTop: 24, paddingBottom: 40 }}>
-        <ExpandedSection color="#3b82f6" label={tr(language, 'modules')}>
+        <section style={{ marginTop: 32 }}>
           {allowedIds === null ? (
             <Loading/>
           ) : communityModules.length === 0 ? (
@@ -279,13 +291,13 @@ export default function CommunityHome() {
                 strategy={rectSortingStrategy}>
                 <TileGrid>
                   {orderedTiles.map(m => (
-                    <SortableModuleTile key={m.id} mod={m} hoverColor="#3b82f6"/>
+                    <SortableModuleTile key={m.id} mod={m}/>
                   ))}
                 </TileGrid>
               </SortableContext>
             </DndContext>
           )}
-        </ExpandedSection>
+        </section>
 
         {showDashboard && user && (
           <div style={{
@@ -333,12 +345,12 @@ function TileGrid({ children }) {
   return (
     <div style={{
       display: 'grid',
-      // Phones: 2-up tiles (140px min fits two columns at ~360px wide).
+      // Phones: 2-up tiles (130px min fits two columns at ~340px wide with gap).
       // Larger screens: roomy auto-fill at 180px.
       gridTemplateColumns: isPhone
-        ? 'repeat(auto-fill, minmax(140px, 1fr))'
+        ? 'repeat(auto-fill, minmax(130px, 1fr))'
         : 'repeat(auto-fill, minmax(180px, 1fr))',
-      gap: isPhone ? 12 : 18,
+      gap: isPhone ? 10 : 18,
     }}>
       {children}
     </div>
@@ -363,8 +375,10 @@ function Empty({ msg }) {
 // Module tile — drag to reorder, tap to open.
 // dnd-kit's PointerSensor (8px) / TouchSensor (220ms) ensure a quick tap
 // does NOT start a drag, so navigation still works on click.
-function SortableModuleTile({ mod, hoverColor = '#3b82f6' }) {
+function SortableModuleTile({ mod }) {
   const [hovered, setHovered] = useState(false);
+  const isPhone = usePhone();
+  const palette = paletteFor(mod.category);
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: mod.id });
@@ -376,6 +390,12 @@ function SortableModuleTile({ mod, hoverColor = '#3b82f6' }) {
     opacity: isDragging ? 0.85 : 1,
   };
 
+  const iconSize  = isPhone ? 38 : 48;
+  const labelSize = isPhone ? 20 : 28;
+  const padV      = isPhone ? 18 : 28;
+  const padH      = isPhone ? 10 : 16;
+  const iconBoxSz = isPhone ? 56 : 72;
+
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <button
@@ -385,22 +405,36 @@ function SortableModuleTile({ mod, hoverColor = '#3b82f6' }) {
         style={{
           width: '100%',
           background: '#fff',
-          border: `1.5px solid ${isDragging ? hoverColor : hovered ? hoverColor : '#e8d5b0'}`,
-          borderRadius: 16, padding: '28px 16px',
+          border: `1.5px solid ${isDragging || hovered ? palette.accent : palette.soft}`,
+          borderRadius: 16,
+          padding: `${padV}px ${padH}px`,
           cursor: isDragging ? 'grabbing' : 'pointer',
-          transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+          transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s, background 0.2s',
           transform: isDragging ? 'scale(1.06)' : hovered ? 'translateY(-3px)' : 'none',
           boxShadow: isDragging
-            ? `0 16px 36px ${hoverColor}55`
-            : hovered ? `0 10px 24px ${hoverColor}33` : '0 2px 6px rgba(0,0,0,0.04)',
-          textAlign: 'center', color: '#1a0a05',
+            ? `0 16px 36px ${palette.accent}55`
+            : hovered ? `0 10px 24px ${palette.accent}33` : '0 2px 6px rgba(0,0,0,0.04)',
+          textAlign: 'center',
+          color: '#1a0a05',
           touchAction: 'manipulation',
           WebkitTapHighlightColor: 'transparent',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: isPhone ? 8 : 12,
         }}>
-        <div style={{ fontSize: 48, marginBottom: 12, lineHeight: 1,
-          pointerEvents: 'none' }}>{mod.icon}</div>
-        <div style={{ fontSize: 28, fontWeight: 700, pointerEvents: 'none',
-          fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: 3 }}>
+        <div style={{
+          width: iconBoxSz, height: iconBoxSz, borderRadius: '50%',
+          background: palette.tint,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: iconSize, lineHeight: 1,
+          pointerEvents: 'none',
+        }}>{mod.icon}</div>
+        <div style={{
+          fontSize: labelSize, fontWeight: 700, pointerEvents: 'none',
+          fontFamily: "'STKaiti','KaiTi',serif",
+          letterSpacing: isPhone ? 1 : 3,
+          color: palette.accent,
+          lineHeight: 1.15,
+        }}>
           {mod.label}
         </div>
       </button>
