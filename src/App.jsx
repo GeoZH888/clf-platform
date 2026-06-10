@@ -43,6 +43,7 @@ import StudentApp       from './student/StudentApp.jsx';
 import ParentApp        from './parent/ParentApp.jsx';
 import CommunityApp from './community/CommunityApp.jsx';
 import KnowledgeMapGate from './knowledge/KnowledgeMapGate.jsx';
+import { IS_TEACHING } from './lib/appMode.js';
 // ── Fix title + random panda favicon ─────────────────────────────
 document.title = '中文世界';
 
@@ -521,11 +522,14 @@ function UserApp() {
   );
 }
 
-// Public home is /community (CommunityApp). Anything that fell through to the
-// catch-all (e.g. someone landing on /) gets bounced there. Replace, not push,
-// so the browser back button still escapes the SPA.
+// Public home depends on deployment mode:
+//   teaching (david-zhongwen.net) → /role-redirect (login → role panel)
+//   allinone (zhongwen.ci-world.com) → /community (public hub)
+// Replace, not push, so the browser back button still escapes the SPA.
 function RootRedirect() {
-  React.useEffect(() => { window.location.replace('/community'); }, []);
+  React.useEffect(() => {
+    window.location.replace(IS_TEACHING ? '/role-redirect' : '/community');
+  }, []);
   return null;
 }
 
@@ -567,7 +571,7 @@ class ErrorBoundary extends React.Component {
         : IS_PARENT         ? <ParentApp/>
         : IS_LEARN          ? <LanguageProvider><UserApp/></LanguageProvider>
         : IS_KECHUANG ? <LanguageProvider><KechuangApp/></LanguageProvider>
-        : IS_COMMUNITY      ? <CommunityApp/>
+        : IS_COMMUNITY      ? (IS_TEACHING ? <RootRedirect/> : <CommunityApp/>)
         :              <RootRedirect/>}
        </ErrorBoundary>
      );
