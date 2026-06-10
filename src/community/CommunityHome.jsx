@@ -56,6 +56,7 @@ const ROUTES = {
 // don't fit the existing namespaces (nav/dashboard/admin/...) and they'd grow
 // that file unnecessarily. Reference like `tr(L, 'visitor')`.
 const HOME_STRINGS = {
+  site_title:  { zh: '中文世界',           en: 'Chinese World',        it: 'Mondo Cinese' },
   visitor:     { zh: '欢迎访客 · Visitor', en: 'Welcome, visitor',     it: 'Benvenuto, visitatore' },
   visitor_tag: { zh: '访客',               en: 'visitor',              it: 'visitatore' },
   modules:     { zh: '可用模块',           en: 'Modules',              it: 'Moduli' },
@@ -66,6 +67,13 @@ const HOME_STRINGS = {
   empty:       { zh: '还没有开启任何模块。请联系管理员分配。',
                  en: 'No modules enabled yet. Please contact admin.',
                  it: 'Nessun modulo attivo. Contatta l\'admin.' },
+  // Role labels — keyed by user.role enum.
+  super_admin:    { zh: '超级管理员', en: 'Super admin',    it: 'Super admin' },
+  admin:          { zh: '管理员',     en: 'Admin',          it: 'Admin' },
+  school_master:  { zh: '校长',       en: 'Principal',      it: 'Direttore' },
+  teacher:        { zh: '教师',       en: 'Teacher',        it: 'Insegnante' },
+  student:        { zh: '学生',       en: 'Student',        it: 'Studente' },
+  parent:         { zh: '家长',       en: 'Parent',         it: 'Genitore' },
 };
 function tr(L, key) {
   const code = L === 'en' || L === 'it' || L === 'zh' ? L : 'zh';
@@ -218,10 +226,12 @@ export default function CommunityHome() {
         <div style={{ display: 'flex', alignItems: 'center', gap: isPhone ? 10 : 14, minWidth: 0 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: isPhone ? 19 : 22, fontWeight: 700,
-              fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: isPhone ? 2 : 4 }}>中文世界</div>
+              fontFamily: "'STKaiti','KaiTi',serif", letterSpacing: isPhone ? 2 : 4 }}>{tr(language, 'site_title')}</div>
             <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user ? `${user.name || user.email} · ${myRole || tr(language, 'visitor_tag')}` : tr(language, 'visitor')}
+              {user
+                ? `${user.name || user.email} · ${HOME_STRINGS[myRole] ? tr(language, myRole) : (myRole || tr(language, 'visitor_tag'))}`
+                : tr(language, 'visitor')}
             </div>
           </div>
           {institution && (institution.name || institution.logo) && (
