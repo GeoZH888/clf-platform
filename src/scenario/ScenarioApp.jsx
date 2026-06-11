@@ -6,12 +6,14 @@
 //     Chinese line is always shown with pinyin below; user can toggle the
 //     translation in their UI language (en/it) on/off.
 //
-// Lang source: useLanguage() from school/contexts/LanguageContext — kept
-// reactive via the global 'clf-langchange' event from FloatingLangMenu.
+// Lang source: useLang() from ../context/LanguageContext — this is the
+// provider App.jsx wraps the /learn tree with, kept reactive via the global
+// 'clf-langchange' event from FloatingLangMenu. (The other LanguageContext
+// under school/contexts/ is not mounted on this route.)
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
-import { useLanguage } from '../school/contexts/LanguageContext';
+import { useLang } from '../context/LanguageContext.jsx';
 import { usePhone } from '../hooks/useMediaQuery';
 
 const PALETTE = {
@@ -54,9 +56,9 @@ const CATEGORY_LABEL = {
 const catLabel = (id, L) => CATEGORY_LABEL[id]?.[L] || id;
 
 export default function ScenarioApp({ onBack }) {
-  const { language } = useLanguage();
+  const { lang } = useLang();
   const isPhone = usePhone();
-  const L = language === 'en' || language === 'it' || language === 'zh' ? language : 'zh';
+  const L = lang === 'en' || lang === 'it' || lang === 'zh' ? lang : 'zh';
 
   const [scenarios, setScenarios] = useState(null);  // null = loading
   const [openId, setOpenId] = useState(null);
