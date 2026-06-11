@@ -9,7 +9,9 @@
     "build": "vite build && node scripts/stamp-sw.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:lianzi":   "vite --config vite.lianzi.config.js",
+    "build:lianzi": "vite build --config vite.lianzi.config.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
