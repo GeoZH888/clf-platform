@@ -1,0 +1,19 @@
+{
+  "appId": "com.ciworld.lianzi",
+  "appName": "练字",
+  "webDir": "dist-lianzi",
+  "backgroundColor": "#fdf6e3",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}
