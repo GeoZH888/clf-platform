@@ -30,6 +30,8 @@ export const MODULES = [
   { id: 'poetry',     label: '诗歌',     icon: '🪶', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community' },
   { id: 'grammar',    label: '语法',     icon: '📐', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },
   { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community' },  // 游戏 merged into 社区
+  { id: 'radicals',   label: '部首听音', icon: '🧩', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },  // 偏旁部首 + 读音 drill
+  { id: 'compose',    label: '组字工坊', icon: '🧱', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community' },  // 义符+声符 composition
   { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community' },
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community' },
 

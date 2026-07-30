@@ -17,6 +17,8 @@ import GrammarApp     from './grammar/GrammarApp.jsx';
 import PoetryApp      from './poetry/PoetryApp.jsx';
 import GamesApp       from './games/GamesApp.jsx';
 import RiddleGame     from './games/RiddleGame.jsx';
+import RadicalGame    from './games/RadicalGame.jsx';
+import CompositionGame from './games/CompositionGame.jsx';
 import ChengyuApp     from './chengyu/ChengyuApp.jsx';
 import ScenarioApp    from './scenario/ScenarioApp.jsx';
 import StoryApp       from './story/StoryApp.jsx';
@@ -466,6 +468,12 @@ function UserApp() {
           )}
           {screen === 'riddles' && (
             <RiddleGame onClose={()=>setScreen('platform')}/>
+          )}
+          {screen === 'radicals' && (
+            <RadicalGame onBack={()=>{ window.location.href = '/community'; }}/>
+          )}
+          {screen === 'compose' && (
+            <CompositionGame onBack={()=>{ window.location.href = '/community'; }}/>
           )}
           {screen === 'search' && (
             <SearchScreen onPractice={practiceChar}/>
