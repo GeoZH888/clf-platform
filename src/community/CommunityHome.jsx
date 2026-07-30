@@ -45,6 +45,8 @@ const ROUTES = {
   poetry:  '/learn?module=poetry',
   grammar: '/learn?module=grammar',
   riddles: '/learn?module=riddles',
+  radicals:'/learn?module=radicals',
+  compose: '/learn?module=compose',
   scenario:'/learn?module=scenario',
   story:   '/learn?module=story',
   // Non-learning links — leave as before until those routes are built

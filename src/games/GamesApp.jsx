@@ -1,47 +1,17 @@
 // src/games/GamesApp.jsx
-// 游戏中心 — 4 mini-games drawing content from all learning modules
-// Games: Speed Quiz | Memory Match | Falling Sky | Word Chain
+// 游戏中心 — 5 mini-games drawing content from all learning modules
+// Games: Speed Quiz | Memory Match | Falling Sky | Word Chain | Radical & Sound
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
 import { useScreenHistory } from '../hooks/useScreenHistory.js';
+import { shuffle, awardPoints, ScoreBadge, Lives, ResultScreen } from './gameUi.jsx';
+import RadicalGame from './RadicalGame.jsx';
+import CompositionGame from './CompositionGame.jsx';
 
 // Unity frame — only loaded when a Unity game is actually launched
 const UnityGameFrame = lazy(() => import('./UnityGameFrame.jsx'));
-
-const TOKEN_KEY = 'jgw_device_token';
-
-// ── Shared helpers ─────────────────────────────────────────────────────────────
-function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
-function getToken()   { return localStorage.getItem(TOKEN_KEY); }
-async function awardPoints(action, pts) {
-  const token = getToken();
-  if (!token) return;
-  await supabase.from('jgw_points').insert({ device_token:token, module:'games', action, points:pts });
-}
-
-// ── Score Badge ────────────────────────────────────────────────────────────────
-function ScoreBadge({ score, label, color='#8B4513' }) {
-  return (
-    <div style={{ background:'#fff', borderRadius:12, padding:'8px 16px',
-      border:`1.5px solid ${color}33`, textAlign:'center', minWidth:80 }}>
-      <div style={{ fontSize:22, fontWeight:800, color }}>{score}</div>
-      <div style={{ fontSize:10, color:'#a07850' }}>{label}</div>
-    </div>
-  );
-}
-
-// ── Lives display ──────────────────────────────────────────────────────────────
-function Lives({ count, max=3 }) {
-  return (
-    <div style={{ display:'flex', gap:4 }}>
-      {Array.from({length:max}, (_,i) => (
-        <span key={i} style={{ fontSize:18, opacity: i < count ? 1 : 0.2 }}>❤️</span>
-      ))}
-    </div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GAME 1: ⚡ 闪电问答 — Speed Quiz with lives + combo multiplier
@@ -572,47 +542,6 @@ function WordSpell({ items, onBack, lang }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Result Screen
-// ══════════════════════════════════════════════════════════════════════════════
-function ResultScreen({ score, total, max, icon, title, onBack, onReplay, lang, extra }) {
-  const t = (zh, en) => lang==='zh' ? zh : en;
-  const pct  = Math.round((score / max) * 100);
-  const star = pct >= 80 ? 3 : pct >= 50 ? 2 : 1;
-  const msg  = pct >= 80 ? ['🏆', t('太棒了！','Excellent!')]
-             : pct >= 50 ? ['👍', t('很好！','Good job!')]
-             : ['💪', t('继续练习！','Keep practicing!')];
-  return (
-    <div style={{ minHeight:'100dvh', background:'#1a0a05', display:'flex', flexDirection:'column',
-      alignItems:'center', justifyContent:'center', padding:24, gap:20 }}>
-      <div style={{ fontSize:60 }}>{msg[0]}</div>
-      <div style={{ fontSize:20, fontWeight:700, color:'#fdf6e3' }}>{msg[1]}</div>
-      <div style={{ display:'flex', gap:4 }}>
-        {[1,2,3].map(s => <span key={s} style={{ fontSize:32, opacity:s<=star?1:0.2 }}>⭐</span>)}
-      </div>
-      <div style={{ background:'#2a1a0a', borderRadius:20, padding:'20px 32px', textAlign:'center',
-        border:'1px solid #5D2E0C', minWidth:200 }}>
-        <div style={{ fontSize:40, fontWeight:800, color:'#F57F17' }}>{score}</div>
-        <div style={{ fontSize:13, color:'#a07850' }}>{t('总分','Total Score')}</div>
-        {extra && <div style={{ fontSize:11, color:'#a07850', marginTop:4 }}>{extra}</div>}
-      </div>
-      <div style={{ display:'flex', gap:12 }}>
-        <button onClick={onReplay}
-          style={{ padding:'12px 28px', borderRadius:14, border:'none',
-            background:'#8B4513', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer' }}>
-          🔄 {t('再玩一次','Play Again')}
-        </button>
-        <button onClick={onBack}
-          style={{ padding:'12px 24px', borderRadius:14,
-            border:'1px solid #5D2E0C', background:'transparent',
-            color:'#fdf6e3', fontSize:14, cursor:'pointer' }}>
-          {t('返回','Back')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // Main GamesApp — hub + data loading
 // ══════════════════════════════════════════════════════════════════════════════
 export default function GamesApp({ onBack }) {
@@ -727,7 +656,21 @@ export default function GamesApp({ onBack }) {
       desc:    t('看意思，拼出正确词语','See the meaning, tap characters to spell the word','Componi la parola'),
       tag:     t('拼写','Spell','Componi'),
     },
+    { id:'radical', icon:'🧩', color:'#00897B', bg:'#00140f',
+      title:   t('部首听音','Radical & Sound','Radicali e Suoni'),
+      desc:    t('听读音认部首，找出同偏旁的字','Hear the radical, learn its sound and spot characters that use it','Ascolta il radicale e trova i caratteri che lo usano'),
+      tag:     t('部首·读音','Radicals','Radicali'),
+    },
+    { id:'compose', icon:'🧱', color:'#5C6BC0', bg:'#0b0e1f',
+      title:   t('组字工坊','Character Workshop','Officina dei Caratteri'),
+      desc:    t('义符+声符，拼出汉字、拆开汉字、自由发现新字','Meaning part + sound part — build, take apart, and discover characters','Costruisci, scomponi e scopri caratteri'),
+      tag:     t('组字','Compose','Componi'),
+    },
   ];
+
+  // Both radical games run on their own bundled datasets — no module content needed.
+  if (game === 'radical') return <RadicalGame onBack={()=>setGame(null)} lang={lang}/>;
+  if (game === 'compose') return <CompositionGame onBack={()=>setGame(null)} lang={lang}/>;
 
   if (game === 'speed')   return <SpeedQuiz   items={allItems}  onBack={()=>setGame(null)} lang={lang}/>;
   if (game === 'memory')  return <MemoryMatch  items={allItems}  onBack={()=>setGame(null)} lang={lang}/>;
