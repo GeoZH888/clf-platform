@@ -26,12 +26,28 @@ import { CSS } from '@dnd-kit/utilities';
 // tile reads instantly as 学习 / 文化 / 练习 without needing a legend.
 const CATEGORY_PALETTE = {
   learning: { tint: '#ecfdf5', accent: '#0d9488', soft: '#a7f3d0' }, // teal — study
+  games:    { tint: '#ffe4e6', accent: '#be123c', soft: '#fecdd3' }, // rose — play
   cultural: { tint: '#fef3c7', accent: '#b45309', soft: '#fcd34d' }, // amber — heritage
   practice: { tint: '#ede9fe', accent: '#6d28d9', soft: '#c4b5fd' }, // violet — conversation
   core:     { tint: '#dbeafe', accent: '#1d4ed8', soft: '#93c5fd' }, // blue — nav
   future:   { tint: '#f3f4f6', accent: '#6b7280', soft: '#d1d5db' }, // gray — placeholder
 };
 const paletteFor = (cat) => CATEGORY_PALETTE[cat] || CATEGORY_PALETTE.core;
+
+// Section order for 分组 layout. Anything with a category not listed here still
+// renders, in a trailing group — so a new category can't silently vanish.
+const CATEGORY_ORDER = ['learning', 'games', 'cultural', 'practice'];
+const CATEGORY_ICON  = { learning:'📚', games:'🎮', cultural:'🎋', practice:'💬' };
+
+// Layout preference. Kept in localStorage rather than clf_user_profiles: it needs
+// to work for signed-out visitors too, and adding a profile column would mean a
+// migration that must be run before this deploys. Trade-off is that the choice
+// does not follow a user across devices.
+const LAYOUT_KEY = 'clf_module_layout';
+function loadLayout() {
+  const v = localStorage.getItem(LAYOUT_KEY);
+  return v === 'flat' || v === 'grouped' ? v : 'grouped';
+}
 
 const ROUTES = {
   home:'/', profile:'/profile', progress:'/progress',
@@ -62,6 +78,13 @@ const HOME_STRINGS = {
   visitor:     { zh: '欢迎访客 · Visitor', en: 'Welcome, visitor',     it: 'Benvenuto, visitatore' },
   visitor_tag: { zh: '访客',               en: 'visitor',              it: 'visitatore' },
   modules:     { zh: '可用模块',           en: 'Modules',              it: 'Moduli' },
+  // Layout switcher + 分组 section headings.
+  lay_grouped: { zh: '分组',               en: 'Grouped',              it: 'Gruppi' },
+  lay_flat:    { zh: '平铺',               en: 'All icons',            it: 'Tutte' },
+  cat_learning:{ zh: '学习',               en: 'Learning',             it: 'Studio' },
+  cat_games:   { zh: '游戏',               en: 'Games',                it: 'Giochi' },
+  cat_cultural:{ zh: '文化',               en: 'Culture',              it: 'Cultura' },
+  cat_practice:{ zh: '练习',               en: 'Practice',             it: 'Pratica' },
   my_records:  { zh: '我的',               en: 'My',                   it: 'Personale' },
   my_panel:    { zh: '我的学习记录',       en: 'My learning records',  it: 'I miei progressi' },
   login:       { zh: '登录',               en: 'Log in',               it: 'Accedi' },
@@ -81,6 +104,11 @@ function tr(L, key) {
   const code = L === 'en' || L === 'it' || L === 'zh' ? L : 'zh';
   return HOME_STRINGS[key]?.[code] ?? HOME_STRINGS[key]?.zh ?? key;
 }
+// Section heading for a category. Unknown categories fall back to their raw id
+// rather than showing a missing translation key.
+function catLabel(L, cat) {
+  return HOME_STRINGS[`cat_${cat}`] ? tr(L, `cat_${cat}`) : cat;
+}
 
 export default function CommunityHome() {
   const { user, logout } = useAuth();
@@ -90,6 +118,12 @@ export default function CommunityHome() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [institution, setInstitution] = useState(null);
   const [moduleOrder, setModuleOrder] = useState(null);  // custom drag order (array of ids)
+  const [layout, setLayout] = useState(loadLayout);      // 'grouped' | 'flat'
+
+  function chooseLayout(next) {
+    setLayout(next);
+    try { localStorage.setItem(LAYOUT_KEY, next); } catch { /* private mode */ }
+  }
 
   // Drag sensors: mouse needs an 8px move before dragging (so taps still click);
   // touch needs a 220ms long-press (so scroll/tap still work, drag is deliberate).
@@ -200,6 +234,16 @@ export default function CommunityHome() {
     }
   }
 
+  // Tiles bucketed into sections for the 分组 layout. Categories outside
+  // CATEGORY_ORDER still render, in a trailing group, so nothing can go missing.
+  const groups = (() => {
+    const byCat = {};
+    orderedTiles.forEach(m => { (byCat[m.category] = byCat[m.category] || []).push(m); });
+    const known = CATEGORY_ORDER.filter(c => byCat[c]?.length);
+    const extra = Object.keys(byCat).filter(c => !CATEGORY_ORDER.includes(c));
+    return [...known, ...extra].map(cat => ({ cat, mods: byCat[cat] }));
+  })();
+
   function handleDragEnd(event) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -207,6 +251,12 @@ export default function CommunityHome() {
     const from = ids.indexOf(active.id);
     const to   = ids.indexOf(over.id);
     if (from < 0 || to < 0) return;
+    // In 分组 the grid is sorted into sections, so dragging across sections would
+    // save an order the view can't show. Only reordering within a section counts.
+    if (layout === 'grouped') {
+      const byId = Object.fromEntries(orderedTiles.map(m => [m.id, m]));
+      if (byId[active.id]?.category !== byId[over.id]?.category) return;
+    }
     saveOrder(arrayMove(ids, from, to));
   }
 
@@ -297,17 +347,38 @@ export default function CommunityHome() {
           ) : communityModules.length === 0 ? (
             <Empty msg={tr(language, 'empty')}/>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}>
-              <SortableContext items={orderedTiles.map(m => m.id)}
-                strategy={rectSortingStrategy}>
-                <TileGrid>
-                  {orderedTiles.map(m => (
-                    <SortableModuleTile key={m.id} mod={m}/>
-                  ))}
-                </TileGrid>
-              </SortableContext>
-            </DndContext>
+            <>
+              <LayoutSwitch layout={layout} onChange={chooseLayout} language={language}/>
+              <DndContext sensors={sensors} collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}>
+                {layout === 'flat' ? (
+                  <SortableContext items={orderedTiles.map(m => m.id)}
+                    strategy={rectSortingStrategy}>
+                    <TileGrid>
+                      {orderedTiles.map(m => (
+                        <SortableModuleTile key={m.id} mod={m}/>
+                      ))}
+                    </TileGrid>
+                  </SortableContext>
+                ) : (
+                  groups.map(g => (
+                    <ExpandedSection key={g.cat}
+                      color={paletteFor(g.cat).accent}
+                      label={`${CATEGORY_ICON[g.cat] || '·'} ${catLabel(language, g.cat)}`}>
+                      {/* One SortableContext per section keeps drags inside it. */}
+                      <SortableContext items={g.mods.map(m => m.id)}
+                        strategy={rectSortingStrategy}>
+                        <TileGrid>
+                          {g.mods.map(m => (
+                            <SortableModuleTile key={m.id} mod={m}/>
+                          ))}
+                        </TileGrid>
+                      </SortableContext>
+                    </ExpandedSection>
+                  ))
+                )}
+              </DndContext>
+            </>
           )}
         </section>
 
@@ -349,6 +420,40 @@ function ExpandedSection({ color, label, extras, children }) {
       </div>
       {children}
     </section>
+  );
+}
+
+// 分组 / 平铺 switch. Sits above the grid; the choice is per-browser (localStorage).
+function LayoutSwitch({ layout, onChange, language }) {
+  const opts = [
+    { id:'grouped', glyph:'▦', label: tr(language, 'lay_grouped') },
+    { id:'flat',    glyph:'⠿', label: tr(language, 'lay_flat')    },
+  ];
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom: 4 }}>
+      <div style={{ fontSize:12, color:'#a07850', letterSpacing:2, flex:1 }}>
+        {tr(language, 'modules')}
+      </div>
+      <div style={{ display:'flex', background:'#fff', border:'1px solid #e7d8bd',
+        borderRadius:20, padding:2, gap:2 }}>
+        {opts.map(o => {
+          const on = layout === o.id;
+          return (
+            <button key={o.id} onClick={() => onChange(o.id)}
+              style={{ display:'flex', alignItems:'center', gap:5,
+                background: on ? '#c41e3a' : 'transparent',
+                color: on ? '#fff5e6' : '#a07850',
+                border:'none', borderRadius:18, padding:'6px 12px',
+                fontSize:12, fontWeight:600, cursor:'pointer',
+                transition:'background 0.15s, color 0.15s',
+                WebkitTapHighlightColor:'transparent' }}>
+              <span style={{ fontSize:13 }}>{o.glyph}</span>
+              <span>{o.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
