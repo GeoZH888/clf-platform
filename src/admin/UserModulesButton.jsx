@@ -205,6 +205,7 @@ function UserModulesModal({ user, onClose, onSaved }) {
   const categoryLabels = {
     core:     '🏠 核心 (始终开启)',
     learning: '📚 学习',
+    games:    '🎮 游戏',
     practice: '✍️ 练习',
     cultural: '🏮 文化',
     admin:    '⚙️ 管理',
