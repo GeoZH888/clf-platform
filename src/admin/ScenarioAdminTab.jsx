@@ -11,12 +11,24 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
   text:'#1a0a05', text2:'#6b4c2a', text3:'#a07850',
   vermillion:'#8B4513',
 };
+
+// Field spec for "✨ AI 生成" in the scenario creator.
+const AI_SCENARIO_FIELDS = [
+  { key:'title_zh',   label:'中文标题', hint:'short scene title in Simplified Chinese, 2-6 characters, e.g. 在面包店' },
+  { key:'title_en',   label:'EN title', hint:'the same title in English' },
+  { key:'title_it',   label:'IT title', hint:'the same title in Italian' },
+  { key:'summary_zh', label:'中文摘要', hint:'one or two sentences in Simplified Chinese describing what happens in this conversation' },
+  { key:'summary_en', label:'EN summary', hint:'the same summary in English' },
+  { key:'summary_it', label:'IT summary', hint:'the same summary in Italian' },
+  { key:'cover_emoji',label:'封面 emoji', hint:'a single emoji that represents this scene' },
+];
 
 const CATEGORIES = [
   { id: 'daily',   label: '日常 Daily' },
@@ -433,6 +445,16 @@ function CreateScenarioModal({ onClose, onSubmit }) {
         maxHeight: '90vh', overflowY: 'auto', padding: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: V.text, marginBottom: 4 }}>新建场景</div>
         <div style={{ fontSize: 12, color: V.text3, marginBottom: 16 }}>Create new scenario</div>
+
+        {/* Fill 中文标题, then 🌐 completes EN/IT for title and summary */}
+        <AiFieldAssistant
+          values={form}
+          onPatch={patch => setForm(f => ({ ...f, ...patch }))}
+          context={form.title_zh
+            ? `a Chinese conversation practice scenario titled 「${form.title_zh}」, category ${form.category}, difficulty ${form.difficulty}`
+            : 'a Chinese conversation practice scenario'}
+          generate={{ subject: `Chinese conversation scenario 「${form.title_zh}」`, fields: AI_SCENARIO_FIELDS }}
+        />
 
         <Field label="Slug *" hint="URL 友好的 ID,只能小写字母+数字+连字符"
           value={form.slug} onChange={v => set('slug', v)} placeholder="bakery-morning" />
