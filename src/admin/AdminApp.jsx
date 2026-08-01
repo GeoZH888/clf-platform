@@ -34,6 +34,11 @@ import AIConfigTab from './AIConfigTab';
 import SchemaDiscoveryTab from './SchemaDiscoveryTab';
 import ContentManagementTab from './ContentManagementTab';
 import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+// Merged in from the retired /admin-v2 shell. These reach Supabase directly
+// (no AuthContext), so they drop into this panel unchanged.
+import AccountsManagement from './v2/AccountsManagement';
+import PlatformAnalyticsTab from './v2/PlatformAnalyticsTab';
+import TeacherKnowledgeMap from './v2/pillars/TeacherKnowledgeMap';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -1100,6 +1105,11 @@ function AnalyticsTab({ chars }) {
 // ── Sidebar navigation ────────────────────────────────────────────
 // Single source of truth for the left nav. The order is user-customisable
 // (long-press + drag) and persisted in localStorage as ids only.
+//
+// superOnly: true → super_admin sees it, school_master does not. Those tabs
+// came from /admin-v2, which gated its whole panel to super_admin; folding
+// them in here without the flag would hand school_master account
+// administration and the platform audit log.
 const ADMIN_TABS = [
   { id:'characters',       icon:'📝', label:'字符管理',     en:'Characters' },
   { id:'corpus',           icon:'📚', label:'语料库 RAG',   en:'Corpus RAG' },
@@ -1113,11 +1123,17 @@ const ADMIN_TABS = [
   { id:'grammar',          icon:'📐', label:'语法',         en:'Grammar' },
   { id:'scenarios',        icon:'💬', label:'场景对话',     en:'Scenarios' },
   { id:'stories',          icon:'📖', label:'故事会',       en:'Stories' },
-  { id:'users',            icon:'👥', label:'用户',         en:'Users' },
+  { id:'module-content',   icon:'🧩', label:'模块内容',     en:'Module content' },
+  { id:'accounts',         icon:'🗂', label:'账户管理',     en:'Accounts',           superOnly:true },
+  { id:'users',            icon:'👥', label:'用户活动',     en:'User activity' },
+  { id:'teaching',         icon:'🏫', label:'教学地图',     en:'Knowledge map' },
+  { id:'platform',         icon:'📈', label:'平台分析',     en:'Platform analytics', superOnly:true },
   { id:'analytics',        icon:'📊', label:'AI 分析',      en:'AI analytics' },
+  { id:'ai-config',        icon:'🤖', label:'AI 配置',      en:'AI config' },
   { id:'apikeys',          icon:'🔑', label:'API Keys',     en:'API keys' },
-  { id:'panda',            icon:'🐼', label:'Panda Studio', en:'Panda studio' },
   { id:'prompts',          icon:'🎯', label:'Prompt 模板',  en:'Prompt templates' },
+  { id:'schema',           icon:'🗄', label:'表结构发现',   en:'Schema discovery',   superOnly:true },
+  { id:'panda',            icon:'🐼', label:'Panda Studio', en:'Panda studio' },
 ];
 const ADMIN_TAB_IDS = ADMIN_TABS.map(t => t.id);
 const NAV_ITEM_H    = 42;   // row height + gap — the reorder maths depends on it
@@ -1280,13 +1296,17 @@ export default function AdminApp() {
     c.meaning_en?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Sort ADMIN_TABS by saved order — always safe, always complete
+  // Sort ADMIN_TABS by saved order — always safe, always complete —
+  // then drop the super_admin-only tabs for anyone else (school_master).
+  const isSuper  = profile?.role === 'super_admin';
+  const visible  = ADMIN_TABS.filter(t => !t.superOnly || isSuper);
+  const visibleIds = visible.map(t => t.id);
   const TABS = [
-    ...tabOrder.filter(id => ADMIN_TAB_IDS.includes(id)).map(id => ADMIN_TABS.find(t => t.id === id)),
-    ...ADMIN_TABS.filter(t => !tabOrder.includes(t.id)),
+    ...tabOrder.filter(id => visibleIds.includes(id)).map(id => visible.find(t => t.id === id)),
+    ...visible.filter(t => !tabOrder.includes(t.id)),
   ].filter(Boolean);
 
-  const orderIsCustom = TABS.map(t => t.id).join() !== ADMIN_TAB_IDS.join();
+  const orderIsCustom = TABS.map(t => t.id).join() !== visibleIds.join();
 
   function startReorder(e, idx) {
     e.preventDefault();
@@ -1683,6 +1703,16 @@ export default function AdminApp() {
 
         {tab==='users'     && <UsersTab/>}
         {tab==='analytics' && <AIAnalyticsTab/>}
+
+        {/* Merged in from /admin-v2. The superOnly tabs are gated here as well
+            as in the sidebar, so a stale saved tab cannot render them. */}
+        {tab==='accounts'       && isSuper && <AccountsManagement/>}
+        {tab==='platform'       && isSuper && <PlatformAnalyticsTab/>}
+        {tab==='schema'         && isSuper && <SchemaDiscoveryTab/>}
+        {tab==='teaching'       && <TeacherKnowledgeMap/>}
+        {tab==='ai-config'      && <AIConfigTab/>}
+        {tab==='module-content' && <ContentManagementTab/>}
+
         {tab==='register-invites' && <RegistrationInviteAdminTab/>}
         {tab==='pinyin'       && <PinyinAdminTab/>}
         {tab==='pinyin-audio' && <AdminPinyinAudio/>}
