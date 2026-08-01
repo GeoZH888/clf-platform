@@ -52,9 +52,11 @@ function keyMatchesRef(key, ref) {
   } catch { return false; }
 }
 
-// Single shared project for BOTH deployments (teaching + allinone). The
-// VITE_APP_MODE split only changes the UI/routing per site, not the database —
-// one user base, role-based access via RLS. See appMode.js.
+// Single shared project for BOTH repos. The teaching system now lives in
+// github.com/GeoZH888/lingua-school (david-zhongwen.net) and points at this
+// same project: one user base, one clf_user_profiles table, role-based access
+// via RLS. The split is UI/routing and deployment only, never the database —
+// so a schema change here can break that repo too. See appMode.js.
 const supabaseUrl = validUrl(import.meta.env.VITE_SUPABASE_URL) || FALLBACK_URL;
 
 // Prefer the env key when it matches the resolved project; else the fallback
