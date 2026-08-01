@@ -3,9 +3,34 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { getPrompt } from '../lib/prompts.js';
 import { parseTolerant } from '../lib/json-utils.js';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
 
 const V = { bg:'#fdf6e3',card:'#fff',border:'#e8d5b0',text:'#1a0a05',text2:'#6b4c2a',text3:'#a07850',verm:'#8B4513' };
 const GOLD = '#C8972A';
+
+// clf_poems keeps the Chinese title in bare `title`, so the *_zh/_en/_it
+// auto-detection cannot find it — the groups are declared by hand.
+const POETRY_LANG_GROUPS = [
+  { base:'title',       fields:{ zh:'title',          en:'title_en',       it:'title_it' } },
+  { base:'translation', fields:{ zh:'translation_zh', en:'translation_en', it:'translation_it' } },
+  { base:'background',  fields:{ zh:'background_zh',  en:'background_en',  it:'background_it' } },
+  { base:'notes',       fields:{ zh:'notes_zh',       en:'notes_en',       it:'notes_it' } },
+];
+
+// Field spec for "✨ AI 生成" on a poem. Deliberately excludes `lines` — the
+// poem text itself must never be AI-invented.
+const AI_POETRY_FIELDS = [
+  { key:'title_en',       label:'EN title', hint:'the poem title in English, as an established translation would render it' },
+  { key:'title_it',       label:'IT title', hint:'the poem title in Italian' },
+  { key:'translation_zh', label:'中文译文', hint:'白话文 paraphrase of the poem in modern Simplified Chinese, line by line' },
+  { key:'translation_en', label:'EN',       hint:'English translation that reads as poetry, preserving imagery and line breaks — not a literal gloss' },
+  { key:'translation_it', label:'IT',       hint:'Italian translation that reads as poetry, preserving imagery and line breaks' },
+  { key:'background_zh',  label:'背景',     hint:'背景故事 in Simplified Chinese — when and why the poet wrote this, 2-3 sentences' },
+  { key:'background_en',  label:'EN bg',    hint:'the same background in English' },
+  { key:'background_it',  label:'IT bg',    hint:'the same background in Italian' },
+  { key:'notes_zh',       label:'注解',     hint:'注解 in Simplified Chinese explaining difficult characters or allusions' },
+  { key:'notes_en',       label:'EN notes', hint:'the same notes in English' },
+];
 const DYNASTIES = ['唐','宋','汉','元','明','清','先秦','魏晋','近代'];
 const TYPES = ['五言绝句','七言绝句','五言律诗','七言律诗','词','古风','其他'];
 
@@ -884,6 +909,20 @@ export default function PoetryAdminTab() {
                       ) : null)
                     )}
                   </div>
+
+                  {/* AI assistant — groups are passed explicitly because this
+                      table stores the Chinese title in bare `title`, not
+                      `title_zh`, so auto-detection would miss it. */}
+                  <AiFieldAssistant
+                    values={editForm}
+                    onPatch={patch => setEditForm(f => ({ ...f, ...patch }))}
+                    groups={POETRY_LANG_GROUPS}
+                    context={`the classical Chinese poem 《${editForm.title || ''}》 by ${editForm.author || '?'} (${editForm.dynasty || '?'}朝). Translations must read as poetry, not as literal glosses.`}
+                    generate={{
+                      subject: `the classical Chinese poem 《${editForm.title || ''}》 by ${editForm.author || '?'}`,
+                      fields: AI_POETRY_FIELDS,
+                    }}
+                  />
 
                   {/* ── Translations ── */}
                   <div style={{ fontSize:11, fontWeight:700, color:GOLD, marginBottom:8 }}>🌐 译文 Translations</div>

@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { THEMES, STARTER_WORDS } from '../data/wordsData';
 import { composeWordImage, dataURLtoBlob } from '../utils/imageComposer';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+import { AI_WORD_FIELDS } from './lib/aiFieldSpecs.js';
 
 // ── TTS helper: Azure first, browser speechSynthesis fallback ──────────────
 async function speakChinese(text) {
@@ -164,6 +166,14 @@ function WordRow({ w, imgProvider, onSaved, onDeleted }) {
     return (
       <tr style={{ background:'#f5f5f5' }}>
         <td colSpan={8} style={{ padding:'10px 12px' }}>
+          {/* Fill any one language, then 🌐 completes the rest */}
+          <AiFieldAssistant
+            values={form}
+            onPatch={patch => setForm(f => ({ ...f, ...patch }))}
+            context={`Chinese word 「${form.word_zh}」${form.pinyin ? ` (${form.pinyin})` : ''}, HSK level ${form.hsk_level || '?'}`}
+            generate={{ subject: `Chinese word 「${form.word_zh}」`, fields: AI_WORD_FIELDS }}
+            compact
+          />
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
             {[
               ['word_zh','汉字'], ['pinyin','拼音'],

@@ -9,6 +9,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import GrammarPointBatchPanel from './GrammarPointBatchPanel.jsx';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+
+// Field spec for "✨ AI 生成" on a grammar topic. `examples` is excluded —
+// it is a structured array the form edits separately.
+const AI_GRAMMAR_FIELDS = [
+  { key:'title_zh',    label:'中文标题', hint:'the grammar point name in Simplified Chinese, e.g. 把字句' },
+  { key:'title_en',    label:'EN title', hint:'the grammar point name in English, as a textbook would label it, e.g. Disposal: 把' },
+  { key:'title_it',    label:'IT title', hint:'the grammar point name in Italian' },
+  { key:'explanation', label:'说明',     hint:'explanation of when and how to use this pattern, in Simplified Chinese, 2-4 sentences, aimed at a learner' },
+];
 
 const V = {
   bg: '#fdf6e3', card: '#fff', border: '#e8d5b0',
@@ -338,6 +348,17 @@ export default function GrammarAdminTab() {
 
         {/* ── Topic form ── */}
         <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
+          {/* Fill 中文标题, then 🌐 completes EN/IT */}
+          <AiFieldAssistant
+            values={topicForm}
+            onPatch={patch => setTopicForm(f => ({ ...f, ...patch }))}
+            context={topicForm.title_zh
+              ? `the Chinese grammar point 「${topicForm.title_zh}」, taught at level ${topicForm.level}`
+              : 'a Chinese grammar point'}
+            generate={{ subject: `the Chinese grammar point 「${topicForm.title_zh}」`, fields: AI_GRAMMAR_FIELDS }}
+            compact
+          />
+
           <Row label="ID (slug)" hint="英文小写 + 下划线，如 ba_zi_ju">
             <input value={topicForm.id}
               onChange={e => setTopicForm(f => ({ ...f, id: e.target.value }))}

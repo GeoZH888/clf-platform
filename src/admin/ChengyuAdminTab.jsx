@@ -12,6 +12,17 @@ import { supabase } from '../lib/supabase.js';
 import { getPrompt } from '../lib/prompts.js';
 import { parseTolerant } from '../lib/json-utils.js';
 import ChengyuImageEditorModal from './ChengyuImageEditorModal.jsx';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+
+// Field spec for "✨ AI 生成" in the idiom editor.
+const AI_CHENGYU_FIELDS = [
+  { key:'pinyin',     label:'拼音',  hint:'Hanyu Pinyin with tone marks, syllables space-separated' },
+  { key:'meaning_zh', label:'释义',  hint:'释义, in Simplified Chinese, 1-2 sentences' },
+  { key:'meaning_en', label:'EN',    hint:'meaning in English, 1-2 sentences, explaining the figurative sense not the literal characters' },
+  { key:'meaning_it', label:'IT',    hint:'meaning in Italian, 1-2 sentences, figurative sense' },
+  { key:'story_zh',   label:'典故',  hint:'the classical origin story (典故) in Simplified Chinese, about 200 characters, suitable for a learner' },
+  { key:'example_zh', label:'例句',  hint:'one natural modern example sentence in Simplified Chinese using this idiom' },
+];
 
 // ── Illustration styles ───────────────────────────────────────────────────────
 const IMG_STYLES = [
@@ -664,6 +675,14 @@ function EditIdiomModal({ idiom, onClose, onSaved, onEditImage }) {
             ×
           </button>
         </div>
+
+        {/* Fill any one language, then 🌐 completes the rest */}
+        <AiFieldAssistant
+          values={form}
+          onPatch={patch => setForm(f => ({ ...f, ...patch }))}
+          context={`Chinese idiom 成语「${form.idiom}」${form.pinyin ? ` (${form.pinyin})` : ''}`}
+          generate={{ subject: `Chinese idiom 成语「${form.idiom}」`, fields: AI_CHENGYU_FIELDS }}
+        />
 
         {/* Image preview + edit button */}
         <div style={{ marginBottom:16, textAlign:'center' }}>

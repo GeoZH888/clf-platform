@@ -15,6 +15,7 @@ import WordIllustrationStudio from './WordIllustrationStudio.jsx';
 import BatchWordIllustrationModal from './BatchWordIllustrationModal.jsx';
 import WordsBatchGenerateModal from './WordsBatchGenerateModal.jsx';
 import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+import { AI_WORD_FIELDS } from './lib/aiFieldSpecs.js';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -23,17 +24,6 @@ const V = {
 };
 
 const THEMES = ['greetings','family','food','numbers','colors','body','time','travel','general'];
-
-// Field spec for "✨ AI 生成" in the word form.
-const AI_WORD_FIELDS = [
-  { key:'pinyin',     label:'拼音',   hint:'Hanyu Pinyin with tone marks, syllables space-separated, e.g. nǐ hǎo' },
-  { key:'meaning_en', label:'EN',     hint:'meaning in English, a few words — this is a dictionary gloss, not a sentence' },
-  { key:'meaning_it', label:'IT',     hint:'meaning in Italian, a few words' },
-  { key:'meaning_zh', label:'中文',   hint:'释义, in Simplified Chinese, one short line' },
-  { key:'example_zh', label:'例句',   hint:'one natural example sentence in Simplified Chinese using this word, suitable for a beginner' },
-  { key:'example_en', label:'Example',hint:'English translation of the example sentence' },
-  { key:'example_it', label:'Esempio',hint:'Italian translation of the example sentence' },
-];
 
 export default function WordsAdminTab() {
   const [words, setWords]             = useState([]);
