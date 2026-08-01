@@ -5,7 +5,7 @@ import { IS_TEACHING } from '../lib/appMode.js';
 // allinone site (zhongwen-allinone): everyone lands on /community; the 教学 card
 // there links teaching roles over to the teaching site.
 const ROLE_HOME_ALLINONE = {
-  super_admin:   '/admin-v2',
+  super_admin:   '/admin',
   school_master: '/community',
   teacher:       '/community',
   student:       '/community',
@@ -13,7 +13,7 @@ const ROLE_HOME_ALLINONE = {
 };
 // teaching site (david-zhongwen.net): land each role directly in its own panel.
 const ROLE_HOME_TEACHING = {
-  super_admin:   '/admin-v2',
+  super_admin:   '/admin',
   school_master: '/school-master',
   teacher:       '/teacher',
   student:       '/student',

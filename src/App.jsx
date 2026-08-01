@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useScreenHistory, useExitConfirm } from './hooks/useScreenHistory.js';
 import { supabase } from './lib/supabase.js';
 import AdminApp       from './admin/AdminApp.jsx';
-import AdminAppV2     from './admin/AdminAppV2.jsx';
-import { AuthProvider } from './school/contexts/AuthContext';
 import HomeScreen     from './components/HomeScreen.jsx';
 import SetScreen      from './components/SetScreen.jsx';
 import PracticeScreen from './components/PracticeScreen.jsx';
@@ -94,8 +92,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 // flip to true to re-enable both.
 const PWA_INSTALL_ENABLED = false;
 
-const IS_ADMIN_V2 = window.location.pathname.startsWith('/admin-v2');
-const IS_ADMIN    = window.location.pathname.startsWith('/admin') && !IS_ADMIN_V2;
+// /admin-v2 was merged into /admin — the panel is called /admin, full stop.
+// This redirect only keeps old bookmarks and the v2 sidebar's own links alive.
+if (window.location.pathname.startsWith('/admin-v2')) {
+  window.location.replace('/admin' + window.location.search + window.location.hash);
+}
+const IS_ADMIN    = window.location.pathname.startsWith('/admin');
 const IS_KECHUANG = window.location.pathname.startsWith('/kechuang');
 const IS_LOGIN          = window.location.pathname.startsWith('/login');
   const IS_COMMUNITY      = window.location.pathname.startsWith('/community');
@@ -530,8 +532,7 @@ class ErrorBoundary extends React.Component {
              everywhere. */}
          <BackChevron/>
          <FloatingLangMenu/>
-         {IS_ADMIN_V2 ? <LanguageProvider><AuthProvider><AdminAppV2/></AuthProvider></LanguageProvider>
-         : IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
+         {IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
         : IS_LOGIN          ? <LoginGate/>
         : IS_KNOWLEDGE_MAP            ? <KnowledgeMapGate/>
         : IS_ROLE_REDIRECT  ? <RoleRedirectGate/>
