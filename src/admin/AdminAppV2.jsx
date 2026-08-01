@@ -13,7 +13,6 @@ import AccountsManagement from './v2/AccountsManagement';
 import PlatformAnalyticsTab from './v2/PlatformAnalyticsTab';
 import GamePillar from './v2/pillars/GamePillar';
 import CommunityPillar from './v2/pillars/CommunityPillar';
-import TeacherKnowledgeMap from './v2/pillars/TeacherKnowledgeMap';
 import AIConfigTab from './AIConfigTab';
 import ApiKeyManager from './ApiKeyManager';
 import PromptTemplatesTab from './PromptTemplatesTab';
@@ -31,8 +30,11 @@ const FOUNDATION_TABS = [
   { id: 'platform',    icon: '📊', label: '平台分析',    desc: '用户、信号、审计日志' },
 ];
 
+// 教学 is no longer a pillar here — the teaching system moved to its own
+// deployment (github.com/GeoZH888/lingua-school → david-zhongwen.net), which
+// carries its own admin at /admin. Both still read one Supabase project, so a
+// user created in either place shows up in the other.
 const MODULE_TABS = [
-  { id: 'pillar-school',    icon: '🏫', label: '教学',  desc: '作业、班级、课程、教师工具', color: '#c41e3a' },
   { id: 'pillar-community', icon: '🌐', label: '社区',  desc: '练字、词语、拼音、成语、诗歌、语法、课程等', color: '#3b82f6' },
   { id: 'pillar-game',      icon: '🎮', label: '游戏',  desc: '猜灯谜及其他趣味模块', color: '#10b981' },
   { id: 'pillar-future',    icon: '✨', label: '未来',  desc: '小卖部、家长门户、其他规划中模块', color: '#6b7280' },
@@ -52,7 +54,6 @@ const PILLAR_HINTS = {
     { name: 'ScenarioAdminTab',      desc: '场景对话管理' },
   ],
   'pillar-game':   [{ name: 'RiddleAdminTab', desc: '猜灯谜管理' }],
-  'pillar-school': [{ name: '(待建)', desc: '教学内容管理（下一会话构建）' }],
   'pillar-future': [{ name: '(待建)', desc: '未来模块（小卖部、家长门户等）' }],
 };
 
@@ -289,15 +290,9 @@ function TabContent({ activeTab }) {
     );
   }
 
-  // 教学 pillar — Teacher Knowledge Map (Phase G.9)
-  if (activeTab === 'pillar-teaching') {
-    return (
-      <div>
-        <SectionHeader icon="🏫" title="教学" subtitle="班级整体掌握情况 · 知识点热度图" color="#c41e3a"/>
-        <TeacherKnowledgeMap/>
-      </div>
-    );
-  }
+  // (A 教学 pillar rendering TeacherKnowledgeMap used to sit here. It was
+  // already unreachable — it tested activeTab === 'pillar-teaching' while the
+  // tab id was 'pillar-school'. The component moved to lingua-school's /admin.)
 
   // Module pillars
   const moduleTab = MODULE_TABS.find(t => t.id === activeTab);

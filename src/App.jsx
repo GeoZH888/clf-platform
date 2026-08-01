@@ -41,13 +41,9 @@ import BackChevron      from './components/BackChevron.jsx';
 import KechuangApp from './kechuang/KechuangApp.jsx';
 import LoginGate         from './auth/LoginGate.jsx';
 import RoleRedirectGate from './auth/RoleRedirectGate.jsx';
-import TeacherApp       from './teacher/TeacherApp.jsx';
-import SchoolMasterApp  from './school-master/SchoolMasterApp.jsx';
-import StudentApp       from './student/StudentApp.jsx';
-import ParentApp        from './parent/ParentApp.jsx';
 import CommunityApp from './community/CommunityApp.jsx';
 import KnowledgeMapGate from './knowledge/KnowledgeMapGate.jsx';
-import { IS_TEACHING } from './lib/appMode.js';
+import { TEACHING_URL } from './lib/appMode.js';
 // ── Fix title + random panda favicon ─────────────────────────────
 document.title = '中文世界';
 
@@ -101,11 +97,18 @@ const IS_LOGIN          = window.location.pathname.startsWith('/login');
   const IS_COMMUNITY      = window.location.pathname.startsWith('/community');
 const IS_KNOWLEDGE_MAP            = window.location.pathname.startsWith('/knowledge-map');
 const IS_ROLE_REDIRECT  = window.location.pathname.startsWith('/role-redirect');
-const IS_TEACHER        = window.location.pathname.startsWith('/teacher');
-const IS_SCHOOL_MASTER  = window.location.pathname.startsWith('/school-master');
-const IS_STUDENT        = window.location.pathname.startsWith('/student');
-const IS_PARENT         = window.location.pathname.startsWith('/parent');
 const IS_LEARN          = window.location.pathname.startsWith('/learn');
+
+// ── Teaching system — moved out ───────────────────────────────────
+// The 教务管理系统 (teacher / student / parent / school-master panels) now
+// lives in its own repo + deployment: github.com/GeoZH888/lingua-school →
+// david-zhongwen.net. These paths used to mount the panels from this bundle.
+// They are kept as forwarders so existing bookmarks, QR codes and any links
+// still pointing here land on the right place instead of a blank SPA route.
+const TEACHING_PATHS = ['/teacher', '/school-master', '/student', '/parent'];
+const IS_TEACHING_PATH = TEACHING_PATHS.some(
+  p => window.location.pathname === p || window.location.pathname.startsWith(p + '/')
+);
 // ── Minimal Settings screen ───────────────────────────────────────
 // Language switcher + user info + logout. Split into own file when it grows.
 function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
@@ -492,15 +495,31 @@ function UserApp() {
   );
 }
 
-// Public home depends on deployment mode:
-//   teaching (david-zhongwen.net) → /role-redirect (login → role panel)
-//   allinone (zhongwen.ci-world.com) → /community (public hub)
+// CommunityHome (/community) is THE public home for this site. (This used to
+// branch on IS_TEACHING; that build mode is gone — see lib/appMode.js.)
 // Replace, not push, so the browser back button still escapes the SPA.
 function RootRedirect() {
   React.useEffect(() => {
-    window.location.replace(IS_TEACHING ? '/role-redirect' : '/community');
+    window.location.replace('/community');
   }, []);
   return null;
+}
+
+// Forward a retired teaching path to the same path on the teaching site, so
+// /teacher/homework lands on david-zhongwen.net/teacher/homework rather than
+// its home. Rendered instead of the old panel mount.
+function TeachingRedirect() {
+  React.useEffect(() => {
+    const { pathname, search, hash } = window.location;
+    window.location.replace(TEACHING_URL + pathname + search + hash);
+  }, []);
+  return (
+    <div style={{ minHeight:'100dvh', display:'flex', alignItems:'center',
+      justifyContent:'center', background:'#fdf6e3', color:'#a07850',
+      fontSize:14, textAlign:'center', padding:24 }}>
+      正在前往教务管理系统…<br/>Redirecting to the teaching portal…
+    </div>
+  );
 }
 
 class ErrorBoundary extends React.Component {
@@ -535,13 +554,10 @@ class ErrorBoundary extends React.Component {
         : IS_LOGIN          ? <LoginGate/>
         : IS_KNOWLEDGE_MAP            ? <KnowledgeMapGate/>
         : IS_ROLE_REDIRECT  ? <RoleRedirectGate/>
-        : IS_TEACHER        ? <TeacherApp/>
-        : IS_SCHOOL_MASTER  ? <SchoolMasterApp/>
-        : IS_STUDENT        ? <StudentApp/>
-        : IS_PARENT         ? <ParentApp/>
+        : IS_TEACHING_PATH  ? <TeachingRedirect/>
         : IS_LEARN          ? <LanguageProvider><UserApp/></LanguageProvider>
         : IS_KECHUANG ? <LanguageProvider><KechuangApp/></LanguageProvider>
-        : IS_COMMUNITY      ? (IS_TEACHING ? <RootRedirect/> : <CommunityApp/>)
+        : IS_COMMUNITY      ? <CommunityApp/>
         :              <RootRedirect/>}
        </ErrorBoundary>
      );
