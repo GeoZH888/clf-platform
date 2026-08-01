@@ -646,7 +646,9 @@ Colorful, cheerful, minimalist, high contrast edges.`;
 // ── Generate text (free-form prompt) ─────────────────────────────
 async function handleGenerateText({ prompt, max_tokens = 1500 }, provider, headers) {
   if (!prompt) throw new Error('Missing: prompt');
-  const raw = await callClaude(prompt, max_tokens);
+  // Honour the caller's provider — this used to hardcode Claude, which made
+  // the provider selector in every admin tab a no-op.
+  const raw = await callAI(provider, prompt, max_tokens);
   // Return result/content/text as aliases so any consumer shape works
   return {
     statusCode: 200,

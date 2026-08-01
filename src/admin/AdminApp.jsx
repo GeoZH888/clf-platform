@@ -33,6 +33,7 @@ import StoryAdminTab from './StoryAdminTab.jsx';
 import AIConfigTab from './AIConfigTab';
 import SchemaDiscoveryTab from './SchemaDiscoveryTab';
 import ContentManagementTab from './ContentManagementTab';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -53,6 +54,19 @@ const CHAR_IMG_STYLES = [
 const CHAR_IMG_PROVIDERS = [
   { id:'stability',  label:'Stability AI' },
   { id:'dalle3',     label:'DALL-E 3' },
+];
+
+// Field spec handed to the AI assistant for "✨ AI 生成" on a character.
+// The hint is what the model is told the column must contain.
+const AI_CHAR_FIELDS = [
+  { key:'pinyin',             label:'Pinyin',        hint:'Hanyu Pinyin with tone marks, e.g. ri4 written as rì' },
+  { key:'meaning_en',         label:'Meaning (EN)',  hint:'core meaning in English, 1-2 short sentences' },
+  { key:'meaning_zh',         label:'Meaning (中文)', hint:'core meaning in Simplified Chinese, 1-2 short sentences' },
+  { key:'meaning_it',         label:'Meaning (IT)',  hint:'core meaning in Italian, 1-2 short sentences' },
+  { key:'mnemonic_en',        label:'Mnemonic (EN)', hint:'one vivid sentence in English linking the character SHAPE to its meaning' },
+  { key:'mnemonic_zh',        label:'Mnemonic (中文)',hint:'one vivid sentence in Simplified Chinese linking the shape to the meaning' },
+  { key:'mnemonic_it',        label:'Mnemonic (IT)', hint:'one vivid sentence in Italian linking the shape to the meaning' },
+  { key:'visual_description', label:'Visual desc',   hint:'one concrete visual scene depicting the meaning, for illustration generation — no text or characters in the scene' },
 ];
 
 // ── TTS helper: Azure first, browser fallback ─────────────────────────────
@@ -778,6 +792,26 @@ function EditCharModal({ char, onClose, onSave }) {
     else alert('Error: ' + error.message);
   };
 
+  // ── Bridge between the modal's individual useState fields and the
+  // column-keyed shape the AI assistant works in.
+  const aiSetters = {
+    pinyin: setPinyin,
+    meaning_en: setMeaningEn, meaning_zh: setMeaningZh, meaning_it: setMeaningIt,
+    mnemonic_en: setMnemonicEn, mnemonic_zh: setMnemonicZh, mnemonic_it: setMnemonicIt,
+    visual_description: setVisualDesc,
+  };
+  const aiValues = {
+    pinyin,
+    meaning_en: meaningEn, meaning_zh: meaningZh, meaning_it: meaningIt,
+    mnemonic_en: mnemonicEn, mnemonic_zh: mnemonicZh, mnemonic_it: mnemonicIt,
+    visual_description: visualDesc,
+  };
+  function applyAiPatch(patch) {
+    for (const [key, val] of Object.entries(patch)) aiSetters[key]?.(String(val));
+    // The illustration prompt is derived from meaning/visual — let it re-derive
+    if (patch.visual_description || patch.meaning_en) setPromptDirty(false);
+  }
+
   const field = (label, val, setter, ph, type='text') => (
     <div style={{ marginBottom:10 }}>
       <label style={{ fontSize:12, color:V.text3, display:'block', marginBottom:4 }}>{label}</label>
@@ -907,45 +941,23 @@ function EditCharModal({ char, onClose, onSave }) {
           </div>
         </div>
 
+        {/* AI assistant — translates any filled language into the others,
+            and generates every empty field from the character itself. */}
+        <AiFieldAssistant
+          values={aiValues}
+          onPatch={applyAiPatch}
+          context={`Chinese character ${char.glyph_modern}${pinyin ? ` (${pinyin})` : ''}, taught via its oracle-bone origin`}
+          generate={{ subject: `Chinese character ${char.glyph_modern}`, fields: AI_CHAR_FIELDS }}
+        />
+
         {field('Pinyin',        pinyin,     setPinyin,     'e.g. rì')}
         {field('Meaning (EN)',  meaningEn,  setMeaningEn,  'English meaning')}
         {field('Meaning (中文)', meaningZh,  setMeaningZh,  'Chinese meaning')}
         {field('Meaning (IT)',  meaningIt,  setMeaningIt,  'Italian meaning')}
-        {/* Mnemonic section with auto-translate */}
         <div style={{ background:V.bg, border:`1px solid ${V.border}`, borderRadius:10,
           padding:'10px 12px', marginBottom:10 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-            <div style={{ fontSize:12, fontWeight:600, color:V.vermillion }}>
-              📝 Mnemonics · 助记
-            </div>
-            <button onClick={async () => {
-              if (!mnemonicEn.trim()) {
-                alert('请先填写 Mnemonic (EN)');
-                return;
-              }
-              try {
-                const prompt = `Translate this English memory mnemonic into Simplified Chinese and Italian. Keep it as a concise 1-sentence memory hook that preserves the SHAPE-to-MEANING connection. Return ONLY valid JSON (no markdown, no explanation): {"zh":"...","it":"..."}\n\nEnglish: ${mnemonicEn.replace(/[\"]/g, '')}`;
-                const res = await fetch('/.netlify/functions/ai-gateway', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ provider: 'claude', prompt, max_tokens: 500 }),
-                });
-                const d = await res.json();
-                const raw = (d.content || d.text || d.result || '').replace(/```json|```/g, '').trim();
-                const match = raw.match(/\{[\s\S]*\}/);
-                if (!match) throw new Error('No JSON in response');
-                const parsed = JSON.parse(match[0]);
-                if (parsed.zh) setMnemonicZh(parsed.zh);
-                if (parsed.it) setMnemonicIt(parsed.it);
-              } catch (e) {
-                alert('翻译失败: ' + e.message);
-              }
-            }}
-            style={{ padding:'4px 10px', fontSize:11, borderRadius:6,
-              border:'none', background:V.vermillion, color:'#fff',
-              cursor:'pointer' }}>
-              🌐 EN → 中文 + IT
-            </button>
+          <div style={{ fontSize:12, fontWeight:600, color:V.vermillion, marginBottom:8 }}>
+            📝 Mnemonics · 助记
           </div>
           {field('Mnemonic (EN)',  mnemonicEn, setMnemonicEn, 'Memory hook connecting shape to meaning…')}
           {field('Mnemonic (中文)', mnemonicZh, setMnemonicZh, '形状与含义的记忆连接…')}
