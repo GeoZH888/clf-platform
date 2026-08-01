@@ -1085,6 +1085,36 @@ function AnalyticsTab({ chars }) {
   );
 }
 
+// ── Sidebar navigation ────────────────────────────────────────────
+// Single source of truth for the left nav. The order is user-customisable
+// (long-press + drag) and persisted in localStorage as ids only.
+const ADMIN_TABS = [
+  { id:'characters',       icon:'📝', label:'字符管理',     en:'Characters' },
+  { id:'corpus',           icon:'📚', label:'语料库 RAG',   en:'Corpus RAG' },
+  { id:'words',            icon:'🈶', label:'词语',         en:'Words' },
+  { id:'poetry',           icon:'📜', label:'诗歌',         en:'Poetry' },
+  { id:'riddles',          icon:'🏮', label:'灯谜',         en:'Riddles' },
+  { id:'register-invites', icon:'📬', label:'邀请注册',     en:'Invites' },
+  { id:'pinyin',           icon:'🔤', label:'拼音',         en:'Pinyin' },
+  { id:'pinyin-audio',     icon:'🎤', label:'拼音音库',     en:'Pinyin audio' },
+  { id:'chengyu',          icon:'🀄', label:'成语',         en:'Chengyu' },
+  { id:'grammar',          icon:'📐', label:'语法',         en:'Grammar' },
+  { id:'scenarios',        icon:'💬', label:'场景对话',     en:'Scenarios' },
+  { id:'stories',          icon:'📖', label:'故事会',       en:'Stories' },
+  { id:'users',            icon:'👥', label:'用户',         en:'Users' },
+  { id:'analytics',        icon:'📊', label:'AI 分析',      en:'AI analytics' },
+  { id:'apikeys',          icon:'🔑', label:'API Keys',     en:'API keys' },
+  { id:'panda',            icon:'🐼', label:'Panda Studio', en:'Panda studio' },
+  { id:'prompts',          icon:'🎯', label:'Prompt 模板',  en:'Prompt templates' },
+];
+const ADMIN_TAB_IDS = ADMIN_TABS.map(t => t.id);
+const NAV_ITEM_H    = 42;   // row height + gap — the reorder maths depends on it
+const NAV_PAD_T     = 8;    // nav list top padding — ditto
+const NAV_W         = 216;
+const NAV_W_MINI    = 60;
+const NAV_BREAKPOINT= 860;  // below this the sidebar becomes an overlay drawer
+const TOPBAR_H      = 56;
+
 // ── Main AdminApp ─────────────────────────────────────────────────
 export default function AdminApp() {
   const { session, isAdmin, isContributor, contributorName, profile, loading, signIn, signOut } = useAdminAuth();
@@ -1100,56 +1130,43 @@ export default function AdminApp() {
   const [search,      setSearch]      = useState('');
   const [apiKeys,     setApiKeys]     = useState({});
   const [pandaUrl,    setPandaUrl]    = useState(null);
-  const tabBarRef = useRef(null);
-  const dragRef   = useRef({ active:false, startX:0, scrollLeft:0, moved:false });
+  const navRef    = useRef(null);
+  const dragRef   = useRef({ moved:false });
   const reorderRef= useRef({ dragging:false, fromIdx:-1, toIdx:-1 });
   const [dragFromIdx, setDragFromIdx]= useState(-1);
   const [dragToIdx,   setDragToIdx]  = useState(-1);
   const [ghostStyle,  setGhostStyle] = useState(null);
   const [tabOrder, setTabOrder]      = useState(() => {
-    const DEFAULT = ['characters','words','poetry','register-invites','pinyin','pinyin-audio','chengyu','grammar','users','analytics','apikeys','panda'];
     try {
       const saved = localStorage.getItem('admin_tab_order');
       if (saved) {
-        const ids = JSON.parse(saved).filter(id => DEFAULT.includes(id));
-        // Add any new tabs not in saved order
-        DEFAULT.forEach(id => { if (!ids.includes(id)) ids.push(id); });
+        const ids = JSON.parse(saved).filter(id => ADMIN_TAB_IDS.includes(id));
+        // Append any tabs added since the order was saved
+        ADMIN_TAB_IDS.forEach(id => { if (!ids.includes(id)) ids.push(id); });
         return ids;
       }
     } catch { localStorage.removeItem('admin_tab_order'); }
-    return DEFAULT;
+    return ADMIN_TAB_IDS;
   });
 
-  const onTabMouseDown = (e) => {
-    const el = tabBarRef.current;
-    if (!el) return;
-    dragRef.current = { active:true, startX:e.pageX, scrollLeft:el.scrollLeft, moved:false };
-  };
-  const onTabMouseMove = (e) => {
-    if (!dragRef.current.active) return;
-    const dx = e.pageX - dragRef.current.startX;
-    if (Math.abs(dx) > 5) {
-      dragRef.current.moved = true;
-      tabBarRef.current.scrollLeft = dragRef.current.scrollLeft - dx;
-    }
-  };
-  const onTabMouseUp = () => { dragRef.current.active = false; };
+  // Sidebar: collapsed (icon rail) on desktop, overlay drawer on narrow screens
+  const [navCollapsed, setNavCollapsed] = useState(
+    () => localStorage.getItem('admin_nav_collapsed') === '1');
+  const [narrow,  setNarrow]  = useState(() => window.innerWidth < NAV_BREAKPOINT);
+  const [navOpen, setNavOpen] = useState(false);
 
-  // Touch support
-  const onTabTouchStart = (e) => {
-    const el = tabBarRef.current;
-    if (!el) return;
-    dragRef.current = { active:true, startX:e.touches[0].pageX, scrollLeft:el.scrollLeft, moved:false };
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < NAV_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const toggleNavCollapsed = () => {
+    setNavCollapsed(c => {
+      localStorage.setItem('admin_nav_collapsed', c ? '0' : '1');
+      return !c;
+    });
   };
-  const onTabTouchMove = (e) => {
-    if (!dragRef.current.active) return;
-    const dx = e.touches[0].pageX - dragRef.current.startX;
-    if (Math.abs(dx) > 5) {
-      dragRef.current.moved = true;
-      tabBarRef.current.scrollLeft = dragRef.current.scrollLeft - dx;
-    }
-  };
-  const onTabTouchEnd = () => { dragRef.current.active = false; };
 
   const loadChars = useCallback(async () => {
     setCharsLoading(true);
@@ -1251,52 +1268,35 @@ export default function AdminApp() {
     c.meaning_en?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const DEFAULT_TABS = [
-    { id:'characters', label:'📝 字符管理' },
-    { id:'corpus',     label:'📚 语料库 RAG' },
-    { id:'words',      label:'📝 词语' },
-    { id:'poetry',     label:'📜 诗歌' },
-    { id: 'riddles', label: '🏮 灯谜', component: RiddleAdminTab },
-    { id:'register-invites', label:'📬 邀请注册' },
-    { id:'pinyin',       label:'🔤 拼音' },
-    { id:'pinyin-audio', label:'🎤 拼音音库' },
-    { id:'chengyu',    label:'📜 成语' },
-    { id:'grammar',    label:'📐 语法' },
-    { id:'scenarios',  label:'💬 场景对话' },
-    { id:'stories',    label:'📖 故事会' },
-    { id:'users',      label:'👥 用户' },
-    { id:'analytics',  label:'📊 AI 分析' },
-    { id:'apikeys',    label:'🔑 API Keys' },
-    { id:'panda',      label:'🐼 Panda Studio' },
-    { id:'prompts',    label:'🎯 Prompt 模板' },
-  ];
-  const DEFAULT_TAB_IDS = DEFAULT_TABS.map(t => t.id);
-
-  // Sort DEFAULT_TABS by saved order — always safe, always complete
+  // Sort ADMIN_TABS by saved order — always safe, always complete
   const TABS = [
-    ...tabOrder.filter(id => DEFAULT_TAB_IDS.includes(id)).map(id => DEFAULT_TABS.find(t => t.id === id)),
-    ...DEFAULT_TABS.filter(t => !tabOrder.includes(t.id)),
+    ...tabOrder.filter(id => ADMIN_TAB_IDS.includes(id)).map(id => ADMIN_TABS.find(t => t.id === id)),
+    ...ADMIN_TABS.filter(t => !tabOrder.includes(t.id)),
   ].filter(Boolean);
+
+  const orderIsCustom = TABS.map(t => t.id).join() !== ADMIN_TAB_IDS.join();
 
   function startReorder(e, idx) {
     e.preventDefault();
     e.stopPropagation();
     reorderRef.current = { dragging:true, fromIdx:idx, toIdx:idx };
+    dragRef.current.moved = true;   // swallow the click that ends the drag
     setDragFromIdx(idx);
     setDragToIdx(idx);
-    setGhostStyle({ left:e.clientX-50, top:e.clientY-18, label:TABS[idx]?.label });
+    const t = TABS[idx];
+    setGhostStyle({ left:e.clientX+12, top:e.clientY-16, label:t ? `${t.icon} ${t.label}` : '' });
     document.addEventListener('mousemove', onReorderMove);
     document.addEventListener('mouseup',   onReorderUp);
   }
 
   function onReorderMove(e) {
     if (!reorderRef.current.dragging) return;
-    setGhostStyle(g => g ? { ...g, left:e.clientX-50, top:e.clientY-18 } : null);
-    const el = tabBarRef.current;
+    setGhostStyle(g => g ? { ...g, left:e.clientX+12, top:e.clientY-16 } : null);
+    const el = navRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const relX = e.clientX - rect.left + el.scrollLeft;
-    const toIdx = Math.max(0, Math.min(TABS.length-1, Math.floor(relX/130)));
+    const relY = e.clientY - rect.top + el.scrollTop - NAV_PAD_T;
+    const toIdx = Math.max(0, Math.min(TABS.length-1, Math.floor(relY / NAV_ITEM_H)));
     reorderRef.current.toIdx = toIdx;
     setDragToIdx(toIdx);
   }
@@ -1308,36 +1308,63 @@ export default function AdminApp() {
     reorderRef.current.dragging = false;
     setDragFromIdx(-1); setDragToIdx(-1); setGhostStyle(null);
     if (!dragging || fromIdx === toIdx) return;
-    // Reorder tabOrder IDs
-    const newIds = [...tabOrder];
+    // Reorder against the rendered order, not the stale saved order
+    const newIds = TABS.map(t => t.id);
     const [moved] = newIds.splice(fromIdx, 1);
     newIds.splice(toIdx, 0, moved);
     setTabOrder(newIds);
     localStorage.setItem('admin_tab_order', JSON.stringify(newIds));
   }
 
-  const scrollTabs = (dir) => {
-    const el = tabBarRef.current;
-    if (el) el.scrollBy({ left: dir * 160, behavior:'smooth' });
-  };
+  function resetTabOrder() {
+    setTabOrder(ADMIN_TAB_IDS);
+    localStorage.removeItem('admin_tab_order');
+  }
+
+  function selectTab(id) {
+    setTab(id);
+    if (narrow) setNavOpen(false);
+  }
+
+  // Sidebar geometry: full / icon-rail on desktop, overlay drawer when narrow
+  const mini      = !narrow && navCollapsed;
+  const sidebarW  = mini ? NAV_W_MINI : NAV_W;
+  const navVisible= !narrow || navOpen;
+  const activeTab = TABS.find(t => t.id === tab);
 
   return (
     <div style={{ minHeight:'100vh', background:V.bg, fontFamily:'var(--font-sans, system-ui)' }}>
 
       {/* Top bar */}
-      <div style={{ background:V.card, borderBottom:`1px solid ${V.border}`, padding:'10px 20px',
-        display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+      <div style={{ background:V.card, borderBottom:`1px solid ${V.border}`, padding:'0 20px',
+        height:TOPBAR_H, boxSizing:'border-box',
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        position:'sticky', top:0, zIndex:40 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+          {narrow && (
+            <button onClick={() => setNavOpen(o => !o)} title="菜单 Menu"
+              style={{ width:34, height:34, flexShrink:0, borderRadius:8, cursor:'pointer',
+                border:`1px solid ${V.border}`, background:V.bg, color:V.text2, fontSize:15 }}>
+              ☰
+            </button>
+          )}
           {pandaUrl
-            ? <img src={pandaUrl} alt="panda" style={{ width:32, height:32, objectFit:'contain', borderRadius:8 }}/>
+            ? <img src={pandaUrl} alt="panda" style={{ width:32, height:32, objectFit:'contain', borderRadius:8, flexShrink:0 }}/>
             : <span style={{ fontSize:20 }}>🐼</span>}
-          <div>
-            <div style={{ fontSize:15, fontWeight:600, color:V.text }}>大卫学中文 · Admin</div>
-            <div style={{ fontSize:10, color:V.text3 }}>David Learns Chinese · David Studia Cinese</div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:15, fontWeight:600, color:V.text, whiteSpace:'nowrap' }}>
+              大卫学中文 · Admin
+              {narrow && activeTab && (
+                <span style={{ color:V.text3, fontWeight:400 }}> · {activeTab.label}</span>
+              )}
+            </div>
+            {!narrow && (
+              <div style={{ fontSize:10, color:V.text3 }}>David Learns Chinese · David Studia Cinese</div>
+            )}
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ fontSize:12, color:V.text3 }}>{session.user.email}</span>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          {!narrow && <span style={{ fontSize:12, color:V.text3 }}>{session.user.email}</span>}
           <button onClick={signOut} style={{ padding:'6px 14px', fontSize:12, cursor:'pointer',
             borderRadius:8, border:`1px solid ${V.border}`, background:V.bg, color:V.text }}>
             Sign out
@@ -1345,91 +1372,102 @@ export default function AdminApp() {
         </div>
       </div>
 
-      {/* Tabs — drag to scroll + hold to reorder */}
-      <div style={{ background:V.card, borderBottom:`1px solid ${V.border}`,
-        display:'flex', alignItems:'center', position:'relative' }}>
+      {/* Body: left sidebar + content */}
+      <div style={{ display:'flex', alignItems:'flex-start' }}>
 
-        <div style={{ flex:1, maxWidth:'90vw', overflow:'hidden' }}>
-          <div ref={tabBarRef}
-            style={{ overflowX:'scroll', overflowY:'hidden', cursor:'grab',
-              scrollbarWidth:'none', msOverflowStyle:'none', userSelect:'none' }}
-            onMouseDown={onTabMouseDown}
-            onMouseMove={onTabMouseMove}
-            onMouseUp={onTabMouseUp}
-            onMouseLeave={onTabMouseUp}
-            onTouchStart={onTabTouchStart}
-            onTouchMove={onTabTouchMove}
-            onTouchEnd={onTabTouchEnd}>
-            <div style={{ display:'flex', width:`${TABS.length * 130}px`, position:'relative' }}>
-              {TABS.map((t, idx) => {
-                const isDragging   = dragFromIdx === idx;
-                const isDropTarget = dragToIdx === idx && dragFromIdx !== idx;
-                return (
-                  <div key={t.id} style={{
-                    width:130, position:'relative', flexShrink:0,
-                    // Drop target highlight
-                    borderLeft: isDropTarget && dragFromIdx > idx
-                      ? `3px solid ${V.vermillion}` : '3px solid transparent',
-                    borderRight: isDropTarget && dragFromIdx < idx
-                      ? `3px solid ${V.vermillion}` : '3px solid transparent',
-                    boxSizing:'border-box',
-                    opacity: isDragging ? 0.35 : 1,
-                    transition:'opacity 0.1s',
-                  }}>
-                    <button
-                      onClick={() => { if (!dragRef.current.moved) setTab(t.id); dragRef.current.moved=false; }}
-                      onMouseDown={e => {
-                        // Long-press to reorder: start a 200ms timer
-                        const timer = setTimeout(() => startReorder(e, idx), 200);
-                        const cancel = () => { clearTimeout(timer); window.removeEventListener('mouseup', cancel); };
-                        window.addEventListener('mouseup', cancel, { once:true });
-                      }}
-                      title="Hold to drag and reorder"
-                      style={{
-                        width:'100%', padding:'12px 8px', fontSize:12,
-                        cursor:'grab', border:'none', whiteSpace:'nowrap',
-                        userSelect:'none', background:'none',
-                        borderBottom:`2px solid ${tab===t.id ? V.vermillion : 'transparent'}`,
-                        color: tab===t.id ? V.vermillion : V.text2,
-                        fontWeight: tab===t.id ? 600 : 400,
-                        transition:'color 0.15s, border-color 0.15s',
-                      }}>
-                      {t.label}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Reset order button — appears when order is customized */}
-        {JSON.stringify(tabOrder.map(t=>t.id)) !== JSON.stringify(DEFAULT_TABS.map(t=>t.id)) && (
-          <button
-            onClick={() => { setTabOrder(DEFAULT_TABS); localStorage.removeItem('admin_tab_order'); }}
-            title="Reset to default order"
-            style={{ padding:'0 8px', height:44, border:'none', background:'none',
-              cursor:'pointer', color:V.text3, fontSize:12, flexShrink:0 }}>
-            ↺
-          </button>
+        {/* Drawer backdrop (narrow only) */}
+        {narrow && navOpen && (
+          <div onClick={() => setNavOpen(false)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', zIndex:45 }}/>
         )}
-      </div>
 
-      {/* Drag ghost — follows cursor */}
-      {ghostStyle && (
-        <div style={{
-          position:'fixed', left:ghostStyle.left, top:ghostStyle.top,
-          background:V.vermillion, color:'#fff', padding:'5px 14px',
-          borderRadius:10, fontSize:12, fontWeight:600, pointerEvents:'none',
-          boxShadow:'0 4px 16px rgba(0,0,0,0.25)', zIndex:9999,
-          transform:'rotate(-3deg)', whiteSpace:'nowrap',
+        {/* Sidebar — click to switch, hold + drag to reorder */}
+        <aside style={{
+          width:sidebarW, flexShrink:0, boxSizing:'border-box',
+          background:V.card, borderRight:`1px solid ${V.border}`,
+          display: navVisible ? 'flex' : 'none', flexDirection:'column',
+          position: narrow ? 'fixed' : 'sticky',
+          top: narrow ? 0 : TOPBAR_H,
+          left: narrow ? 0 : undefined,
+          height: narrow ? '100dvh' : `calc(100dvh - ${TOPBAR_H}px)`,
+          zIndex: narrow ? 50 : 1,
+          boxShadow: narrow ? '2px 0 16px rgba(0,0,0,0.18)' : 'none',
         }}>
-          {ghostStyle.label}
-        </div>
-      )}
 
-      {/* Content */}
-      <div style={{ padding:'20px', maxWidth:1000, margin:'0 auto' }}>
+          <nav ref={navRef} style={{ flex:1, overflowY:'auto', overflowX:'hidden',
+            padding:`${NAV_PAD_T}px 8px 4px`, userSelect:'none' }}>
+            {TABS.map((t, idx) => {
+              const active       = tab === t.id;
+              const isDragging   = dragFromIdx === idx;
+              const isDropTarget = dragToIdx === idx && dragFromIdx !== idx;
+              return (
+                <button key={t.id}
+                  onClick={() => { if (!dragRef.current.moved) selectTab(t.id); dragRef.current.moved = false; }}
+                  onMouseDown={e => {
+                    // Long-press to reorder: start a 200ms timer
+                    const timer = setTimeout(() => startReorder(e, idx), 200);
+                    const cancel = () => clearTimeout(timer);
+                    window.addEventListener('mouseup', cancel, { once:true });
+                  }}
+                  title={mini ? `${t.label} · ${t.en}` : '按住拖动排序 · Hold to reorder'}
+                  style={{
+                    width:'100%', height:NAV_ITEM_H - 4, marginBottom:4, boxSizing:'border-box',
+                    display:'flex', alignItems:'center', gap:10,
+                    justifyContent: mini ? 'center' : 'flex-start',
+                    padding: mini ? 0 : '0 10px',
+                    borderRadius:10, cursor:'pointer', textAlign:'left', whiteSpace:'nowrap',
+                    border: isDropTarget ? `1px dashed ${V.vermillion}` : '1px solid transparent',
+                    background: active ? '#f5ede0' : 'transparent',
+                    color: active ? V.vermillion : V.text2,
+                    fontWeight: active ? 600 : 400, fontSize:13,
+                    opacity: isDragging ? 0.35 : 1,
+                    transition:'background 0.15s, color 0.15s',
+                  }}>
+                  <span style={{ fontSize:16, lineHeight:1, flexShrink:0 }}>{t.icon}</span>
+                  {!mini && (
+                    <span style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{t.label}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Sidebar footer — reset order + collapse */}
+          <div style={{ borderTop:`1px solid ${V.border}`, padding:8,
+            display:'flex', flexDirection: mini ? 'column' : 'row', gap:6 }}>
+            {orderIsCustom && (
+              <button onClick={resetTabOrder} title="恢复默认顺序 · Reset order"
+                style={{ height:30, padding: mini ? 0 : '0 10px', borderRadius:8, cursor:'pointer',
+                  border:`1px solid ${V.border}`, background:V.bg, color:V.text3, fontSize:12,
+                  flexShrink:0, width: mini ? '100%' : undefined }}>
+                ↺{!mini && ' 默认顺序'}
+              </button>
+            )}
+            <button
+              onClick={narrow ? () => setNavOpen(false) : toggleNavCollapsed}
+              title={narrow ? '关闭 Close' : mini ? '展开 Expand' : '收起 Collapse'}
+              style={{ flex:1, height:30, borderRadius:8, cursor:'pointer',
+                border:`1px solid ${V.border}`, background:V.bg, color:V.text3, fontSize:12 }}>
+              {narrow ? '✕ 关闭' : mini ? '›' : '‹ 收起'}
+            </button>
+          </div>
+        </aside>
+
+        {/* Drag ghost — follows cursor */}
+        {ghostStyle && (
+          <div style={{
+            position:'fixed', left:ghostStyle.left, top:ghostStyle.top,
+            background:V.vermillion, color:'#fff', padding:'5px 14px',
+            borderRadius:10, fontSize:12, fontWeight:600, pointerEvents:'none',
+            boxShadow:'0 4px 16px rgba(0,0,0,0.25)', zIndex:9999,
+            transform:'rotate(-3deg)', whiteSpace:'nowrap',
+          }}>
+            {ghostStyle.label}
+          </div>
+        )}
+
+        {/* Content */}
+        <div style={{ flex:1, minWidth:0, padding:'20px', maxWidth:1100, margin:'0 auto' }}>
 
         {/* Characters tab */}
         {tab==='characters' && (
@@ -1648,6 +1686,7 @@ export default function AdminApp() {
         {tab==='panda'     && <PandaStudio/>}
         {tab==='prompts'   && <PromptTemplatesTab currentUser={session?.user}/>}
 
+        </div>
       </div>
 
       {/* Modals */}
