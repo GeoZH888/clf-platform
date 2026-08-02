@@ -83,11 +83,13 @@ export default function StudentAssessmentPage() {
             {assigned.length === 0 ? <Empty>暂时没有布置的测评</Empty> : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {assigned.map(({ asg, assessment }) => {
-                  const done = runs.find(r => r.assignment_id === asg.id && r.status === 'submitted')
-                            || runs.find(r => r.assessment_id === assessment.id
-                                           && !r.is_practice && r.status === 'submitted');
-                  const started = runs.find(r => r.assessment_id === assessment.id
-                                              && !r.is_practice && r.status === 'in_progress');
+                  // Match on the assignment, never on the assessment. Adaptive
+                  // tests are repeatable by design — a September run must not
+                  // close out a January re-assessment of the same test.
+                  const done    = runs.find(r => r.assignment_id === asg.id
+                                              && r.status === 'submitted');
+                  const started = runs.find(r => r.assignment_id === asg.id
+                                              && r.status === 'in_progress');
                   const overdue = asg.due_at && !done && new Date(asg.due_at) < new Date();
                   return (
                     <TestRow
