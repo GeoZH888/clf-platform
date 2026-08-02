@@ -45,6 +45,9 @@ import StudentApp       from './student/StudentApp.jsx';
 import ParentApp        from './parent/ParentApp.jsx';
 import CommunityApp from './community/CommunityApp.jsx';
 import KnowledgeMapGate from './knowledge/KnowledgeMapGate.jsx';
+import PlacementQuiz from './placement/PlacementQuiz.jsx';
+import TestPortalApp from './assessment/TestPortalApp.jsx';
+import ResultsPortalApp from './assessment/ResultsPortalApp.jsx';
 import { IS_TEACHING } from './lib/appMode.js';
 // ── Fix title + random panda favicon ─────────────────────────────
 document.title = '中文世界';
@@ -108,6 +111,16 @@ const IS_SCHOOL_MASTER  = window.location.pathname.startsWith('/school-master');
 const IS_STUDENT        = window.location.pathname.startsWith('/student');
 const IS_PARENT         = window.location.pathname.startsWith('/parent');
 const IS_LEARN          = window.location.pathname.startsWith('/learn');
+// 新生分班测试 — public, code-gated. Candidates have no account yet.
+const IS_PLACEMENT      = window.location.pathname.startsWith('/placement');
+// 学生测评 standalone portals — own login, one job each. Same session and
+// the same RLS as the role panels; just narrower doors.
+//   /test        kids take tests
+//   /testresults teachers read them
+// Exact match on /test, or '/testresults' would fall into the student door.
+const IS_TESTRESULTS    = window.location.pathname.startsWith('/testresults');
+const IS_TEST           = window.location.pathname === '/test'
+                       || window.location.pathname.startsWith('/test/');
 // ── Minimal Settings screen ───────────────────────────────────────
 // Language switcher + user info + logout. Split into own file when it grows.
 function SettingsScreen({ userLabel, expiresAt, daysLeft, onLogout, onBack }) {
@@ -534,6 +547,9 @@ class ErrorBoundary extends React.Component {
          <FloatingLangMenu/>
          {IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
         : IS_LOGIN          ? <LoginGate/>
+        : IS_PLACEMENT      ? <PlacementQuiz/>
+        : IS_TESTRESULTS    ? <ResultsPortalApp/>
+        : IS_TEST           ? <TestPortalApp/>
         : IS_KNOWLEDGE_MAP            ? <KnowledgeMapGate/>
         : IS_ROLE_REDIRECT  ? <RoleRedirectGate/>
         : IS_TEACHER        ? <TeacherApp/>

@@ -10,11 +10,13 @@ import HomeworkPage from './pages/HomeworkPage';
 import PointsShopPage from './pages/PointsShopPage';
 import MessagesPage from './pages/MessagesPage';
 import ProfilePage from './pages/ProfilePage';
+import StudentAssessmentPage from '../assessment/StudentAssessmentPage';
 
 const NAV = [
-  { path: '/',          icon: '🏠', label: '学习中心' },
-  { path: '/homework',  icon: '📝', label: '我的作业' },
-  { path: '/points',    icon: '🎁', label: '积分商城' },
+  { path: '/',           icon: '🏠', label: '学习中心' },
+  { path: '/homework',   icon: '📝', label: '我的作业' },
+  { path: '/assessment', icon: '🎯', label: '我的测评' },
+  { path: '/points',     icon: '🎁', label: '积分商城' },
 ];
 
 export default function StudentApp() {
@@ -27,6 +29,7 @@ export default function StudentApp() {
               <Routes>
                 <Route path="/"          element={<LearningCenter />} />
                 <Route path="/homework"  element={<HomeworkPage />} />
+                <Route path="/assessment" element={<StudentAssessmentPage />} />
                 <Route path="/points"    element={<PointsShopPage />} />
                 <Route path="/messages"  element={<MessagesPage />} />
                 <Route path="/profile"   element={<ProfilePage />} />

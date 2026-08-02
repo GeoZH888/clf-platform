@@ -24,6 +24,8 @@ import MaterialsPage  from './pages/MaterialsPage';
 import NoticesPage    from './pages/NoticesPage';
 import MessagesPage   from './pages/MessagesPage';
 import ProfilePage    from './pages/ProfilePage';
+import PlacementReviewPage from '../placement/PlacementReviewPage';
+import TeacherAssessmentPage from '../assessment/TeacherAssessmentPage';
 
 // Sidebar — 9 items (was 10 in T1; 备课 merged into 课堂教学)
 const NAV = [
@@ -33,6 +35,8 @@ const NAV = [
   { path: '/homework',   icon: '📝', label: '作业' },
   { path: '/grading',    icon: '✅', label: '批改' },
   { path: '/materials',  icon: '📖', label: '教材' },
+  { path: '/placement',  icon: '🎓', label: '分班测试' },
+  { path: '/assessment', icon: '🎯', label: '学生测评' },
   { path: '/notices',    icon: '📣', label: '通知' },
   { path: '/messages',   icon: '💬', label: '消息' },
   { path: '/profile',    icon: '👤', label: '个人资料' },
@@ -65,6 +69,8 @@ export default function TeacherApp() {
                 <Route path="/homework"                 element={<HomeworkPage />} />
                 <Route path="/grading"                  element={<GradingPage />} />
                 <Route path="/materials"                element={<MaterialsPage />} />
+                <Route path="/placement"                element={<PlacementReviewPage />} />
+                <Route path="/assessment"               element={<TeacherAssessmentPage />} />
                 <Route path="/notices"                  element={<NoticesPage />} />
                 <Route path="/messages"                 element={<MessagesPage />} />
                 <Route path="/profile"                  element={<ProfilePage />} />
