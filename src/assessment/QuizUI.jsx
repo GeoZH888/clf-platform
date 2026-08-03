@@ -106,6 +106,34 @@ export function SkillBar({ label, value }) {
   );
 }
 
+// ── Video ────────────────────────────────────────────────────────────
+// An uploaded file plays in <video>; a YouTube/Bilibili/Vimeo link has to go
+// through that host's iframe player, so watch-page URLs are rewritten to
+// their embed form.
+
+export function embedUrl(url = '') {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/i);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const bv = url.match(/bilibili\.com\/video\/(BV[\w]+)/i);
+  if (bv) return `https://player.bilibili.com/player.html?bvid=${bv[1]}&high_quality=1`;
+  const vm = url.match(/vimeo\.com\/(\d+)/i);
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
+  return null;   // treat as a direct file
+}
+
+export function QuestionVideo({ url }) {
+  const embed = embedUrl(url);
+  const frame = {
+    width: '100%', aspectRatio: '16 / 9', border: 'none',
+    borderRadius: 10, marginBottom: 16, background: '#000',
+  };
+  if (embed) {
+    return <iframe src={embed} style={frame} allowFullScreen
+      allow="accelerometer; encrypted-media; picture-in-picture" title="题目视频"/>;
+  }
+  return <video src={url} controls playsInline style={frame}/>;
+}
+
 // ── The question itself ──────────────────────────────────────────────
 //
 // `reveal` is the correct original index, or null. Practice runs pass it so
@@ -142,6 +170,7 @@ export function ItemView({ item, choices, picked, reveal, onChoose }) {
         <img src={item.image_url} alt="" style={{ maxWidth: '100%',
           borderRadius: 10, marginBottom: 16 }} />
       )}
+      {item.video_url && <QuestionVideo url={item.video_url} />}
 
       <div style={{ display: 'grid', gap: 10 }}>
         {choices.map(({ originalIndex, text }) => {

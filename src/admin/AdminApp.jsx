@@ -16,6 +16,7 @@ import AdminPinyinAudio from './AdminPinyinAudio.jsx';
 import CLFWordsAdminTab from './CLFWordsAdminTab.jsx';   // CLF words (clf_words)
 import ChengyuAdminTab from './ChengyuAdminTab.jsx';
 import GrammarAdminTab from './GrammarAdminTab.jsx';
+import ItemBankTab from '../assessment/ItemBankTab.jsx';
 import ExtractFromCorpusWizard from './ExtractFromCorpusWizard.jsx';
 // Phase 2B: 新 Wizard 支持 3 种来源 (corpus / HSK / manual)
 import CharacterImportWizard from './CharacterImportWizard.jsx';
@@ -1124,6 +1125,7 @@ const ADMIN_TABS = [
   { id:'scenarios',        icon:'💬', label:'场景对话',     en:'Scenarios' },
   { id:'stories',          icon:'📖', label:'故事会',       en:'Stories' },
   { id:'module-content',   icon:'🧩', label:'模块内容',     en:'Module content' },
+  { id:'item-bank',        icon:'🎯', label:'测评题库',     en:'Test item bank' },
   { id:'accounts',         icon:'🗂', label:'账户管理',     en:'Accounts',           superOnly:true },
   { id:'users',            icon:'👥', label:'用户活动',     en:'User activity' },
   { id:'teaching',         icon:'🏫', label:'教学地图',     en:'Knowledge map' },
@@ -1721,6 +1723,7 @@ export default function AdminApp() {
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
         {tab==='grammar'   && <GrammarAdminTab/>}
+        {tab==='item-bank' && <ItemBankTab/>}
         {tab==='scenarios' && <ScenarioAdminTab/>}
         {tab==='stories'   && <StoryAdminTab/>}
         {tab==='poetry'    && <PoetryAdminTab/>}
