@@ -346,7 +346,7 @@ async function handleAnalyseImage({ imageBase64, mediaType = "image/jpeg" }, hea
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-5",
       max_tokens: 512,
       messages: [{
         role: "user",
@@ -385,7 +385,7 @@ async function callClaude(prompt, maxTokens = 1500) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "claude-opus-5", max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `Anthropic HTTP ${res.status}`);
