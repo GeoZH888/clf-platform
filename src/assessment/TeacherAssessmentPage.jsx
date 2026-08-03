@@ -19,6 +19,7 @@ import {
   YCT_LABELS, SKILL_LABELS, SKILLS, YCT_MIN, YCT_MAX,
 } from '../lib/placement.js';
 import ItemBankTab from './ItemBankTab.jsx';
+import StudentsTab from './StudentsTab.jsx';
 import {
   BarChart3, Plus, Users, Send, RefreshCw, ChevronRight, Check,
 } from 'lucide-react';
@@ -41,9 +42,10 @@ export default function TeacherAssessmentPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        {[{ k: 'results', label: '结果' },
-          { k: 'catalog', label: '测评管理' },
-          { k: 'bank',    label: '题库' }].map(t => (
+        {[{ k: 'results',  label: '结果' },
+          { k: 'students', label: '学生' },
+          { k: 'catalog',  label: '测评管理' },
+          { k: 'bank',     label: '题库' }].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} style={{
             padding: '7px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
             background: tab === t.k ? ACCENT : '#fff',
@@ -53,8 +55,9 @@ export default function TeacherAssessmentPage() {
         ))}
       </div>
 
-      {tab === 'results' ? <ResultsTab/>
-       : tab === 'bank'  ? <ItemBankTab/>
+      {tab === 'results'  ? <ResultsTab/>
+       : tab === 'students' ? <StudentsTab/>
+       : tab === 'bank'   ? <ItemBankTab/>
        : <CatalogTab userId={user?.id}/>}
     </div>
   );

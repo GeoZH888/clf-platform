@@ -38,8 +38,13 @@ function genUsername(displayName) {
   return base + '_' + randChars(4, '23456789abcdefghjkmnpqrstuvwxyz');
 }
 
-// Validate a JWT belongs to a super_admin or school_master.
-async function requireSuperAdmin(authHeader) {
+// Validate a JWT belongs to staff who may create accounts, and report which
+// kind. Teachers are allowed so they can enrol their own students from the
+// test portal, but the handler forces their created role to `student` — a
+// teacher must not be able to mint another teacher or an admin.
+const CAN_CREATE = ['super_admin', 'school_master', 'teacher'];
+
+async function requireStaff(authHeader) {
   const token = (authHeader || '').replace(/^Bearer\s+/i, '');
   if (!token) throw new Error('Missing auth token');
   const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -53,10 +58,10 @@ async function requireSuperAdmin(authHeader) {
 
   if (!profile) throw new Error('Not authorized: no profile');
   if (profile.is_active === false) throw new Error('Not authorized: account disabled');
-  if (!['super_admin', 'school_master'].includes(profile.role)) {
+  if (!CAN_CREATE.includes(profile.role)) {
     throw new Error('Not authorized: insufficient role');
   }
-  return user;
+  return { user, callerRole: profile.role };
 }
 
 // Create one account. Returns { name, username, password, user_id, qr_token }.
@@ -155,9 +160,10 @@ export async function handler(event) {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  let adminUser;
+  let adminUser, callerRole;
   try {
-    adminUser = await requireSuperAdmin(event.headers.authorization || event.headers.Authorization);
+    ({ user: adminUser, callerRole } =
+      await requireStaff(event.headers.authorization || event.headers.Authorization));
   } catch (err) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: err.message }) };
   }
@@ -165,6 +171,17 @@ export async function handler(event) {
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
+
+  // A teacher may only create students, and may not assign a paid tier.
+  // Enforced here rather than in the UI so a hand-made request can't escalate.
+  if (callerRole === 'teacher') {
+    if (body.role && body.role !== 'student') {
+      return { statusCode: 403, headers,
+        body: JSON.stringify({ error: '教师只能创建学生账号' }) };
+    }
+    body.role = 'student';
+    delete body.tier_id;
+  }
 
   // QR options shared by both modes
   const qrOpts = {
