@@ -133,7 +133,14 @@ end $$;
 
 -- Item-bank browser used by the fixed-test builder needs it too, so the
 -- picker can show a thumbnail instead of a raw URL.
-create or replace function public.clf_assessment_item_bank(
+--
+-- This one returns a table, and adding a column changes its OUT-parameter row
+-- type — which `create or replace` refuses (42P13). Drop it first. The two
+-- functions above return plain jsonb, so their shape never changes and
+-- replace works on them.
+drop function if exists public.clf_assessment_item_bank(int, text);
+
+create function public.clf_assessment_item_bank(
   p_level int default null, p_skill text default null
 ) returns table (
   id uuid, code text, yct_level int, skill text, prompt text,
