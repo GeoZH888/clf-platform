@@ -1723,7 +1723,9 @@ export default function AdminApp() {
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
         {tab==='grammar'   && <GrammarAdminTab/>}
-        {tab==='item-bank' && <ItemBankTab rag/>}
+        {/* AI drafting (topic, 批量生成, 从教材生成) is super_admin only —
+            a school_master gets the same hand-authoring teachers get. */}
+        {tab==='item-bank' && <ItemBankTab ai={isSuper} rag={isSuper}/>}
         {tab==='scenarios' && <ScenarioAdminTab/>}
         {tab==='stories'   && <StoryAdminTab/>}
         {tab==='poetry'    && <PoetryAdminTab/>}

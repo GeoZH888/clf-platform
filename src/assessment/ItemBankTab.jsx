@@ -61,12 +61,19 @@ const AI_ITEM_FIELDS = [
 ];
 
 /**
- * `rag` enables the corpus-grounded generation panel. It's passed only where
- * the tab is mounted in /admin — teachers author questions by hand or from a
- * topic; drafting from the school's uploaded material is an admin job because
- * it writes items carrying a claim about what the textbook says.
+ * Two capability flags, both off by default — the teacher panel mounts this
+ * bare and gets hand-authoring only:
+ *
+ *   ai   AI drafting: whole question from a topic, 批量生成, and the ✨
+ *        per-field assistant bar.
+ *   rag  Drafting from the RAG corpus. Implies `ai`.
+ *
+ * Both are passed only from /admin, and only for super_admin. Teachers write
+ * questions themselves; anything that has a model author test content — let
+ * alone assert what the textbook says — stays with the person who owns the
+ * bank's quality.
  */
-export default function ItemBankTab({ rag = false }) {
+export default function ItemBankTab({ ai = false, rag = false }) {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [fLevel,  setFLevel]  = useState('');
@@ -120,7 +127,11 @@ export default function ItemBankTab({ rag = false }) {
           </span>
         </h2>
         <button onClick={load} style={ghostBtn}><RefreshCw size={13}/> 刷新</button>
-        <button onClick={() => setBulk(v => !v)} style={ghostBtn}><Wand2 size={13}/> 批量生成</button>
+        {ai && (
+          <button onClick={() => setBulk(v => !v)} style={ghostBtn}>
+            <Wand2 size={13}/> 批量生成
+          </button>
+        )}
         {rag && (
           <button onClick={() => setRagOpen(v => !v)} style={ghostBtn}>
             <Database size={13}/> 从教材生成
@@ -138,7 +149,7 @@ export default function ItemBankTab({ rag = false }) {
         />
       )}
 
-      {bulk && (
+      {ai && bulk && (
         <BulkGenerate
           onClose={() => setBulk(false)}
           onSaved={(n) => { setBulk(false); load(); flash(`已保存 ${n} 道题`); }}
@@ -147,6 +158,7 @@ export default function ItemBankTab({ rag = false }) {
 
       {editing && (
         <ItemEditor
+          ai={ai}
           item={editing}
           onCancel={() => setEditing(null)}
           onSaved={(saved, isNew) => {
@@ -243,7 +255,7 @@ export default function ItemBankTab({ rag = false }) {
 
 // ── Editor ───────────────────────────────────────────────────────────
 
-function ItemEditor({ item, onCancel, onSaved }) {
+function ItemEditor({ item, onCancel, onSaved, ai = false }) {
   const [f,       setF]       = useState(item);
   const [saving,  setSaving]  = useState(false);
   const [err,     setErr]     = useState('');
@@ -317,7 +329,8 @@ function ItemEditor({ item, onCancel, onSaved }) {
         <button onClick={onCancel} style={iconBtn}><X size={16}/></button>
       </div>
 
-      {/* AI whole-question drafting */}
+      {/* AI whole-question drafting — admin only */}
+      {ai && (
       <div style={{ background: '#fff8ec', border: '1px solid #e8d5b0', borderRadius: 10,
         padding: 10, marginBottom: 12 }}>
         <div style={{ fontSize: 11, color: MUTED, marginBottom: 6 }}>
@@ -335,6 +348,7 @@ function ItemEditor({ item, onCancel, onSaved }) {
           </button>
         </div>
       </div>
+      )}
 
       <div style={{ display: 'grid', gap: 10,
         gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
@@ -358,13 +372,15 @@ function ItemEditor({ item, onCancel, onSaved }) {
         <input value={f.prompt_hint} onChange={e => set({ prompt_hint: e.target.value })} style={input}/>
       </Field>
 
-      <AiFieldAssistant
-        values={{ prompt: f.prompt, prompt_hint: f.prompt_hint, audio_text: f.audio_text }}
-        onPatch={patch => set(patch)}
-        context={`a YCT ${f.yct_level} ${f.skill} test question for a child learning Chinese`}
-        generate={{ subject: topic || f.prompt, fields: AI_ITEM_FIELDS }}
-        compact
-      />
+      {ai && (
+        <AiFieldAssistant
+          values={{ prompt: f.prompt, prompt_hint: f.prompt_hint, audio_text: f.audio_text }}
+          onPatch={patch => set(patch)}
+          context={`a YCT ${f.yct_level} ${f.skill} test question for a child learning Chinese`}
+          generate={{ subject: topic || f.prompt, fields: AI_ITEM_FIELDS }}
+          compact
+        />
+      )}
 
       <div style={{ marginTop: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
