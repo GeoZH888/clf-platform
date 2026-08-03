@@ -9,6 +9,9 @@ import { useScreenHistory } from '../hooks/useScreenHistory.js';
 import { shuffle, awardPoints, ScoreBadge, Lives, ResultScreen } from './gameUi.jsx';
 import RadicalGame from './RadicalGame.jsx';
 import CompositionGame from './CompositionGame.jsx';
+// 成语接龙 lives in the 成语 module and is surfaced here too — same component,
+// so a fix to the game reaches both entry points.
+import ChengyuChain from '../chengyu/ChengyuChain.jsx';
 
 // Unity frame — only loaded when a Unity game is actually launched
 const UnityGameFrame = lazy(() => import('./UnityGameFrame.jsx'));
@@ -550,6 +553,25 @@ export default function GamesApp({ onBack }) {
   const [game,    setGame]    = useScreenHistory(null, 'games');
   const [loading, setLoading] = useState(true);
   const [allItems,setAllItems]= useState([]);
+  // 接龙 needs the whole idiom set to find chains — a trimmed pool dead-ends
+  // almost immediately. Fetched only when the game is opened so the hub itself
+  // stays cheap.  null = not loaded yet.
+  const [idioms,  setIdioms]  = useState(null);
+
+  // Fetch on first open of 接龙. Single-column order only: multi-column
+  // ORDER BY on clf_chengyu trips an RLS-recursion 500 on this project — the
+  // same constraint noted in ChengyuApp.
+  useEffect(() => {
+    if (game !== 'chain' || idioms !== null) return;
+    let cancelled = false;
+    supabase.from('clf_chengyu').select('*').eq('active', true).order('hsk_level')
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) console.error('[GamesApp] clf_chengyu query failed:', error);
+        setIdioms(data || []);
+      });
+    return () => { cancelled = true; };
+  }, [game, idioms]);
 
   useEffect(() => {
     async function load() {
@@ -656,6 +678,11 @@ export default function GamesApp({ onBack }) {
       desc:    t('看意思，拼出正确词语','See the meaning, tap characters to spell the word','Componi la parola'),
       tag:     t('拼写','Spell','Componi'),
     },
+    { id:'chain',   icon:'🐉', color:'#C62828', bg:'#1a0505',
+      title:   t('成语接龙','Idiom Chain','Catena di Idiomi'),
+      desc:    t('上一个成语的末字，是下一个成语的首字','Each idiom starts with the last character of the one before','Ogni idioma inizia con l\'ultimo carattere del precedente'),
+      tag:     t('成语','Idioms','Idiomi'),
+    },
     { id:'radical', icon:'🧩', color:'#00897B', bg:'#00140f',
       title:   t('部首听音','Radical & Sound','Radicali e Suoni'),
       desc:    t('听读音认部首，找出同偏旁的字','Hear the radical, learn its sound and spot characters that use it','Ascolta il radicale e trova i caratteri che lo usano'),
@@ -667,6 +694,20 @@ export default function GamesApp({ onBack }) {
       tag:     t('组字','Compose','Componi'),
     },
   ];
+
+  // 成语接龙 — reads clf_chengyu, the same table the 成语 module uses, rather
+  // than the jgw_chengyu sample the other games draw on. Single-column order
+  // only: multi-column ORDER BY on this table trips an RLS-recursion 500 (see
+  // the note in ChengyuApp).
+  if (game === 'chain') {
+    if (idioms === null) return (
+      <div style={{ minHeight:'100dvh', background:'#1a0505', display:'flex',
+        alignItems:'center', justifyContent:'center', color:'#a07850', fontSize:14 }}>
+        {t('加载成语…','Loading idioms…','Caricamento…')}
+      </div>
+    );
+    return <ChengyuChain idioms={idioms} onBack={()=>setGame(null)} lang={lang}/>;
+  }
 
   // Both radical games run on their own bundled datasets — no module content needed.
   if (game === 'radical') return <RadicalGame onBack={()=>setGame(null)} lang={lang}/>;

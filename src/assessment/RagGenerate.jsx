@@ -12,10 +12,16 @@
 // Pipeline:
 //   topic → rag-search (voyage-3 embedding → match_chunks) → passages
 //         → ai-gateway with the passages as context → draft questions
-//         → staff review → clf_placement_items with source_id + source_quote
+//         → staff review → clf_placement_items with source_quote + source_title
 //
-// Needs a populated corpus. Upload material in /admin → 语料库 RAG first;
-// with no documents the retrieve step returns nothing and says so.
+// rag-search returns content, document_title, collection_slug, subject_slug,
+// grade_level and similarity — no document id — so the filter it supports is
+// collection, and provenance is recorded by title, not by foreign key.
+//
+// The corpus is scanned PDFs: Chinese text arrives with a space between most
+// characters and occasional OCR errors. The prompt tells the model to read
+// through that and to skip anything too garbled to be sure of, but the review
+// step is doing real work here — do not save unread.
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
@@ -35,8 +41,10 @@ const AI_PROVIDERS = [
 ];
 
 export default function RagGenerate({ onClose, onSaved }) {
-  const [sources,  setSources]  = useState([]);
-  const [sourceId, setSourceId] = useState('');
+  // rag-search filters by collection_slug, not by document — it returns
+  // document_title but no document id. Offer the filter it actually supports.
+  const [collections, setCollections] = useState([]);
+  const [collection,  setCollection]  = useState('');
   const [topic,    setTopic]    = useState('');
   const [level,    setLevel]    = useState(2);
   const [skill,    setSkill]    = useState('reading');
@@ -51,12 +59,9 @@ export default function RagGenerate({ onClose, onSaved }) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('content_sources')
-        .select('id, filename, category, subcategory, status')
-        .eq('status', 'ready')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      setSources(data || []);
+      const { data } = await supabase.from('corpus_collections')
+        .select('slug, name_zh').order('slug');
+      setCollections(data || []);
     })();
   }, []);
 
@@ -70,6 +75,7 @@ export default function RagGenerate({ onClose, onSaved }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: topic.trim(),
+          collection_slug: collection || null,
           match_count: 8,
           match_threshold: 0.3,
           synthesize: false,
@@ -77,18 +83,10 @@ export default function RagGenerate({ onClose, onSaved }) {
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-      let got = json.chunks || [];
-      // rag-search has no source_id filter, so narrow client-side when the
-      // admin picked one document.
-      if (sourceId) {
-        got = got.filter(c => c.source_id === sourceId
-                           || c.metadata?.source_id === sourceId);
-      }
+      const got = json.chunks || [];
       setChunks(got);
       if (got.length === 0) {
-        setErr(sources.length === 0
-          ? '语料库还没有文档 — 请先在「语料库 RAG」上传教材'
-          : '没有检索到相关内容，换个说法或放宽筛选再试');
+        setErr('没有检索到相关内容 — 换个说法、放宽教材筛选，或确认语料库已处理完成');
       }
     } catch (e) {
       setErr(String(e.message || e));
@@ -123,8 +121,9 @@ export default function RagGenerate({ onClose, onSaved }) {
       audio_text: d.audio_text || null,
       options: d.options, options_kind: 'text',
       correct_index: d.correct_index,
-      source_id: sourceId || firstSourceId(chunks) || null,
       source_quote: d.source_quote || null,
+      source_title: d.source_title || chunks[0]?.document_title || null,
+      source_collection: collection || chunks[0]?.collection_slug || null,
       origin: 'ai_rag',
       active: true,
     })).filter(r => r.prompt && r.options?.length >= 2);
@@ -148,23 +147,19 @@ export default function RagGenerate({ onClose, onSaved }) {
         <button onClick={onClose} style={iconBtn}><X size={16}/></button>
       </div>
 
-      {sources.length === 0 && (
-        <div style={{ background: '#fff8ec', border: '1px solid #e8d5b0', borderRadius: 8,
-          padding: 10, fontSize: 12, color: '#8a6a45', marginBottom: 10 }}>
-          语料库里还没有已处理完成的文档。先到「语料库 RAG」上传教材并等待处理完成，
-          这里才能检索到内容。
-        </div>
-      )}
+      <div style={{ background: '#fff8ec', border: '1px solid #e8d5b0', borderRadius: 8,
+        padding: 10, fontSize: 11, color: '#8a6a45', marginBottom: 10 }}>
+        教材原文是从 PDF 扫描提取的，字与字之间常有多余空格，也可能有个别识别错误。
+        AI 会先还原成正常文本再出题，但保存前请逐题核对「教材依据」。
+      </div>
 
       <div style={{ display: 'grid', gap: 10,
         gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-        <Field label="限定文档（可留空 = 全部）">
-          <select value={sourceId} onChange={e => setSourceId(e.target.value)} style={input}>
-            <option value="">全部文档</option>
-            {sources.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.filename}{s.subcategory ? ` · ${s.subcategory}` : ''}
-              </option>
+        <Field label="教材（可留空 = 全部）">
+          <select value={collection} onChange={e => setCollection(e.target.value)} style={input}>
+            <option value="">全部教材</option>
+            {collections.map(c => (
+              <option key={c.slug} value={c.slug}>{c.name_zh || c.slug}</option>
             ))}
           </select>
         </Field>
@@ -300,6 +295,12 @@ ${passages}
 
 Write ${count} multiple-choice question${count > 1 ? 's' : ''} that test what these passages teach.
 
+About the passages: they were extracted from scanned PDFs, so Chinese text
+often has a space between every character ("类 别 名 称" means 类别名称) and a
+few characters may be misrecognised outright. Read through the spacing. If a
+fragment is too garbled to be sure of, skip it — never build a question around
+text you had to guess at, and never copy corrupted characters into an option.
+
 Hard rules:
 - Base every question on the passages above. Do not test vocabulary or grammar that does not appear in them.
 - If the passages are too thin to support ${count} good questions, write fewer. Never pad with invented material.
@@ -308,7 +309,7 @@ Hard rules:
 - Everything the child reads must be in Simplified Chinese. The same question serves English- and Italian-speaking learners, so a question needing an English gloss is unusable.
 - Exactly 4 options, exactly one correct, and the three wrong options must be plausible at this level.
 - correct_index is the 0-based index of the right option.
-- source_quote: the short sentence or phrase FROM THE PASSAGES the question is based on, copied verbatim. This is how a reviewer checks your work — never invent it.
+- source_quote: the short sentence or phrase FROM THE PASSAGES the question is based on. Copy the wording faithfully but remove the extraction's spurious inter-character spaces, so a reviewer can read it. Never invent it.
 
 Return ONLY a JSON array, no prose, no markdown fence:
 [
@@ -337,13 +338,6 @@ function normalise(q = {}) {
   };
 }
 
-function firstSourceId(chunks) {
-  for (const c of chunks || []) {
-    const id = c.source_id || c.metadata?.source_id;
-    if (id) return id;
-  }
-  return null;
-}
 
 // ── Bits ─────────────────────────────────────────────────────────────
 
