@@ -54,20 +54,57 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check for existing session on mount
+  // Restore the session on mount, but only if Supabase still agrees there is
+  // one. The cached profile in localStorage and the Supabase session are two
+  // separate things: if the session expired, or was ended in another tab or
+  // on another subdomain (the session cookie is scoped to
+  // .david-zhongwen.net), the cache alone would render a signed-in UI whose
+  // every RPC fails with not_authenticated — logged in to look at, logged out
+  // to use.
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('token');
-    if (savedUser && savedToken) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setToken(savedToken);
-      } catch (e) {
+    let cancelled = false;
+
+    (async () => {
+      const savedUser = localStorage.getItem('user');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (cancelled) return;
+
+      if (!session) {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
+        setUser(null);
+        setToken(null);
+        setLoading(false);
+        return;
       }
-    }
-    setLoading(false);
+
+      if (savedUser) {
+        try { setUser(JSON.parse(savedUser)); }
+        catch { localStorage.removeItem('user'); }
+      }
+      setToken(session.access_token);
+      setLoading(false);
+    })();
+
+    // Keep this provider in step with sign-outs and token refreshes that
+    // happen elsewhere — another tab, or a different role panel on the same
+    // domain.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
+        setUser(null);
+        setToken(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        localStorage.setItem('token', session.access_token);
+        setToken(session.access_token);
+      }
+    });
+
+    return () => { cancelled = true; sub?.subscription?.unsubscribe(); };
   }, []);
 
   const login = async (username, password) => {
@@ -176,7 +213,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  // End the Supabase session too, not just the local cache. Clearing
+  // localStorage alone logs the user out of the UI while leaving auth.uid()
+  // resolving to them — so every RLS policy and SECURITY DEFINER RPC still
+  // treats the next person at that device as the previous user. On a shared
+  // classroom machine that is the whole problem.
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // Network failure shouldn't strand someone in a signed-in UI — clear
+      // locally regardless. The session cookie expires on its own.
+      console.warn('[auth] signOut failed, clearing locally:', e?.message || e);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
