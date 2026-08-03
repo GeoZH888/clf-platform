@@ -172,6 +172,41 @@ export function ItemView({ item, choices, picked, reveal, onChoose }) {
       )}
       {item.video_url && <QuestionVideo url={item.video_url} />}
 
+      {item.options_kind === 'image' ? (
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
+          {choices.map(({ originalIndex, text }) => {
+            const chosen = picked === originalIndex;
+            const right  = reveal != null && originalIndex === reveal;
+            const wrong  = chosen && reveal != null && originalIndex !== reveal;
+            const border = right ? '#217a41' : wrong ? ACCENT : chosen ? ACCENT : '#e8d5b0';
+            return (
+              <button
+                key={originalIndex}
+                onClick={() => onChoose(originalIndex)}
+                disabled={picked !== null}
+                style={{
+                  padding: 6, background: '#fff', borderRadius: 12,
+                  border: `3px solid ${border}`,
+                  cursor: picked === null ? 'pointer' : 'default',
+                  position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden',
+                }}
+              >
+                <img src={text} alt="" style={{
+                  width: '100%', height: '100%', objectFit: 'contain', display: 'block',
+                }}/>
+                {(chosen || right) && (
+                  <span style={{
+                    position: 'absolute', top: 6, right: 6, width: 24, height: 24,
+                    borderRadius: '50%', background: right ? '#217a41' : ACCENT,
+                    color: '#fff', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center',
+                  }}><Check size={14}/></span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
       <div style={{ display: 'grid', gap: 10 }}>
         {choices.map(({ originalIndex, text }) => {
           const chosen  = picked === originalIndex;
@@ -199,6 +234,7 @@ export function ItemView({ item, choices, picked, reveal, onChoose }) {
           );
         })}
       </div>
+      )}
     </>
   );
 }

@@ -47,7 +47,7 @@ const AI_PROVIDERS = [
 const BLANK = {
   yct_level: 2, skill: 'vocab', prompt: '', prompt_hint: '',
   audio_text: '', audio_url: '', image_url: '', video_url: '',
-  options: ['', '', '', ''], correct_index: 0, active: true,
+  options: ['', '', '', ''], options_kind: 'text', correct_index: 0, active: true,
 };
 
 // Field spec for the per-field ✨ bar. Options and the answer are structured,
@@ -166,15 +166,27 @@ export default function ItemBankTab() {
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, color: INK }}>{it.prompt}</div>
-                <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>
-                  {(it.options || []).map((o, i) => (
-                    <span key={i} style={{
-                      marginRight: 10,
-                      color: i === it.correct_index ? '#217a41' : MUTED,
-                      fontWeight: i === it.correct_index ? 600 : 400,
-                    }}>{i === it.correct_index ? '✓ ' : ''}{o}</span>
-                  ))}
-                </div>
+                {it.options_kind === 'image' ? (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    {(it.options || []).map((o, i) => (
+                      <img key={i} src={o} alt="" style={{
+                        width: 34, height: 34, objectFit: 'contain', borderRadius: 5,
+                        background: '#fff',
+                        border: `2px solid ${i === it.correct_index ? '#217a41' : '#e8d5b0'}`,
+                      }}/>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>
+                    {(it.options || []).map((o, i) => (
+                      <span key={i} style={{
+                        marginRight: 10,
+                        color: i === it.correct_index ? '#217a41' : MUTED,
+                        fontWeight: i === it.correct_index ? 600 : 400,
+                      }}>{i === it.correct_index ? '✓ ' : ''}{o}</span>
+                    ))}
+                  </div>
+                )}
                 {(it.audio_text || it.image_url || it.video_url || it.audio_url) && (
                   <div style={{ fontSize: 10, color: '#c9a06a', marginTop: 3 }}>
                     {it.audio_text && `🔊 ${it.audio_text}  `}
@@ -241,7 +253,10 @@ function ItemEditor({ item, onCancel, onSaved }) {
   const save = async () => {
     const opts = f.options.map(o => (o || '').trim()).filter(Boolean);
     if (!f.prompt.trim())  { setErr('请填写题干'); return; }
-    if (opts.length < 2)   { setErr('至少需要两个选项'); return; }
+    if (opts.length < 2)   {
+      setErr(f.options_kind === 'image' ? '至少需要两张图片' : '至少需要两个选项');
+      return;
+    }
     if (f.correct_index >= opts.length) { setErr('正确答案指向了空选项'); return; }
     if (f.skill === 'listening' && !f.audio_text.trim() && !f.audio_url) {
       setErr('听力题需要听力文本或音频文件'); return;
@@ -254,7 +269,8 @@ function ItemEditor({ item, onCancel, onSaved }) {
       audio_text: f.audio_text.trim() || null,
       audio_url: f.audio_url || null, image_url: f.image_url || null,
       video_url: f.video_url || null,
-      options: opts, correct_index: f.correct_index, active: f.active,
+      options: opts, options_kind: f.options_kind || 'text',
+      correct_index: f.correct_index, active: f.active,
     };
     const q = isNew
       ? supabase.from('clf_placement_items').insert(row).select().single()
@@ -324,9 +340,30 @@ function ItemEditor({ item, onCancel, onSaved }) {
       />
 
       <div style={{ marginTop: 10 }}>
-        <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>
-          选项 — 点圆点标记正确答案（题目显示时会自动打乱顺序）
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: MUTED, flex: 1 }}>
+            选项 — 点圆点标记正确答案（题目显示时会自动打乱顺序）
+          </div>
+          {[{ k: 'text', label: '文字选项' }, { k: 'image', label: '图片选项' }].map(t => (
+            <button key={t.k} onClick={() => {
+              if (f.options_kind === t.k) return;
+              // Text labels are not image URLs and vice versa — carrying them
+              // across would render broken <img> tags, so start the four slots
+              // clean whenever the kind changes.
+              set({ options_kind: t.k, options: ['', '', '', ''], correct_index: 0 });
+            }} style={{
+              padding: '5px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer',
+              background: f.options_kind === t.k ? ACCENT : '#fff',
+              color: f.options_kind === t.k ? '#fff' : MUTED,
+              border: `1px solid ${f.options_kind === t.k ? ACCENT : '#e8d5b0'}`,
+            }}>{t.label}</button>
+          ))}
         </div>
+        {f.options_kind === 'image' && (
+          <div style={{ fontSize: 11, color: '#8a6a45', marginBottom: 8 }}>
+            孩子看图选答案，不需要认字。题干通常用听力：把要读的词写进下面的「听力文本」。
+          </div>
+        )}
         {f.options.map((o, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
             <button
@@ -338,8 +375,12 @@ function ItemEditor({ item, onCancel, onSaved }) {
                 background: f.correct_index === i ? '#217a41' : '#fff',
               }}
             />
-            <input value={o} onChange={e => setOpt(i, e.target.value)} style={input}
-              placeholder={`选项 ${i + 1}`}/>
+            {f.options_kind === 'image' ? (
+              <OptionImage index={i} value={o} onChange={v => setOpt(i, v)}/>
+            ) : (
+              <input value={o} onChange={e => setOpt(i, e.target.value)} style={input}
+                placeholder={`选项 ${i + 1}`}/>
+            )}
           </div>
         ))}
       </div>
@@ -432,6 +473,58 @@ function MediaField({ label, kind, value, onChange }) {
         </div>
       )}
     </Field>
+  );
+}
+
+/** One picture option: upload a file or paste a URL, with a thumbnail. */
+function OptionImage({ index, value, onChange }) {
+  const fileRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [err,  setErr]  = useState('');
+
+  const upload = async (file) => {
+    if (!file) return;
+    setBusy(true); setErr('');
+    const ext  = (file.name.split('.').pop() || 'png').toLowerCase();
+    const path = `option/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from(BUCKET)
+      .upload(path, file, { upsert: false, contentType: file.type || undefined });
+    if (error) {
+      setErr(error.message.includes('Bucket not found')
+        ? `存储桶 ${BUCKET} 不存在 — 请先执行 015 迁移`
+        : error.message);
+      setBusy(false);
+      return;
+    }
+    onChange(supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {value ? (
+          <img src={value} alt="" style={{
+            width: 44, height: 44, objectFit: 'contain', flexShrink: 0,
+            border: '1px solid #e8d5b0', borderRadius: 6, background: '#fff',
+          }}/>
+        ) : (
+          <div style={{
+            width: 44, height: 44, flexShrink: 0, borderRadius: 6,
+            border: '1px dashed #e8d5b0', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', color: '#c9b08a', fontSize: 11,
+          }}>{index + 1}</div>
+        )}
+        <input value={value} onChange={e => onChange(e.target.value)} style={input}
+          placeholder={`图片 ${index + 1} — 粘贴链接或上传`}/>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={e => upload(e.target.files?.[0])}/>
+        <button onClick={() => fileRef.current?.click()} disabled={busy} style={ghostBtn}>
+          <Upload size={13}/> {busy ? '…' : '上传'}
+        </button>
+      </div>
+      {err && <div style={{ color: ACCENT, fontSize: 11, marginTop: 3 }}>{err}</div>}
+    </div>
   );
 }
 
