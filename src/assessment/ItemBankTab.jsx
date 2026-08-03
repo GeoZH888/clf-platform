@@ -33,6 +33,17 @@ const MUTED  = '#a07850';
 const KAI    = "'STKaiti','KaiTi',serif";
 const BUCKET = 'placement-media';
 
+// Providers the ai-gateway can route to. Claude is the default; the others are
+// here because a provider's key can be missing or rejected on one site while
+// the rest work — the gateway reports that per-provider, so let staff switch
+// rather than be blocked.
+const AI_PROVIDERS = [
+  { id: 'claude',   label: 'Claude' },
+  { id: 'deepseek', label: 'DeepSeek' },
+  { id: 'openai',   label: 'GPT-4o' },
+  { id: 'gemini',   label: 'Gemini' },
+];
+
 const BLANK = {
   yct_level: 2, skill: 'vocab', prompt: '', prompt_hint: '',
   audio_text: '', audio_url: '', image_url: '', video_url: '',
@@ -199,6 +210,7 @@ function ItemEditor({ item, onCancel, onSaved }) {
   const [err,     setErr]     = useState('');
   const [drafting, setDrafting] = useState(false);
   const [topic,   setTopic]   = useState('');
+  const [provider, setProvider] = useState('claude');
   const isNew = !item.id;
 
   const set = (patch) => setF(prev => ({ ...prev, ...patch }));
@@ -215,6 +227,7 @@ function ItemEditor({ item, onCancel, onSaved }) {
     try {
       const json = await askAIForJSON({
         prompt: wholeQuestionPrompt({ topic: topic.trim(), level: f.yct_level, skill: f.skill, count: 1 }),
+        provider,
         maxTokens: 900,
       });
       const q = Array.isArray(json) ? json[0] : (json.questions?.[0] || json);
@@ -270,6 +283,10 @@ function ItemEditor({ item, onCancel, onSaved }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={topic} onChange={e => setTopic(e.target.value)} style={{ ...input, flex: 1 }}
             placeholder="例：量词 个/只/本  ·  颜色词  ·  把字句"/>
+          <select value={provider} onChange={e => setProvider(e.target.value)}
+            style={{ ...input, width: 'auto' }}>
+            {AI_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
           <button onClick={draft} disabled={drafting} style={primaryBtn}>
             {drafting ? '生成中…' : '生成'}
           </button>
@@ -429,6 +446,7 @@ function BulkGenerate({ onClose, onSaved }) {
   const [skill, setSkill] = useState('vocab');
   const [topic, setTopic] = useState('');
   const [count, setCount] = useState(5);
+  const [provider, setProvider] = useState('claude');
   const [busy,  setBusy]  = useState(false);
   const [err,   setErr]   = useState('');
   const [draft, setDraft] = useState([]);      // [{ ...question, keep:bool }]
@@ -439,6 +457,7 @@ function BulkGenerate({ onClose, onSaved }) {
     try {
       const json = await askAIForJSON({
         prompt: wholeQuestionPrompt({ topic: topic.trim() || '综合', level, skill, count }),
+        provider,
         maxTokens: 400 * count + 400,
       });
       const arr = Array.isArray(json) ? json : (json.questions || []);
@@ -497,6 +516,11 @@ function BulkGenerate({ onClose, onSaved }) {
         <Field label="知识点（可留空）">
           <input value={topic} onChange={e => setTopic(e.target.value)} style={input}
             placeholder="例：家庭成员"/>
+        </Field>
+        <Field label="AI 模型">
+          <select value={provider} onChange={e => setProvider(e.target.value)} style={input}>
+            {AI_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
         </Field>
       </div>
 
