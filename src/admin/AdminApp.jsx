@@ -1723,7 +1723,7 @@ export default function AdminApp() {
         {tab==='chengyu'   && <ChengyuAdminTab apiKeys={apiKeys}/>}
         {tab==='corpus'    && <CorpusTab/>}
         {tab==='grammar'   && <GrammarAdminTab/>}
-        {tab==='item-bank' && <ItemBankTab/>}
+        {tab==='item-bank' && <ItemBankTab rag/>}
         {tab==='scenarios' && <ScenarioAdminTab/>}
         {tab==='stories'   && <StoryAdminTab/>}
         {tab==='poetry'    && <PoetryAdminTab/>}

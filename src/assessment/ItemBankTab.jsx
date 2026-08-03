@@ -23,8 +23,10 @@ import { SKILLS, SKILL_LABELS, YCT_LABELS, YCT_MIN, YCT_MAX } from '../lib/place
 import { askAIForJSON } from '../admin/lib/aiFields.js';
 import AiFieldAssistant from '../admin/components/AiFieldAssistant.jsx';
 import { speakChinese } from './QuizUI.jsx';
+import RagGenerate from './RagGenerate.jsx';
 import {
   Plus, Trash2, Pencil, Sparkles, Upload, Volume2, X, Check, RefreshCw, Wand2,
+  Database,
 } from 'lucide-react';
 
 const ACCENT = '#c41e3a';
@@ -58,7 +60,13 @@ const AI_ITEM_FIELDS = [
   { key: 'audio_text',  label: '听力文本', hint: 'for a listening question only: the exact Chinese text to be spoken aloud, no punctuation, otherwise empty' },
 ];
 
-export default function ItemBankTab() {
+/**
+ * `rag` enables the corpus-grounded generation panel. It's passed only where
+ * the tab is mounted in /admin — teachers author questions by hand or from a
+ * topic; drafting from the school's uploaded material is an admin job because
+ * it writes items carrying a claim about what the textbook says.
+ */
+export default function ItemBankTab({ rag = false }) {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [fLevel,  setFLevel]  = useState('');
@@ -66,6 +74,7 @@ export default function ItemBankTab() {
   const [search,  setSearch]  = useState('');
   const [editing, setEditing] = useState(null);   // item object or BLANK
   const [bulk,    setBulk]    = useState(false);
+  const [ragOpen, setRagOpen] = useState(false);
   const [msg,     setMsg]     = useState('');
 
   const load = useCallback(async () => {
@@ -112,10 +121,22 @@ export default function ItemBankTab() {
         </h2>
         <button onClick={load} style={ghostBtn}><RefreshCw size={13}/> 刷新</button>
         <button onClick={() => setBulk(v => !v)} style={ghostBtn}><Wand2 size={13}/> 批量生成</button>
+        {rag && (
+          <button onClick={() => setRagOpen(v => !v)} style={ghostBtn}>
+            <Database size={13}/> 从教材生成
+          </button>
+        )}
         <button onClick={() => setEditing({ ...BLANK })} style={primaryBtn}><Plus size={14}/> 新建题目</button>
       </div>
 
       {msg && <Banner>{msg}</Banner>}
+
+      {rag && ragOpen && (
+        <RagGenerate
+          onClose={() => setRagOpen(false)}
+          onSaved={(n) => { setRagOpen(false); load(); flash(`已从教材保存 ${n} 道题`); }}
+        />
+      )}
 
       {bulk && (
         <BulkGenerate
@@ -193,6 +214,12 @@ export default function ItemBankTab() {
                     {it.audio_url && '🎵 音频  '}
                     {it.image_url && '🖼 图片  '}
                     {it.video_url && '🎬 视频'}
+                  </div>
+                )}
+                {it.origin === 'ai_rag' && it.source_quote && (
+                  <div style={{ fontSize: 10, color: '#8a6a45', marginTop: 3,
+                    borderLeft: '2px solid #e8d5b0', paddingLeft: 6 }}>
+                    教材依据：{String(it.source_quote).slice(0, 120)}
                   </div>
                 )}
               </div>
