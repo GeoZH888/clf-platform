@@ -13,7 +13,12 @@
 --
 -- Requires: 012_placement_assessment.sql. Safe to re-run.
 
+-- video_url belongs to 015, but the RPC bodies below name it. If 015 hasn't
+-- been applied, republishing them here compiles fine and then fails at call
+-- time with "record v_item has no field video_url" — which takes the quiz
+-- down for every student. Add it defensively so 016 stands alone.
 alter table public.clf_placement_items
+  add column if not exists video_url    text,
   add column if not exists options_kind text not null default 'text';
 
 do $$
