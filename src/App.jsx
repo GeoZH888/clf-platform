@@ -100,6 +100,11 @@ const PWA_INSTALL_ENABLED = false;
 if (window.location.pathname.startsWith('/admin-v2')) {
   window.location.replace('/admin' + window.location.search + window.location.hash);
 }
+// The teacher results portal moved under the test portal: /test for kids,
+// /test/teacher for staff. Keeps any /testresults link already handed out.
+if (window.location.pathname.startsWith('/testresults')) {
+  window.location.replace('/test/teacher' + window.location.search + window.location.hash);
+}
 const IS_ADMIN    = window.location.pathname.startsWith('/admin');
 const IS_KECHUANG = window.location.pathname.startsWith('/kechuang');
 const IS_LOGIN          = window.location.pathname.startsWith('/login');
@@ -115,10 +120,10 @@ const IS_LEARN          = window.location.pathname.startsWith('/learn');
 const IS_PLACEMENT      = window.location.pathname.startsWith('/placement');
 // 学生测评 standalone portals — own login, one job each. Same session and
 // the same RLS as the role panels; just narrower doors.
-//   /test        kids take tests
-//   /testresults teachers read them
-// Exact match on /test, or '/testresults' would fall into the student door.
-const IS_TESTRESULTS    = window.location.pathname.startsWith('/testresults');
+//   /test          kids take tests
+//   /test/teacher  teachers read the results
+// Checked before IS_TEST, which would otherwise swallow the teacher path.
+const IS_TEST_TEACHER   = window.location.pathname.startsWith('/test/teacher');
 const IS_TEST           = window.location.pathname === '/test'
                        || window.location.pathname.startsWith('/test/');
 // ── Minimal Settings screen ───────────────────────────────────────
@@ -548,7 +553,7 @@ class ErrorBoundary extends React.Component {
          {IS_ADMIN    ? <LanguageProvider><AdminApp/></LanguageProvider>
         : IS_LOGIN          ? <LoginGate/>
         : IS_PLACEMENT      ? <PlacementQuiz/>
-        : IS_TESTRESULTS    ? <ResultsPortalApp/>
+        : IS_TEST_TEACHER   ? <ResultsPortalApp/>
         : IS_TEST           ? <TestPortalApp/>
         : IS_KNOWLEDGE_MAP            ? <KnowledgeMapGate/>
         : IS_ROLE_REDIRECT  ? <RoleRedirectGate/>

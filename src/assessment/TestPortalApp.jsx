@@ -74,7 +74,7 @@ function TestPortal() {
             borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: MUTED }}>
             你以老师身份登录，这里只显示布置给你自己的测评。
             要查看学生成绩请前往{' '}
-            <a href="/teacher/assessment" style={{ color: ACCENT }}>教师工作台 · 学生测评</a>。
+            <a href="/test/teacher" style={{ color: ACCENT }}>教师端 · 测评成绩</a>。
           </div>
         )}
         <StudentAssessmentPage/>

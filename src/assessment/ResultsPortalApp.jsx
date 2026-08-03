@@ -1,6 +1,6 @@
 // src/assessment/ResultsPortalApp.jsx
 //
-// The standalone results portal at /testresults — david-zhongwen.net/testresults.
+// The standalone results portal at /test/teacher.
 //
 // Teacher-facing twin of /test: its own login, then the full 学生测评 page —
 // results plus the ability to create and assign tests. A teacher who only
