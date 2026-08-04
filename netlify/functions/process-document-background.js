@@ -157,6 +157,31 @@ function parseChineseNumber(s) {
 const MIN_TEXT_PER_PAGE = 80;   // less than this → assume scanned, OCR it
 const MAX_OCR_PAGES     = 400;  // safety cap per document
 
+// pdf2json emits one text run per glyph for CJK fonts, so joining runs puts a
+// space between every character: "类 别 名 称" instead of "类别名称". Left as-is
+// it wrecks everything downstream — embeddings are computed on shredded text,
+// retrieved passages are unreadable, and an LLM asked to quote from them
+// copies the spacing into questions children then see.
+//
+// Collapse a space only when BOTH sides are CJK. Spaces inside pinyin and
+// English are real and must survive ("nǐ hǎo", "HSK 4").
+const CJK_RANGE = '\\u3000-\\u303f\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff\\ufe30-\\ufe4f\\uff00-\\uffef';
+const CJK_GAP_RE = new RegExp(`([${CJK_RANGE}])[ \\t]+(?=[${CJK_RANGE}])`, 'g');
+
+function normalizeCjkSpacing(text) {
+  if (!text) return text;
+  let out = String(text);
+  // Adjacent gaps overlap ("类 别 名"), so one pass leaves every other space
+  // behind. Repeat until it settles; 6 passes is far more than any real page
+  // needs and bounds the work on pathological input.
+  for (let i = 0; i < 6; i++) {
+    const next = out.replace(CJK_GAP_RE, '$1');
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
 // Safe decodeURIComponent — some PDFs have malformed percent-encoded chars
 // (e.g. scanned pages with corrupt font references). Instead of crashing,
 // we decode what we can and keep the raw string for the rest.
@@ -187,13 +212,15 @@ async function parsePdfHybrid(buffer) {
           try { return parser.getRawTextContent() || ''; }
           catch { return ''; }  // some corrupt PDFs throw here too
         })();
-        const pageTexts = rawAll.split(/\x0c/).map(t => t.trim());
+        const pageTexts = rawAll.split(/\x0c/).map(t => normalizeCjkSpacing(t.trim()));
         if (pageTexts.length < pages.length || rawAll.length === 0) {
           // Fallback: walk the per-page structure manually, skipping bad chars
           const alt = pages.map(p =>
-            (p.Texts || []).map(t =>
-              (t.R || []).map(r => safeDecodeURIComponent(r.T || '')).join('')
-            ).join(' ')
+            normalizeCjkSpacing(
+              (p.Texts || []).map(t =>
+                (t.R || []).map(r => safeDecodeURIComponent(r.T || '')).join('')
+              ).join(' ')
+            )
           );
           resolve({ pages: alt, pageCount: pages.length });
           return;
