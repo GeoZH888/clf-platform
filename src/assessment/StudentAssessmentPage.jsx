@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
-import { YCT_LABELS, SKILL_LABELS } from '../lib/placement.js';
+import { SKILL_LABELS, levelLabel } from '../lib/placement.js';
 import AssessmentRunner from './AssessmentRunner.jsx';
 import { SkillBar } from './QuizUI.jsx';
 import { ClipboardCheck, Repeat, Clock, ChevronRight } from 'lucide-react';
@@ -34,7 +34,7 @@ export default function StudentAssessmentPage() {
     setLoading(true);
     const [{ data: a }, { data: asg }, { data: r }] = await Promise.all([
       supabase.from('clf_assessments')
-        .select('id, title, description, kind, allow_practice, item_ids, max_items')
+        .select('id, title, description, kind, allow_practice, item_ids, max_items, level_scale')
         .eq('is_active', true),
       supabase.from('clf_assessment_assignments')
         .select('id, assessment_id, due_at, created_at'),
@@ -96,7 +96,7 @@ export default function StudentAssessmentPage() {
                       key={asg.id}
                       title={assessment.title}
                       subtitle={
-                        done ? resultLine(done)
+                        done ? resultLine(done, assessment.level_scale)
                         : asg.due_at ? `截止 ${new Date(asg.due_at).toLocaleDateString('zh-CN')}`
                         : assessment.kind === 'adaptive' ? '自适应测评' : '固定题目'
                       }
@@ -149,7 +149,7 @@ export default function StudentAssessmentPage() {
                           {r.is_practice && <span style={{ color: MUTED, fontSize: 11 }}> · 练习</span>}
                         </div>
                         <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                          {new Date(r.submitted_at || r.started_at).toLocaleDateString('zh-CN')} · {resultLine(r)}
+                          {new Date(r.submitted_at || r.started_at).toLocaleDateString('zh-CN')} · {resultLine(r, byId[r.assessment_id]?.level_scale)}
                         </div>
                       </div>
                       <ChevronRight size={14} color={MUTED}
@@ -173,9 +173,9 @@ export default function StudentAssessmentPage() {
   );
 }
 
-function resultLine(run) {
+function resultLine(run, scaleId = 'yct') {
   if (run.kind === 'adaptive' && run.auto_level != null) {
-    return YCT_LABELS[run.auto_level] || `YCT ${run.auto_level}`;
+    return levelLabel(scaleId, run.auto_level);
   }
   if (run.score_pct != null) {
     return `${Math.round(run.score_pct * 100)}% · ${run.n_correct}/${run.n_items}`;

@@ -16,7 +16,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../school/contexts/AuthContext';
 import {
-  YCT_LABELS, SKILL_LABELS, SKILLS, YCT_MIN, YCT_MAX,
+  SKILL_LABELS, SKILLS, SCALES, levelsOf, levelLabel,
 } from '../lib/placement.js';
 import ItemBankTab from './ItemBankTab.jsx';
 import StudentsTab from './StudentsTab.jsx';
@@ -68,6 +68,7 @@ export default function TeacherAssessmentPage() {
 function ResultsTab() {
   const [runs,     setRuns]     = useState([]);
   const [titles,   setTitles]   = useState({});
+  const [scales,   setScales]   = useState({});   // assessment_id -> 'yct' | 'hsk'
   const [names,    setNames]    = useState({});
   const [practice, setPractice] = useState(false);
   const [loading,  setLoading]  = useState(true);
@@ -90,7 +91,7 @@ function ResultsTab() {
     // profiles gets an empty set. Membership rows carry student_name and are
     // already readable by staff.
     const [{ data: a }, { data: m }, { data: p }] = await Promise.all([
-      supabase.from('clf_assessments').select('id, title, kind'),
+      supabase.from('clf_assessments').select('id, title, kind, level_scale'),
       userIds.length
         ? supabase.from('clf_class_members')
             .select('user_id, student_name')
@@ -105,6 +106,7 @@ function ResultsTab() {
         : Promise.resolve({ data: [] }),
     ]);
     setTitles(Object.fromEntries((a || []).map(x => [x.id, x.title])));
+    setScales(Object.fromEntries((a || []).map(x => [x.id, x.level_scale || 'yct'])));
     setNames({
       ...Object.fromEntries((p || []).map(x => [x.user_id, x.display_name])),
       ...Object.fromEntries((m || [])
@@ -158,7 +160,8 @@ function ResultsTab() {
                 </div>
                 <span style={pill(r.kind === 'adaptive' ? ACCENT : '#217a41')}>
                   {r.kind === 'adaptive'
-                    ? (YCT_LABELS[r.auto_level] || '—')
+                    ? (r.auto_level != null
+                        ? levelLabel(scales[r.assessment_id] || 'yct', r.auto_level) : '—')
                     : (r.score_pct != null ? `${Math.round(r.score_pct * 100)}%` : '—')}
                 </span>
                 <ChevronRight size={14} color={MUTED}
@@ -172,7 +175,9 @@ function ResultsTab() {
                     <SubTitle>各等级正确率</SubTitle>
                     {Object.keys(r.level_scores || {}).length === 0 ? <Dim>无数据</Dim> :
                       Object.entries(r.level_scores).sort().map(([l, v]) => (
-                        <Row key={l} label={`YCT ${l}`} value={`${v.correct}/${v.n}`}
+                        <Row key={l}
+                          label={`${(scales[r.assessment_id] || 'yct').toUpperCase()} ${l}`}
+                          value={`${v.correct}/${v.n}`}
                           ratio={v.n ? v.correct / v.n : 0}
                           highlight={String(r.auto_level) === l}/>
                       ))}
@@ -259,7 +264,7 @@ function CatalogTab({ userId }) {
                   </div>
                   <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                     {a.kind === 'adaptive'
-                      ? `自适应 · 起始 ${YCT_LABELS[a.start_level]} · ${a.max_items} 题`
+                      ? `自适应 · ${(a.level_scale || 'yct').toUpperCase()} · 起始 ${levelLabel(a.level_scale || 'yct', a.start_level)} · ${a.max_items} 题`
                       : `固定 · ${a.item_ids?.length || 0} 题`}
                     {a.allow_practice ? ' · 允许自由练习' : ''}
                   </div>
@@ -291,6 +296,7 @@ function CatalogTab({ userId }) {
 function AdaptiveForm({ userId, onCancel, onCreated }) {
   const [title,    setTitle]    = useState('YCT 水平测评');
   const [desc,     setDesc]     = useState('');
+  const [scale,    setScale]    = useState('yct');
   const [start,    setStart]    = useState(2);
   const [maxItems, setMaxItems] = useState(16);
   const [practice, setPractice] = useState(true);
@@ -302,6 +308,7 @@ function AdaptiveForm({ userId, onCancel, onCreated }) {
     setSaving(true); setErr('');
     const { data, error } = await supabase.from('clf_assessments').insert({
       title: title.trim(), description: desc.trim() || null, kind: 'adaptive',
+      level_scale: scale,
       start_level: start, max_items: maxItems, allow_practice: practice,
       created_by: userId || null,
     }).select().single();
@@ -317,9 +324,20 @@ function AdaptiveForm({ userId, onCancel, onCreated }) {
         <Field label="名称 *">
           <input value={title} onChange={e => setTitle(e.target.value)} style={input}/>
         </Field>
+        <Field label="体系">
+          <select value={scale} onChange={e => {
+            const sc = e.target.value;
+            setScale(sc);
+            if (!levelsOf(sc).includes(start)) setStart(levelsOf(sc)[0]);
+            setTitle(t => (t === 'YCT 水平测评' || t === 'HSK 水平测评')
+              ? (sc === 'hsk' ? 'HSK 水平测评' : 'YCT 水平测评') : t);
+          }} style={input}>
+            {SCALES.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+          </select>
+        </Field>
         <Field label="起始等级">
           <select value={start} onChange={e => setStart(Number(e.target.value))} style={input}>
-            {levels().map(l => <option key={l} value={l}>{YCT_LABELS[l]}</option>)}
+            {levelsOf(scale).map(l => <option key={l} value={l}>{levelLabel(scale, l)}</option>)}
           </select>
         </Field>
         <Field label="题目数量">
@@ -354,6 +372,7 @@ function FixedForm({ userId, onCancel, onCreated }) {
   const [practice, setPractice] = useState(false);
   const [bank,     setBank]     = useState([]);
   const [picked,   setPicked]   = useState([]);   // ordered item ids
+  const [fScale,   setFScale]   = useState('');
   const [fLevel,   setFLevel]   = useState('');
   const [fSkill,   setFSkill]   = useState('');
   const [saving,   setSaving]   = useState(false);
@@ -364,10 +383,11 @@ function FixedForm({ userId, onCancel, onCreated }) {
       const { data } = await supabase.rpc('clf_assessment_item_bank', {
         p_level: fLevel === '' ? null : Number(fLevel),
         p_skill: fSkill === '' ? null : fSkill,
+        p_scale: fScale === '' ? null : fScale,
       });
       setBank(data || []);
     })();
-  }, [fLevel, fSkill]);
+  }, [fLevel, fSkill, fScale]);
 
   const toggle = (id) => setPicked(p =>
     p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -399,10 +419,17 @@ function FixedForm({ userId, onCancel, onCreated }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8, margin: '12px 0 8px', alignItems: 'center' }}>
+        <select value={fScale} onChange={e => { setFScale(e.target.value); setFLevel(''); }}
+          style={{ ...input, width: 'auto' }}>
+          <option value="">全部体系</option>
+          {SCALES.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+        </select>
         <select value={fLevel} onChange={e => setFLevel(e.target.value)}
           style={{ ...input, width: 'auto' }}>
           <option value="">全部等级</option>
-          {levels().map(l => <option key={l} value={l}>{YCT_LABELS[l]}</option>)}
+          {levelsOf(fScale || 'yct').map(l => (
+            <option key={l} value={l}>{levelLabel(fScale || 'yct', l)}</option>
+          ))}
         </select>
         <select value={fSkill} onChange={e => setFSkill(e.target.value)}
           style={{ ...input, width: 'auto' }}>
@@ -435,8 +462,8 @@ function FixedForm({ userId, onCancel, onCreated }) {
                 background: on ? ACCENT : '#fff', color: '#fff', fontSize: 10,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>{on ? order : ''}</span>
-              <span style={{ fontSize: 11, color: MUTED, minWidth: 68 }}>
-                YCT{it.yct_level} · {SKILL_LABELS[it.skill] || it.skill}
+              <span style={{ fontSize: 11, color: MUTED, minWidth: 86 }}>
+                {(it.level_scale || 'yct').toUpperCase()}{it.yct_level} · {SKILL_LABELS[it.skill] || it.skill}
               </span>
               <span style={{ flex: 1, fontSize: 12, color: INK }}>{it.prompt}</span>
             </button>
@@ -556,9 +583,6 @@ function AssignForm({ assessment, classes, userId, onDone, onCancel }) {
 }
 
 // ── Bits ─────────────────────────────────────────────────────────────
-
-const levels = () =>
-  Array.from({ length: YCT_MAX - YCT_MIN + 1 }, (_, i) => YCT_MIN + i);
 
 const Panel = ({ children }) => (
   <div style={{ background: '#fff', border: '1px solid #e8d5b0', borderRadius: 12,

@@ -15,7 +15,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../school/contexts/AuthContext';
-import { YCT_LABELS, SKILL_LABELS } from '../lib/placement.js';
+import { SKILL_LABELS, levelLabel } from '../lib/placement.js';
 import {
   UserPlus, RefreshCw, Copy, Check, X, ChevronRight, Printer, GraduationCap,
 } from 'lucide-react';
@@ -31,6 +31,7 @@ export default function StudentsTab() {
   const [classes, setClasses] = useState([]);
   const [runs,    setRuns]    = useState([]);
   const [titles,  setTitles]  = useState({});
+  const [scales,  setScales]  = useState({});
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [openId,  setOpenId]  = useState(null);
@@ -47,12 +48,13 @@ export default function StudentsTab() {
       supabase.from('clf_assessment_runs')
         .select('*').eq('status', 'submitted')
         .order('submitted_at', { ascending: false }).limit(500),
-      supabase.from('clf_assessments').select('id, title'),
+      supabase.from('clf_assessments').select('id, title, level_scale'),
     ]);
     setMembers(m || []);
     setClasses(c || []);
     setRuns(r || []);
     setTitles(Object.fromEntries((a || []).map(x => [x.id, x.title])));
+    setScales(Object.fromEntries((a || []).map(x => [x.id, x.level_scale || 'yct'])));
     setLoading(false);
   }, []);
 
@@ -138,7 +140,8 @@ export default function StudentsTab() {
                   {last && (
                     <span style={pill(last.kind === 'adaptive' ? ACCENT : '#217a41')}>
                       {last.kind === 'adaptive'
-                        ? (YCT_LABELS[last.auto_level] || '—')
+                        ? (last.auto_level != null
+                            ? levelLabel(scales[last.assessment_id] || 'yct', last.auto_level) : '—')
                         : (last.score_pct != null ? `${Math.round(last.score_pct * 100)}%` : '—')}
                     </span>
                   )}

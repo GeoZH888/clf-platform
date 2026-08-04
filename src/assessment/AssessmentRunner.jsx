@@ -14,18 +14,19 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import {
   resumeRun, nextSkill, nextLevel, recordAnswer, isFinished,
-  shuffleOptions, YCT_LABELS, SKILL_LABELS, YCT_MIN, YCT_MAX,
+  shuffleOptions, SKILL_LABELS, levelLabel, scaleOf,
 } from '../lib/placement.js';
 import {
   Card, Shell, Spinner, ItemView, ProgressBar, SkillBar, btn,
   ACCENT, INK, MUTED, KAI,
 } from './QuizUI.jsx';
 
-function fallbackPlan(level, skill) {
+function fallbackPlan(level, skill, scaleId = 'yct') {
+  const { min, max } = scaleOf(scaleId);
   const plan = [{ l: level, s: skill }, { l: level, s: null }];
-  for (let d = 1; d <= YCT_MAX - YCT_MIN; d++) {
-    if (level + d <= YCT_MAX) plan.push({ l: level + d, s: null });
-    if (level - d >= YCT_MIN) plan.push({ l: level - d, s: null });
+  for (let d = 1; d <= max - min; d++) {
+    if (level + d <= max) plan.push({ l: level + d, s: null });
+    if (level - d >= min) plan.push({ l: level - d, s: null });
   }
   return plan;
 }
@@ -64,7 +65,8 @@ export default function AssessmentRunner({ assessment, assignmentId = null,
       return null;
     }
 
-    for (const { l, s } of fallbackPlan(nextLevel(currentRun), nextSkill(currentRun))) {
+    for (const { l, s } of fallbackPlan(nextLevel(currentRun), nextSkill(currentRun),
+                                        m.level_scale || 'yct')) {
       const { data, error: err } = await supabase.rpc('clf_assessment_next', {
         p_run: m.run_id, p_level: l, p_skill: s,
       });
@@ -101,7 +103,8 @@ export default function AssessmentRunner({ assessment, assignmentId = null,
         return;
       }
       setMeta(data);
-      const fresh = resumeRun(data.answered || 0, data.start_level, data.max_items);
+      const fresh = resumeRun(data.answered || 0, data.start_level, data.max_items,
+                              data.level_scale || 'yct');
       runRef.current = fresh;
       setRun(fresh);
       if (isFinished(fresh)) { await submit(data); return; }
@@ -183,7 +186,8 @@ export default function AssessmentRunner({ assessment, assignmentId = null,
               <>
                 <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>当前等级 · Level</div>
                 <div style={{ fontFamily: KAI, fontSize: 26, color: ACCENT }}>
-                  {YCT_LABELS[result?.auto_level] || '—'}
+                  {result?.auto_level != null
+                    ? levelLabel(meta?.level_scale || 'yct', result.auto_level) : '—'}
                 </div>
                 <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>
                   答对 {result?.n_correct ?? 0} / {result?.n_items ?? 0} 题

@@ -19,7 +19,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
-import { SKILLS, SKILL_LABELS, YCT_LABELS, YCT_MIN, YCT_MAX } from '../lib/placement.js';
+import { SKILLS, SKILL_LABELS, SCALES, levelsOf, levelLabel } from '../lib/placement.js';
 import { askAIForJSON } from '../admin/lib/aiFields.js';
 import AiFieldAssistant from '../admin/components/AiFieldAssistant.jsx';
 import { speakChinese } from './QuizUI.jsx';
@@ -47,7 +47,7 @@ const AI_PROVIDERS = [
 ];
 
 const BLANK = {
-  yct_level: 2, skill: 'vocab', prompt: '', prompt_hint: '',
+  level_scale: 'yct', yct_level: 2, skill: 'vocab', prompt: '', prompt_hint: '',
   audio_text: '', audio_url: '', image_url: '', video_url: '',
   options: ['', '', '', ''], options_kind: 'text', correct_index: 0, active: true,
 };
@@ -76,6 +76,7 @@ const AI_ITEM_FIELDS = [
 export default function ItemBankTab({ ai = false, rag = false }) {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fScale,  setFScale]  = useState('');
   const [fLevel,  setFLevel]  = useState('');
   const [fSkill,  setFSkill]  = useState('');
   const [search,  setSearch]  = useState('');
@@ -98,6 +99,7 @@ export default function ItemBankTab({ ai = false, rag = false }) {
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
   const visible = items.filter(i =>
+    (fScale === '' || (i.level_scale || 'yct') === fScale) &&
     (fLevel === '' || i.yct_level === Number(fLevel)) &&
     (fSkill === '' || i.skill === fSkill) &&
     (search === '' || (i.prompt || '').includes(search)
@@ -171,9 +173,16 @@ export default function ItemBankTab({ ai = false, rag = false }) {
 
       {/* filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <select value={fScale} onChange={e => { setFScale(e.target.value); setFLevel(''); }}
+          style={{ ...input, width: 'auto' }}>
+          <option value="">全部体系</option>
+          {SCALES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
         <select value={fLevel} onChange={e => setFLevel(e.target.value)} style={{ ...input, width: 'auto' }}>
           <option value="">全部等级</option>
-          {levels().map(l => <option key={l} value={l}>{YCT_LABELS[l]}</option>)}
+          {levelsOf(fScale || 'yct').map(l => (
+            <option key={l} value={l}>{levelLabel(fScale || 'yct', l)}</option>
+          ))}
         </select>
         <select value={fSkill} onChange={e => setFSkill(e.target.value)} style={{ ...input, width: 'auto' }}>
           <option value="">全部技能</option>
@@ -194,8 +203,8 @@ export default function ItemBankTab({ ai = false, rag = false }) {
               padding: 10, display: 'flex', gap: 10, alignItems: 'flex-start',
               opacity: it.active ? 1 : .55,
             }}>
-              <span style={{ fontSize: 11, color: MUTED, minWidth: 74, paddingTop: 2 }}>
-                YCT{it.yct_level} · {SKILL_LABELS[it.skill] || it.skill}
+              <span style={{ fontSize: 11, color: MUTED, minWidth: 92, paddingTop: 2 }}>
+                {(it.level_scale || 'yct').toUpperCase()}{it.yct_level} · {SKILL_LABELS[it.skill] || it.skill}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, color: INK }}>{it.prompt}</div>
@@ -277,7 +286,8 @@ function ItemEditor({ item, onCancel, onSaved, ai = false }) {
     setDrafting(true); setErr('');
     try {
       const json = await askAIForJSON({
-        prompt: wholeQuestionPrompt({ topic: topic.trim(), level: f.yct_level, skill: f.skill, count: 1 }),
+        prompt: wholeQuestionPrompt({ topic: topic.trim(), level: f.yct_level,
+                                     skill: f.skill, count: 1, scale: f.level_scale || 'yct' }),
         provider,
         maxTokens: 900,
       });
@@ -303,6 +313,7 @@ function ItemEditor({ item, onCancel, onSaved, ai = false }) {
     setSaving(true); setErr('');
 
     const row = {
+      level_scale: f.level_scale || 'yct',
       yct_level: f.yct_level, skill: f.skill,
       prompt: f.prompt.trim(), prompt_hint: f.prompt_hint.trim() || null,
       audio_text: f.audio_text.trim() || null,
@@ -352,9 +363,24 @@ function ItemEditor({ item, onCancel, onSaved, ai = false }) {
 
       <div style={{ display: 'grid', gap: 10,
         gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+        <Field label="体系">
+          <select value={f.level_scale || 'yct'}
+            onChange={e => {
+              const sc = e.target.value;
+              const allowed = levelsOf(sc);
+              // Clamp the level into the new scale rather than leaving an
+              // out-of-range number that the DB check would reject on save.
+              set({ level_scale: sc,
+                    yct_level: allowed.includes(f.yct_level) ? f.yct_level : allowed[0] });
+            }} style={input}>
+            {SCALES.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+          </select>
+        </Field>
         <Field label="等级">
           <select value={f.yct_level} onChange={e => set({ yct_level: Number(e.target.value) })} style={input}>
-            {levels().map(l => <option key={l} value={l}>{YCT_LABELS[l]}</option>)}
+            {levelsOf(f.level_scale || 'yct').map(l => (
+              <option key={l} value={l}>{levelLabel(f.level_scale || 'yct', l)}</option>
+            ))}
           </select>
         </Field>
         <Field label="技能">
@@ -376,7 +402,7 @@ function ItemEditor({ item, onCancel, onSaved, ai = false }) {
         <AiFieldAssistant
           values={{ prompt: f.prompt, prompt_hint: f.prompt_hint, audio_text: f.audio_text }}
           onPatch={patch => set(patch)}
-          context={`a YCT ${f.yct_level} ${f.skill} test question for a child learning Chinese`}
+          context={`a ${(f.level_scale || 'yct').toUpperCase()} ${f.yct_level} ${f.skill} test question for a learner of Chinese`}
           generate={{ subject: topic || f.prompt, fields: AI_ITEM_FIELDS }}
           compact
         />
@@ -578,6 +604,7 @@ export function isEmbed(url = '') {
 // ── Bulk generation ──────────────────────────────────────────────────
 
 function BulkGenerate({ onClose, onSaved }) {
+  const [scale, setScale] = useState('yct');
   const [level, setLevel] = useState(2);
   const [skill, setSkill] = useState('vocab');
   const [topic, setTopic] = useState('');
@@ -592,7 +619,7 @@ function BulkGenerate({ onClose, onSaved }) {
     setBusy(true); setErr(''); setDraft([]);
     try {
       const json = await askAIForJSON({
-        prompt: wholeQuestionPrompt({ topic: topic.trim() || '综合', level, skill, count }),
+        prompt: wholeQuestionPrompt({ topic: topic.trim() || '综合', level, skill, count, scale }),
         provider,
         maxTokens: 400 * count + 400,
       });
@@ -607,7 +634,7 @@ function BulkGenerate({ onClose, onSaved }) {
 
   const saveKept = async () => {
     const rows = draft.filter(d => d.keep).map(d => ({
-      yct_level: level, skill,
+      level_scale: scale, yct_level: level, skill,
       prompt: d.prompt, prompt_hint: d.prompt_hint || null,
       audio_text: d.audio_text || null,
       options: d.options, correct_index: d.correct_index, active: true,
@@ -634,9 +661,18 @@ function BulkGenerate({ onClose, onSaved }) {
 
       <div style={{ display: 'grid', gap: 10,
         gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+        <Field label="体系">
+          <select value={scale} onChange={e => {
+            const sc = e.target.value;
+            setScale(sc);
+            if (!levelsOf(sc).includes(level)) setLevel(levelsOf(sc)[0]);
+          }} style={input}>
+            {SCALES.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+          </select>
+        </Field>
         <Field label="等级">
           <select value={level} onChange={e => setLevel(Number(e.target.value))} style={input}>
-            {levels().map(l => <option key={l} value={l}>{YCT_LABELS[l]}</option>)}
+            {levelsOf(scale).map(l => <option key={l} value={l}>{levelLabel(scale, l)}</option>)}
           </select>
         </Field>
         <Field label="技能">
@@ -714,7 +750,15 @@ function BulkGenerate({ onClose, onSaved }) {
 
 // ── AI prompt + response handling ────────────────────────────────────
 
-function wholeQuestionPrompt({ topic, level, skill, count }) {
+function wholeQuestionPrompt({ topic, level, skill, count, scale = 'yct' }) {
+  const HSK_SCOPE = {
+    1: 'HSK 1 — 150 words. Everyday greetings, numbers, family, basic 是/有/在 sentences.',
+    2: 'HSK 2 — 300 words. Time, shopping, transport, comparison with 比, 了 for completion.',
+    3: 'HSK 3 — 600 words. Complements of degree and result, 把, 被 introduced, connected discourse.',
+    4: 'HSK 4 — 1200 words. Abstract topics, 不但…而且, 即使…也, longer narrative and opinion.',
+    5: 'HSK 5 — 2500 words. Newspapers and film, idiomatic and written registers, extended argument.',
+    6: 'HSK 6 — 5000+ words. Fluent reading of authentic material, nuanced and literary usage.',
+  };
   const YCT_SCOPE = {
     1: 'YCT 1 — about 80 words. Greetings, numbers 1-10, family, simple nouns like 猫 书 水.',
     2: 'YCT 2 — about 150 words. Time, weekdays, colours, body, school, 喜欢/想/会, measure words.',
@@ -727,11 +771,18 @@ function wholeQuestionPrompt({ topic, level, skill, count }) {
     reading:   'a short reading question: give a sentence in the prompt, then ask about it.',
     grammar:   'a grammar question — fill the blank, written with ＿ for the gap.',
   };
-  return `You are an experienced teacher of Chinese to young foreign learners, writing questions for a YCT placement and evaluation test.
+  const isHsk = scale === 'hsk';
+  const scope = (isHsk ? HSK_SCOPE : YCT_SCOPE)[level]
+    || `${scale.toUpperCase()} level ${level}`;
+  const audience = isHsk
+    ? 'You are an experienced teacher of Chinese as a foreign language, writing questions for an HSK placement and evaluation test.'
+    : 'You are an experienced teacher of Chinese to young foreign learners, writing questions for a YCT placement and evaluation test.';
+
+  return `${audience}
 
 Write ${count} multiple-choice question${count > 1 ? 's' : ''}.
 
-Level: ${YCT_SCOPE[level]}
+Level: ${scope}
 Skill: ${SKILL_SHAPE[skill]}
 Topic: ${topic}
 
@@ -782,8 +833,6 @@ function applyDraft(q, set) {
 }
 
 // ── Bits ─────────────────────────────────────────────────────────────
-
-const levels = () => Array.from({ length: YCT_MAX - YCT_MIN + 1 }, (_, i) => YCT_MIN + i);
 
 const Panel = ({ children }) => (
   <div style={{ background: '#fff', border: '1px solid #e8d5b0', borderRadius: 12,

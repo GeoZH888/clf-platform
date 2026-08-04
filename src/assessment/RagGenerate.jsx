@@ -26,7 +26,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { askAIForJSON } from '../admin/lib/aiFields.js';
-import { SKILLS, SKILL_LABELS, YCT_LABELS, YCT_MIN, YCT_MAX } from '../lib/placement.js';
+import { SKILLS, SKILL_LABELS, SCALES, levelsOf, levelLabel } from '../lib/placement.js';
 import { Database, Search, Wand2, X } from 'lucide-react';
 
 const ACCENT = '#c41e3a';
@@ -46,6 +46,7 @@ export default function RagGenerate({ onClose, onSaved }) {
   const [collections, setCollections] = useState([]);
   const [collection,  setCollection]  = useState('');
   const [topic,    setTopic]    = useState('');
+  const [scale,    setScale]    = useState('yct');
   const [level,    setLevel]    = useState(2);
   const [skill,    setSkill]    = useState('reading');
   const [count,    setCount]    = useState(5);
@@ -100,7 +101,7 @@ export default function RagGenerate({ onClose, onSaved }) {
     setBusy('generate'); setErr('');
     try {
       const json = await askAIForJSON({
-        prompt: ragPrompt({ chunks, topic: topic.trim(), level, skill, count }),
+        prompt: ragPrompt({ chunks, topic: topic.trim(), level, skill, count, scale }),
         provider,
         maxTokens: 420 * count + 600,
       });
@@ -116,7 +117,7 @@ export default function RagGenerate({ onClose, onSaved }) {
   // ── 3. Save with provenance ────────────────────────────────────────
   const save = async () => {
     const rows = draft.filter(d => d.keep).map(d => ({
-      yct_level: level, skill,
+      level_scale: scale, yct_level: level, skill,
       prompt: d.prompt, prompt_hint: d.prompt_hint || null,
       audio_text: d.audio_text || null,
       options: d.options, options_kind: 'text',
@@ -163,9 +164,18 @@ export default function RagGenerate({ onClose, onSaved }) {
             ))}
           </select>
         </Field>
+        <Field label="体系">
+          <select value={scale} onChange={e => {
+            const sc = e.target.value;
+            setScale(sc);
+            if (!levelsOf(sc).includes(level)) setLevel(levelsOf(sc)[0]);
+          }} style={input}>
+            {SCALES.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+          </select>
+        </Field>
         <Field label="等级">
           <select value={level} onChange={e => setLevel(Number(e.target.value))} style={input}>
-            {levels().map(l => <option key={l} value={l}>{YCT_LABELS[l]}</option>)}
+            {levelsOf(scale).map(l => <option key={l} value={l}>{levelLabel(scale, l)}</option>)}
           </select>
         </Field>
         <Field label="技能">
@@ -275,7 +285,7 @@ export default function RagGenerate({ onClose, onSaved }) {
 
 // ── Prompt ───────────────────────────────────────────────────────────
 
-function ragPrompt({ chunks, topic, level, skill, count }) {
+function ragPrompt({ chunks, topic, level, skill, count, scale = 'yct' }) {
   const passages = chunks
     .map((c, i) => `[${i + 1}] ${String(c.content || '').slice(0, 1200)}`)
     .join('\n\n');
@@ -286,6 +296,15 @@ function ragPrompt({ chunks, topic, level, skill, count }) {
     3: 'YCT 3 — about 300 words. 比, 正在, 已经, 因为…所以, the complement 得.',
     4: 'YCT 4 — about 600 words. 虽然…但是, 不但…而且, 把, 被, 如果, 除了…以外.',
   };
+  const HSK_SCOPE = {
+    1: 'HSK 1 — 150 words. Greetings, numbers, family, basic 是/有/在 sentences.',
+    2: 'HSK 2 — 300 words. Time, shopping, transport, 比, 了 for completion.',
+    3: 'HSK 3 — 600 words. Complements of degree and result, 把 and 被, connected discourse.',
+    4: 'HSK 4 — 1200 words. Abstract topics, 不但…而且, 即使…也, opinion and narrative.',
+    5: 'HSK 5 — 2500 words. Newspapers and film, idiomatic and written registers.',
+    6: 'HSK 6 — 5000+ words. Authentic material, nuanced and literary usage.',
+  };
+  const SCOPE = scale === 'hsk' ? HSK_SCOPE : YCT_SCOPE;
 
   return `You are an experienced teacher of Chinese to young foreign learners, writing YCT test questions grounded in this school's own teaching material.
 
@@ -304,7 +323,7 @@ text you had to guess at, and never copy corrupted characters into an option.
 Hard rules:
 - Base every question on the passages above. Do not test vocabulary or grammar that does not appear in them.
 - If the passages are too thin to support ${count} good questions, write fewer. Never pad with invented material.
-- Target level: ${YCT_SCOPE[level]} If a passage is above that level, simplify what you test — do not exceed the level.
+- Target level: ${SCOPE[level] || scale.toUpperCase() + ' ' + level} If a passage is above that level, simplify what you test — do not exceed the level.
 - Skill: ${skill}. For listening, put the sentence to be spoken in audio_text (no punctuation) and make the prompt an instruction.
 - Everything the child reads must be in Simplified Chinese. The same question serves English- and Italian-speaking learners, so a question needing an English gloss is unusable.
 - Exactly 4 options, exactly one correct, and the three wrong options must be plausible at this level.
@@ -340,8 +359,6 @@ function normalise(q = {}) {
 
 
 // ── Bits ─────────────────────────────────────────────────────────────
-
-const levels = () => Array.from({ length: YCT_MAX - YCT_MIN + 1 }, (_, i) => YCT_MIN + i);
 
 const Panel = ({ children }) => (
   <div style={{ background: '#fff', border: '1px solid #e8d5b0', borderRadius: 12,

@@ -38,11 +38,51 @@ export const YCT_LABELS = {
   4: 'YCT 4 · 中高级',
 };
 
+// ── Level scales ─────────────────────────────────────────────────────
+// The bank holds two ladders. They are never mixed inside one test: a
+// staircase cannot compare a YCT 2 result against an HSK 2 one, so an
+// assessment declares its scale and retrieval filters on it.
+//
+// HSK is offered as 1–6. HSK 3.0 adds a combined 7–9 band, which the column
+// allows (1–9) but which isn't exposed until someone decides how a band
+// should behave in a per-level staircase.
+
+export const HSK_LABELS = {
+  1: 'HSK 1', 2: 'HSK 2', 3: 'HSK 3',
+  4: 'HSK 4', 5: 'HSK 5', 6: 'HSK 6',
+};
+
+export const SCALES = [
+  { id: 'yct', label: 'YCT · 少儿', min: 1, max: 4, labels: YCT_LABELS },
+  { id: 'hsk', label: 'HSK',        min: 1, max: 6, labels: HSK_LABELS },
+];
+
+export const SCALE_BY_ID = Object.fromEntries(SCALES.map(s => [s.id, s]));
+
+export function scaleOf(id) {
+  return SCALE_BY_ID[id] || SCALE_BY_ID.yct;
+}
+
+/** Level numbers valid for a scale, e.g. levelsOf('hsk') → [1..6]. */
+export function levelsOf(scaleId) {
+  const s = scaleOf(scaleId);
+  return Array.from({ length: s.max - s.min + 1 }, (_, i) => s.min + i);
+}
+
+/** Display label for a level within a scale. */
+export function levelLabel(scaleId, level) {
+  return scaleOf(scaleId).labels[level] || `${scaleId?.toUpperCase?.() || ''} ${level}`;
+}
+
 // ── Run state ────────────────────────────────────────────────────────
 
-export function initRun(startLevel = PLACEMENT_CONFIG.startLevel, maxItems) {
+export function initRun(startLevel = PLACEMENT_CONFIG.startLevel, maxItems, scaleId = 'yct') {
+  const s = scaleOf(scaleId);
   return {
-    level:         clampLevel(startLevel),
+    scale:         s.id,
+    min:           s.min,
+    max:           s.max,
+    level:         clampLevel(startLevel, s.min, s.max),
     streakCorrect: 0,
     streakWrong:   0,
     maxItems:      maxItems || PLACEMENT_CONFIG.maxItems,
@@ -58,8 +98,8 @@ export function initRun(startLevel = PLACEMENT_CONFIG.startLevel, maxItems) {
  * level resets to the start. Placeholder entries carry level/skill = null and
  * are skipped by the local scorers; the server's score is authoritative.
  */
-export function resumeRun(answeredCount = 0, startLevel, maxItems) {
-  const run = initRun(startLevel, maxItems);
+export function resumeRun(answeredCount = 0, startLevel, maxItems, scaleId = 'yct') {
+  const run = initRun(startLevel, maxItems, scaleId);
   run.asked = Array.from({ length: Math.max(0, answeredCount) }, () => ({
     itemId: null, level: null, skill: null, isCorrect: null, resumed: true,
   }));
@@ -102,15 +142,19 @@ export function recordAnswer(run, { itemId, level, skill, isCorrect }) {
   let sc = streakCorrect;
   let sw = streakWrong;
 
-  if (streakCorrect >= streakUp && level_ < YCT_MAX) {
+  const lo = run.min ?? YCT_MIN;
+  const hi = run.max ?? YCT_MAX;
+
+  if (streakCorrect >= streakUp && level_ < hi) {
     level_ += 1;
     sc = 0;                 // reset on a move so it takes another 2 to climb again
-  } else if (streakWrong >= streakDown && level_ > YCT_MIN) {
+  } else if (streakWrong >= streakDown && level_ > lo) {
     level_ -= 1;
     sw = 0;
   }
 
   return {
+    ...run,
     level:         level_,
     streakCorrect: sc,
     streakWrong:   sw,
@@ -118,8 +162,8 @@ export function recordAnswer(run, { itemId, level, skill, isCorrect }) {
   };
 }
 
-function clampLevel(l) {
-  return Math.max(YCT_MIN, Math.min(YCT_MAX, Number(l) || YCT_MIN));
+function clampLevel(l, lo = YCT_MIN, hi = YCT_MAX) {
+  return Math.max(lo, Math.min(hi, Number(l) || lo));
 }
 
 // ── Local scoring (mirrors clf_placement_submit) ─────────────────────
@@ -151,15 +195,16 @@ export function skillScores(asked) {
 }
 
 /** Highest level answered with >= minPerLevel items and >= passRatio correct. */
-export function estimateLevel(asked) {
+export function estimateLevel(asked, scaleId = 'yct') {
   const { minPerLevel, passRatio } = PLACEMENT_CONFIG;
+  const scale  = scaleOf(scaleId);
   const scores = levelScores(asked);
-  let level = YCT_MIN;
+  let level = scale.min;
   let confidence = 0;
-  for (let l = YCT_MIN; l <= YCT_MAX; l++) {
-    const s = scores[String(l)];
-    if (!s || s.n < minPerLevel) continue;
-    const ratio = s.correct / s.n;
+  for (let l = scale.min; l <= scale.max; l++) {
+    const row = scores[String(l)];
+    if (!row || row.n < minPerLevel) continue;
+    const ratio = row.correct / row.n;
     if (ratio >= passRatio) { level = l; confidence = round2(ratio); }
   }
   return { level, confidence, levelScores: scores, skillScores: skillScores(asked) };
