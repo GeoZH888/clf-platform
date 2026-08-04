@@ -579,7 +579,10 @@ export default function GamesApp({ onBack }) {
       const [chars, words, chengyu] = await Promise.all([
         supabase.from('jgw_characters').select('glyph_modern,pinyin,meaning_en,meaning_zh,meaning_it').limit(80),
         supabase.from('jgw_words').select('word_zh,pinyin,meaning_en,meaning_zh,meaning_it').limit(80),
-        supabase.from('jgw_chengyu').select('idiom,pinyin,meaning_zh,meaning_en,meaning_it').eq('active',true).limit(60),
+        // clf_chengyu, not jgw_chengyu — the latter does not exist on this
+        // project (PGRST205), so this query had been failing silently and no
+        // idiom ever reached Speed Quiz, Memory Match or Falling Sky.
+        supabase.from('clf_chengyu').select('idiom,pinyin,meaning_zh,meaning_en,meaning_it').eq('active',true).limit(60),
       ]);
 
       const items = [];
@@ -704,6 +707,31 @@ export default function GamesApp({ onBack }) {
       <div style={{ minHeight:'100dvh', background:'#1a0505', display:'flex',
         alignItems:'center', justifyContent:'center', color:'#a07850', fontSize:14 }}>
         {t('加载成语…','Loading idioms…','Caricamento…')}
+      </div>
+    );
+    // 接龙 only works if some idiom's last character starts another one. With
+    // too few idioms every round dead-ends on the first move, which reads as
+    // a broken game rather than an empty one — say so instead.
+    const starts = new Set(idioms.map(i => i.idiom?.[0]).filter(Boolean));
+    const chainable = idioms.filter(i => i.idiom && starts.has(i.idiom.at(-1)));
+    if (chainable.length < 2) return (
+      <div style={{ minHeight:'100dvh', background:'#1a0505', display:'flex',
+        flexDirection:'column', alignItems:'center', justifyContent:'center',
+        padding:24, textAlign:'center', color:'#a07850' }}>
+        <div style={{ fontSize:44, marginBottom:12 }}>🐉</div>
+        <div style={{ fontSize:16, color:'#e8d5b0', marginBottom:8 }}>
+          {t('成语还不够接龙','Not enough idioms to chain yet','Non ci sono abbastanza idiomi')}
+        </div>
+        <div style={{ fontSize:13, maxWidth:340, lineHeight:1.7 }}>
+          {t(`题库里只有 ${idioms.length} 条成语，没有一条的末字能接上另一条的首字。`,
+             `The bank has ${idioms.length} idioms and none of them link end-to-start.`,
+             `Solo ${idioms.length} idiomi e nessuno si collega.`)}
+        </div>
+        <button onClick={()=>setGame(null)} style={{
+          marginTop:20, padding:'10px 22px', fontSize:14, borderRadius:10,
+          background:'#C62828', color:'#fff', border:'none', cursor:'pointer' }}>
+          {t('返回','Back','Indietro')}
+        </button>
       </div>
     );
     return <ChengyuChain idioms={idioms} onBack={()=>setGame(null)} lang={lang}/>;
