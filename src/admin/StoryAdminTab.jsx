@@ -37,7 +37,8 @@ export default function StoryAdminTab() {
   const [search,   setSearch]   = useState('');
   const [filter,   setFilter]   = useState('all');
   const [showCreate, setShowCreate] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  // Which card is expanded, and onto which panel: { id, tab:'info'|'pages' }
+  const [openPanel, setOpenPanel] = useState(null);
   const [toast,    setToast]    = useState(null);
 
   useEffect(() => { load(); }, []);
@@ -177,11 +178,14 @@ export default function StoryAdminTab() {
           {list.map(s => (
             <StoryCard
               key={s.id} story={s}
-              isOpen={editingId === s.id}
-              onToggleEdit={() => setEditingId(editingId === s.id ? null : s.id)}
+              openTab={openPanel?.id === s.id ? openPanel.tab : null}
+              onToggleTab={tab => setOpenPanel(p =>
+                (p?.id === s.id && p.tab === tab) ? null : { id: s.id, tab })}
               onTogglePublish={() => togglePublish(s)}
               onDelete={() => deleteStory(s)}
               onPagesUpdated={load}
+              onSaved={load}
+              flash={flash}
             />
           ))}
         </div>
@@ -209,7 +213,10 @@ export default function StoryAdminTab() {
 }
 
 // ─── Story card with inline pages editor ──────────────────────────────────
-function StoryCard({ story, isOpen, onToggleEdit, onTogglePublish, onDelete, onPagesUpdated }) {
+function StoryCard({
+  story, openTab, onToggleTab, onTogglePublish, onDelete, onPagesUpdated, onSaved, flash,
+}) {
+  const isOpen = !!openTab;
   return (
     <div style={{ background: V.card, border: `1px solid ${V.border}`, borderRadius: 12, padding: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -236,12 +243,20 @@ function StoryCard({ story, isOpen, onToggleEdit, onTogglePublish, onDelete, onP
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <button onClick={onToggleEdit}
+          <button onClick={() => onToggleTab('info')}
+            title="编辑标题/摘要,并用 AI 补全翻译 · Edit titles and summaries"
             style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer',
               borderRadius: 8, border: `1px solid ${V.border}`,
-              background: isOpen ? V.vermillion : V.bg,
-              color: isOpen ? '#fdf6e3' : V.text2 }}>
-            {isOpen ? '收起' : '✎ 故事页'}
+              background: openTab === 'info' ? V.vermillion : V.bg,
+              color: openTab === 'info' ? '#fdf6e3' : V.text2 }}>
+            {openTab === 'info' ? '收起' : '✎ 信息'}
+          </button>
+          <button onClick={() => onToggleTab('pages')}
+            style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer',
+              borderRadius: 8, border: `1px solid ${V.border}`,
+              background: openTab === 'pages' ? V.vermillion : V.bg,
+              color: openTab === 'pages' ? '#fdf6e3' : V.text2 }}>
+            {openTab === 'pages' ? '收起' : '✎ 故事页'}
           </button>
           <button onClick={onTogglePublish}
             style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 8,
@@ -259,9 +274,119 @@ function StoryCard({ story, isOpen, onToggleEdit, onTogglePublish, onDelete, onP
       </div>
       {isOpen && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${V.border}` }}>
-          <StoryPagesEditor story={story} onUpdated={onPagesUpdated} />
+          {openTab === 'info'
+            ? <StoryInfoEditor story={story} onSaved={onSaved} flash={flash} />
+            : <StoryPagesEditor story={story} onUpdated={onPagesUpdated} />}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Story info editor ────────────────────────────────────────────────────
+// Story-level fields were previously only editable at creation time, so the
+// AI translate bar could not reach stories already in the table.
+const INFO_COLS = [
+  'slug', 'title_zh', 'title_en', 'title_it',
+  'summary_zh', 'summary_en', 'summary_it',
+  'difficulty', 'cover_image_url',
+];
+
+function StoryInfoEditor({ story, onSaved, flash }) {
+  const seed = () => Object.fromEntries(
+    INFO_COLS.map(k => [k, story[k] ?? (k === 'difficulty' ? 1 : '')]));
+
+  const [form,     setForm]     = useState(seed);
+  const [baseline, setBaseline] = useState(seed);
+  const [saving,   setSaving]   = useState(false);
+  const [err,      setErr]      = useState(null);
+
+  // Deliberately not synced to `story` after mount: a background list refresh
+  // must not wipe edits the admin has not saved yet.
+  const dirty = INFO_COLS.some(k => String(form[k] ?? '') !== String(baseline[k] ?? ''));
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function save() {
+    setErr(null);
+    if (!form.slug || !form.title_zh) return setErr('Slug 和中文标题必填');
+    if (!/^[a-z0-9-]+$/.test(form.slug)) {
+      return setErr('Slug 只能包含小写字母、数字、连字符');
+    }
+    setSaving(true);
+    const { error } = await supabase.from('clf_stories').update({
+      slug:            form.slug,
+      title_zh:        form.title_zh,
+      title_en:        form.title_en || null,
+      title_it:        form.title_it || null,
+      summary_zh:      form.summary_zh || null,
+      summary_en:      form.summary_en || null,
+      summary_it:      form.summary_it || null,
+      difficulty:      parseInt(form.difficulty) || 1,
+      cover_image_url: form.cover_image_url || null,
+    }).eq('id', story.id);
+    setSaving(false);
+    if (error) return setErr(error.message);
+    setBaseline(form);
+    flash?.('ok', '已保存 Saved');
+    onSaved?.();
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: V.text2 }}>
+          故事信息 · Story info
+        </div>
+        {dirty && (
+          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8,
+            background: '#fff3e0', color: '#e65100' }}>
+            未保存 unsaved
+          </span>
+        )}
+      </div>
+
+      {/* Fills whichever of the zh/en/it titles + summaries are still empty. */}
+      <AiFieldAssistant
+        values={form}
+        onPatch={patch => setForm(f => ({ ...f, ...patch }))}
+        context={`A children's story for Chinese learners${form.title_zh ? `: ${form.title_zh}` : ''}`}
+        compact
+      />
+
+      <Field label="Slug *" value={form.slug} onChange={v => set('slug', v)}
+        hint="改动会影响分享链接 · changing this changes the story's URL" />
+      <Field label="中文标题 *" value={form.title_zh} onChange={v => set('title_zh', v)} />
+      <Field label="English Title" value={form.title_en} onChange={v => set('title_en', v)} />
+      <Field label="Titolo Italiano" value={form.title_it} onChange={v => set('title_it', v)} />
+      <Field label="中文摘要" value={form.summary_zh} onChange={v => set('summary_zh', v)} multiline />
+      <Field label="English summary" value={form.summary_en} onChange={v => set('summary_en', v)} multiline />
+      <Field label="Sommario italiano" value={form.summary_it} onChange={v => set('summary_it', v)} multiline />
+      <Field label="难度" select value={form.difficulty}
+        onChange={v => set('difficulty', v)} options={DIFFICULTIES} />
+      <Field label="封面图 URL" value={form.cover_image_url}
+        onChange={v => set('cover_image_url', v)} placeholder="https://..." />
+
+      {err && (
+        <div style={{ background: '#ffebee', color: '#b71c1c', padding: '8px 12px',
+          borderRadius: 8, fontSize: 12, marginTop: 8 }}>{err}</div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+        <button onClick={() => { setForm(baseline); setErr(null); }}
+          disabled={!dirty || saving}
+          style={{ padding: '7px 14px', fontSize: 12, borderRadius: 8,
+            border: `1px solid ${V.border}`, background: V.bg, color: V.text2,
+            cursor: !dirty || saving ? 'default' : 'pointer', opacity: !dirty || saving ? 0.5 : 1 }}>
+          还原
+        </button>
+        <button onClick={save} disabled={!dirty || saving}
+          style={{ padding: '7px 16px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+            border: 'none', background: V.vermillion, color: '#fdf6e3',
+            cursor: !dirty || saving ? 'default' : 'pointer', opacity: !dirty || saving ? 0.5 : 1 }}>
+          {saving ? '保存中…' : '保存'}
+        </button>
+      </div>
     </div>
   );
 }
