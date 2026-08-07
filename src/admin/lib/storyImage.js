@@ -49,6 +49,27 @@ Absolutely no text, no letters, no words, no Chinese characters, no calligraphy,
 }
 
 /**
+ * Build the prompt for a single story page.
+ *
+ * The style hint and story title are repeated on every page so a run of pages
+ * at least shares a palette and register. Image models hold no memory between
+ * calls, so recurring characters will still drift — see the note in
+ * StoryPagesEditor's batch handler.
+ */
+export function buildPagePrompt({ text_en, text_zh, storyTitle = '', style = 'storybook' }) {
+  const styleHint = (COVER_STYLES.find(s => s.id === style) || COVER_STYLES[0]).hint;
+  const scene = text_en || text_zh || '';
+
+  return `Interior illustration for one page of a children's picture book${storyTitle ? ` called "${storyTitle}"` : ''}.
+
+Depict exactly this moment, and nothing beyond it: ${scene}
+
+Style: ${styleHint}. One clear scene filling the frame, warm and friendly for children aged 5-10, consistent with the rest of the book.
+
+Absolutely no text, no letters, no words, no Chinese characters, no speech bubbles, no watermark, and no signature anywhere in the image.`;
+}
+
+/**
  * Generate a cover and return a durable public URL.
  *
  * @param {string} slug     used only to name the stored file
@@ -63,7 +84,37 @@ export async function generateCover({
   provider = 'openai',
   titles = {},
 } = {}) {
-  const prompt = buildCoverPrompt({ ...titles, style });
+  return generateStoryImage({
+    prompt: buildCoverPrompt({ ...titles, style }),
+    name: slug, style, provider,
+  });
+}
+
+/**
+ * Generate one page illustration. Same contract as generateCover().
+ */
+export async function generatePageImage({
+  storyTitle = '',
+  page = {},
+  slug = 'story',
+  style = 'storybook',
+  provider = 'openai',
+} = {}) {
+  if (!(page.text_en || page.text_zh)) {
+    throw new Error('这一页还没有文字 · page has no text to illustrate');
+  }
+  return generateStoryImage({
+    prompt: buildPagePrompt({ ...page, storyTitle, style }),
+    name: `${slug}-p${page.page_order ?? 0}`,
+    style, provider,
+  });
+}
+
+/**
+ * Shared core: send a prompt to ai-gateway, then make the result durable.
+ */
+async function generateStoryImage({ prompt, name = 'story', style, provider }) {
+  const slug = name;
 
   // Admins may hold their own key in the API Keys tab; otherwise the
   // server-side env key is used.

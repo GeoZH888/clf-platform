@@ -18,6 +18,9 @@ import StoryCoverField from './components/StoryCoverField.jsx';
 import {
   draftStory, translatePages, pinyinForPages, STORY_VOICES,
 } from './lib/storyAi.js';
+import {
+  COVER_STYLES, IMAGE_PROVIDERS, generatePageImage,
+} from './lib/storyImage.js';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -410,9 +413,12 @@ function StoryPagesEditor({ story, onUpdated }) {
   const [provider,  setProvider]  = useState('claude');
   const [voice,     setVoice]     = useState(STORY_VOICES[0].id);
   const [overwrite, setOverwrite] = useState(false);
-  const [busy,      setBusy]      = useState(null);   // 'translate'|'pinyin'|'audio'|null
+  const [imgStyle,  setImgStyle]  = useState(COVER_STYLES[0].id);
+  const [imgProv,   setImgProv]   = useState(IMAGE_PROVIDERS[0].id);
+  const [busy,      setBusy]      = useState(null);   // 'translate'|'pinyin'|'audio'|'image'|null
   const [logLines,  setLogLines]  = useState([]);
   const [audioBusy, setAudioBusy] = useState({});     // { [pageId]: true }
+  const [imgBusy,   setImgBusy]   = useState({});     // { [pageId]: true }
 
   const log = m => setLogLines(prev =>
     [`${new Date().toLocaleTimeString()} ${m}`, ...prev].slice(0, 24));
@@ -484,6 +490,56 @@ function StoryPagesEditor({ story, onUpdated }) {
       if (!n) log('没有需要注音的页面（勾选「覆盖」可重新注音）');
       else log(`✓ 已注音 ${await applyPatches(patches)} 页`);
     } catch (e) { log(`✗ 注音失败: ${e.message}`); }
+    setBusy(null);
+  }
+
+  // ── Illustration: one page ──────────────────────────────────────────────
+  async function generateImage(page, { quiet = false } = {}) {
+    setImgBusy(prev => ({ ...prev, [page.id]: true }));
+    try {
+      const { url, stored } = await generatePageImage({
+        storyTitle: story.title_en || story.title_zh || '',
+        page, slug: story.slug, style: imgStyle, provider: imgProv,
+      });
+      const { error } = await supabase.from('clf_story_pages')
+        .update({ image_url: url }).eq('id', page.id);
+      if (error) throw new Error(`保存失败: ${error.message}`);
+
+      setPages(prev => prev.map(x => x.id === page.id ? { ...x, image_url: url } : x));
+      if (!stored) {
+        log(`⚠ 第 ${page.page_order} 页插图未能存入图库 — 该链接约一小时后失效,请重新生成`);
+      } else if (!quiet) {
+        log(`✓ 第 ${page.page_order} 页插图完成`);
+      }
+      return true;
+    } catch (e) {
+      log(`✗ 第 ${page.page_order} 页插图失败: ${e.message}`);
+      return false;
+    } finally {
+      setImgBusy(prev => ({ ...prev, [page.id]: false }));
+    }
+  }
+
+  // ── Illustration: every page still missing one ──────────────────────────
+  async function runBatchImages() {
+    const todo = pages.filter(p =>
+      (p.text_zh || p.text_en) && (overwrite || !p.image_url));
+    if (!todo.length) {
+      return log(overwrite ? '没有可配图的页面' : '所有页面都已有插图（勾选「覆盖」可重画）');
+    }
+    if (!confirm(
+      `将为 ${todo.length} 页生成插图\n画风: ${imgStyle} · 引擎: ${imgProv}\n` +
+      `每页约 10-20 秒,预计 ${Math.ceil(todo.length * 15 / 60)} 分钟。\n\n` +
+      `注意: 绘图模型每次调用互不记忆,同一个角色在不同页面上会长得不一样。\n继续？`
+    )) return;
+
+    setBusy('image');
+    log(`🎨 [${imgProv}/${imgStyle}] 生成 ${todo.length} 页插图…`);
+    let done = 0;
+    for (const p of todo) {
+      if (await generateImage(p, { quiet: true })) done++;
+    }
+    log(`✓ 插图完成 ${done}/${todo.length} 页`);
     setBusy(null);
   }
 
@@ -571,6 +627,7 @@ function StoryPagesEditor({ story, onUpdated }) {
   if (loading) return <div style={{ color: V.text3, fontSize: 12 }}>加载页面…</div>;
 
   const withAudio = pages.filter(p => p.audio_url).length;
+  const withImage = pages.filter(p => p.image_url).length;
   const anyBusy   = !!busy;
 
   return (
@@ -597,6 +654,11 @@ function StoryPagesEditor({ story, onUpdated }) {
               color: withAudio === pages.length ? '#2E7D32' : V.text3 }}>
               🔊 {withAudio}/{pages.length}
             </span>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 8,
+              background: withImage === pages.length ? '#e8f5e9' : '#f5ede0',
+              color: withImage === pages.length ? '#2E7D32' : V.text3 }}>
+              🎨 {withImage}/{pages.length}
+            </span>
 
             <div style={{ flex: 1 }} />
 
@@ -617,6 +679,20 @@ function StoryPagesEditor({ story, onUpdated }) {
               {STORY_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
 
+            <select value={imgStyle} onChange={e => setImgStyle(e.target.value)}
+              title="插图画风 · Illustration style"
+              style={{ fontSize: 11, padding: '3px 6px', borderRadius: 6,
+                border: `1px solid ${V.border}`, background: '#fff', color: V.text2 }}>
+              {COVER_STYLES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+
+            <select value={imgProv} onChange={e => setImgProv(e.target.value)}
+              title="绘图引擎 · Image provider"
+              style={{ fontSize: 11, padding: '3px 6px', borderRadius: 6,
+                border: `1px solid ${V.border}`, background: '#fff', color: V.text2 }}>
+              {IMAGE_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+
             <label title="重做已有内容 · Redo pages that already have content"
               style={{ fontSize: 11, color: V.text3, display: 'flex',
                 alignItems: 'center', gap: 4, cursor: 'pointer' }}>
@@ -632,6 +708,10 @@ function StoryPagesEditor({ story, onUpdated }) {
             <ToolBtn onClick={runTranslate} disabled={anyBusy}
               title="以中文为源补全英文/意大利文 · Fill missing EN/IT from Chinese">
               {busy === 'translate' ? '⏳ 翻译中…' : '🌐 补全翻译'}
+            </ToolBtn>
+            <ToolBtn onClick={runBatchImages} disabled={anyBusy}
+              title="为缺插图的页面配图 · Illustrate pages that have no image">
+              {busy === 'image' ? '⏳ 配图中…' : '🎨 批量插图'}
             </ToolBtn>
             <ToolBtn onClick={runBatchAudio} disabled={anyBusy} primary
               title="为所有页面生成朗读 · Generate narration for every page">
@@ -663,6 +743,8 @@ function StoryPagesEditor({ story, onUpdated }) {
               audioBusy={!!audioBusy[p.id]}
               audioStale={!!p.audio_url && p.audio_voice !== voice}
               onGenerateAudio={() => generateAudio(p, { force: !!p.audio_url })}
+              imgBusy={!!imgBusy[p.id]}
+              onGenerateImage={() => generateImage(p)}
             />
           ))}
         </div>
@@ -688,7 +770,7 @@ function ToolBtn({ onClick, disabled, title, primary, children }) {
 
 function PageRow({
   page, index, total, onChange, onDelete, onMoveUp, onMoveDown,
-  audioBusy, audioStale, onGenerateAudio,
+  audioBusy, audioStale, onGenerateAudio, imgBusy, onGenerateImage,
 }) {
   return (
     <div style={{ background: V.bg, border: `1px solid ${V.border}`, borderRadius: 8, padding: 10 }}>
@@ -714,10 +796,24 @@ function PageRow({
               style={{ padding: '2px 6px', fontSize: 10, cursor: 'pointer',
                 border: '1px solid #FFCDD2', borderRadius: 4, background: '#FFEBEE', color: '#C62828' }}>✕</button>
           </div>
-          <input value={page.image_url || ''} onChange={e => onChange({ image_url: e.target.value })}
-            placeholder="🖼 插图 URL (留空显示占位图)"
-            style={{ width: '100%', fontSize: 11, padding: 6, borderRadius: 4,
-              border: `1px solid ${V.border}` }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input value={page.image_url || ''} onChange={e => onChange({ image_url: e.target.value })}
+              placeholder="🖼 插图 URL (留空显示占位图)"
+              style={{ flex: 1, minWidth: 0, fontSize: 11, padding: 6, borderRadius: 4,
+                border: `1px solid ${V.border}` }} />
+            <button type="button" onClick={onGenerateImage}
+              disabled={imgBusy || !(page.text_zh || page.text_en)}
+              title={page.image_url
+                ? '用当前画风重新配图 · Regenerate with the selected style'
+                : '根据本页文字生成插图 · Illustrate this page from its text'}
+              style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6, flexShrink: 0,
+                border: `1px solid ${V.border}`,
+                background: page.image_url ? '#fff8e1' : '#fff', color: V.text2,
+                cursor: imgBusy || !(page.text_zh || page.text_en) ? 'default' : 'pointer',
+                opacity: imgBusy || !(page.text_zh || page.text_en) ? 0.5 : 1 }}>
+              {imgBusy ? '⏳' : page.image_url ? '🎨 重画' : '🎨 配图'}
+            </button>
+          </div>
         </div>
       </div>
       <textarea value={page.text_zh || ''} onChange={e => onChange({ text_zh: e.target.value })}
