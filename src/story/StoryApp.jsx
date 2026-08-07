@@ -11,7 +11,7 @@
 // 'clf-langchange' event from FloatingLangMenu. (The other LanguageContext
 // under school/contexts/ is not mounted on this route.)
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useLang } from '../context/LanguageContext.jsx';
 import { usePhone } from '../hooks/useMediaQuery';
@@ -36,6 +36,8 @@ const STR = {
   page_of:    { zh: '页',           en: 'of',            it: 'di' },
   show_pinyin:{ zh: '显示拼音',     en: 'Show pinyin',   it: 'Mostra pinyin' },
   hide_pinyin:{ zh: '隐藏拼音',     en: 'Hide pinyin',   it: 'Nascondi pinyin' },
+  listen:     { zh: '朗读',         en: 'Listen',        it: 'Ascolta' },
+  stop:       { zh: '停止',         en: 'Stop',          it: 'Ferma' },
 };
 function tr(L, k) {
   const code = L === 'en' || L === 'it' || L === 'zh' ? L : 'zh';
@@ -178,6 +180,22 @@ function StoryReader({ story, L, isPhone }) {
   const [pages, setPages] = useState(null);
   const [idx, setIdx] = useState(0);
   const [showPinyin, setShowPinyin] = useState(true);
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  // Turning the page must silence the previous page's narration.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (el) { el.pause(); el.currentTime = 0; }
+    setPlaying(false);
+  }, [idx]);
+
+  function toggleAudio() {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.paused) el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    else { el.pause(); setPlaying(false); }
+  }
 
   useEffect(() => {
     (async () => {
@@ -199,7 +217,22 @@ function StoryReader({ story, L, isPhone }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 14 }}>
+        {page.audio_url && (
+          <>
+            <Toggle on={playing} onClick={toggleAudio}
+              label={`${playing ? '⏸' : '🔊'} ${tr(L, playing ? 'stop' : 'listen')}`}/>
+            <audio
+              key={page.audio_url}
+              ref={audioRef}
+              src={page.audio_url}
+              preload="none"
+              onEnded={() => setPlaying(false)}
+              onPause={() => setPlaying(false)}
+              style={{ display: 'none' }}
+            />
+          </>
+        )}
         <Toggle on={showPinyin} onClick={() => setShowPinyin(v => !v)}
           label={tr(L, showPinyin ? 'hide_pinyin' : 'show_pinyin')}/>
       </div>

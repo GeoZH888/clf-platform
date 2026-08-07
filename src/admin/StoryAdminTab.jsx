@@ -3,14 +3,20 @@
 // 故事会 Admin Tab
 // Manages clf_stories + clf_story_pages.
 //   • List view with search/filter/publish toggle
-//   • Create new story (modal)
+//   • Create new story (modal) — by hand, or drafted end-to-end by AI
 //   • Edit story pages (inline panel: text + pinyin + image_url + reorder)
+//   • Batch AI: fill missing translations, fill pinyin
+//   • Batch TTS: Azure narration per page → clf_story_pages.audio_url
 //   • Publish / unpublish toggle
 //   • Delete (cascades to clf_story_pages)
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
+import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+import {
+  draftStory, translatePages, pinyinForPages, STORY_VOICES,
+} from './lib/storyAi.js';
 
 const V = {
   bg:'#fdf6e3', card:'#fff', border:'#e8d5b0',
@@ -71,8 +77,8 @@ export default function StoryAdminTab() {
     load();
   }
 
-  async function createStory(form) {
-    const { error } = await supabase.from('clf_stories').insert({
+  async function createStory(form, draftPages = []) {
+    const { data: created, error } = await supabase.from('clf_stories').insert({
       slug:            form.slug,
       title_zh:        form.title_zh,
       title_en:        form.title_en,
@@ -84,9 +90,35 @@ export default function StoryAdminTab() {
       cover_image_url: form.cover_image_url || null,
       is_published:    false,
       order_idx:       stories.length,
-    });
+    }).select().single();
     if (error) throw new Error(error.message);
-    flash('ok', '已创建 Created');
+
+    // AI-drafted pages come in with the story — insert them in one go.
+    if (draftPages.length) {
+      const { error: pagesErr } = await supabase.from('clf_story_pages').insert(
+        draftPages.map((p, i) => ({
+          story_id:   created.id,
+          page_order: i + 1,
+          text_zh:    p.text_zh || '',
+          pinyin:     p.pinyin  || null,
+          text_en:    p.text_en || null,
+          text_it:    p.text_it || null,
+        }))
+      );
+      // The story row itself is saved — report the partial success and let the
+      // admin add pages by hand, rather than leaving the modal open on a story
+      // that already exists (a retry would collide on slug).
+      if (pagesErr) {
+        setShowCreate(false);
+        load();
+        flash('error', `故事已创建，但故事页写入失败: ${pagesErr.message}`);
+        return;
+      }
+    }
+
+    flash('ok', draftPages.length
+      ? `已创建 · ${draftPages.length} 页`
+      : '已创建 Created');
     setShowCreate(false);
     load();
   }
@@ -227,7 +259,7 @@ function StoryCard({ story, isOpen, onToggleEdit, onTogglePublish, onDelete, onP
       </div>
       {isOpen && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${V.border}` }}>
-          <StoryPagesEditor storyId={story.id} onUpdated={onPagesUpdated} />
+          <StoryPagesEditor story={story} onUpdated={onPagesUpdated} />
         </div>
       )}
     </div>
@@ -235,10 +267,22 @@ function StoryCard({ story, isOpen, onToggleEdit, onTogglePublish, onDelete, onP
 }
 
 // ─── Story pages editor ───────────────────────────────────────────────────
-function StoryPagesEditor({ storyId, onUpdated }) {
+function StoryPagesEditor({ story, onUpdated }) {
+  const storyId = story.id;
   const [pages,   setPages]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
+
+  // AI / TTS toolbar state
+  const [provider,  setProvider]  = useState('claude');
+  const [voice,     setVoice]     = useState(STORY_VOICES[0].id);
+  const [overwrite, setOverwrite] = useState(false);
+  const [busy,      setBusy]      = useState(null);   // 'translate'|'pinyin'|'audio'|null
+  const [logLines,  setLogLines]  = useState([]);
+  const [audioBusy, setAudioBusy] = useState({});     // { [pageId]: true }
+
+  const log = m => setLogLines(prev =>
+    [`${new Date().toLocaleTimeString()} ${m}`, ...prev].slice(0, 24));
 
   useEffect(() => { loadPages(); }, [storyId]);
 
@@ -261,6 +305,110 @@ function StoryPagesEditor({ storyId, onUpdated }) {
       .select().single();
     if (error) return alert('添加失败: ' + error.message);
     setPages([...pages, data]);
+  }
+
+  // ── Write a { [pageId]: patch } map back to the DB and to local state ────
+  async function applyPatches(patches) {
+    const ids = Object.keys(patches);
+    if (!ids.length) return 0;
+    setSaving(true);
+    const okIds = new Set();
+    const failed = [];
+    for (const id of ids) {
+      const { error } = await supabase.from('clf_story_pages').update(patches[id]).eq('id', id);
+      if (error) failed.push(error.message);
+      else okIds.add(id);
+    }
+    setSaving(false);
+    setPages(prev => prev.map(p => okIds.has(p.id) ? { ...p, ...patches[p.id] } : p));
+    if (failed.length) log(`✗ ${failed.length} 页保存失败: ${failed[0]}`);
+    return okIds.size;
+  }
+
+  // ── AI: fill missing translations across every page at once ─────────────
+  async function runTranslate() {
+    setBusy('translate');
+    log(`🌐 [${provider}] 翻译 ${pages.length} 页…`);
+    try {
+      const patches = await translatePages({
+        pages, sourceLang: 'zh', overwrite, provider,
+        storyTitle: story.title_zh || story.title_en || '',
+      });
+      const n = Object.keys(patches).length;
+      if (!n) log('没有需要翻译的页面（勾选「覆盖」可重译已有内容）');
+      else log(`✓ 已翻译 ${await applyPatches(patches)} 页`);
+    } catch (e) { log(`✗ 翻译失败: ${e.message}`); }
+    setBusy(null);
+  }
+
+  // ── AI: fill pinyin ─────────────────────────────────────────────────────
+  async function runPinyin() {
+    setBusy('pinyin');
+    log(`🔤 [${provider}] 生成拼音…`);
+    try {
+      const patches = await pinyinForPages({ pages, overwrite, provider });
+      const n = Object.keys(patches).length;
+      if (!n) log('没有需要注音的页面（勾选「覆盖」可重新注音）');
+      else log(`✓ 已注音 ${await applyPatches(patches)} 页`);
+    } catch (e) { log(`✗ 注音失败: ${e.message}`); }
+    setBusy(null);
+  }
+
+  // ── TTS: one page ───────────────────────────────────────────────────────
+  // Returns true on success so the batch loop can count.
+  async function generateAudio(page, { force = false, quiet = false } = {}) {
+    setAudioBusy(prev => ({ ...prev, [page.id]: true }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('请重新登录 admin');
+
+      const res = await fetch('/.netlify/functions/story-tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ page_id: page.id, voice, force }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`服务器返回非 JSON: ${text.slice(0, 160)}`); }
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+
+      setPages(prev => prev.map(x => x.id === page.id
+        ? { ...x, audio_url: data.audio_url, audio_voice: voice, audio_provider: 'azure' }
+        : x));
+      if (!quiet) {
+        log(`✓ 第 ${page.page_order} 页朗读完成${data.cached ? '（缓存）' : ''}`);
+      }
+      return true;
+    } catch (e) {
+      log(`✗ 第 ${page.page_order} 页朗读失败: ${e.message}`);
+      return false;
+    } finally {
+      setAudioBusy(prev => ({ ...prev, [page.id]: false }));
+    }
+  }
+
+  // ── TTS: every page that still needs this voice ─────────────────────────
+  async function runBatchAudio() {
+    const todo = pages.filter(p =>
+      (p.text_zh || '').trim() &&
+      (overwrite || !p.audio_url || p.audio_voice !== voice || p.audio_provider !== 'azure')
+    );
+    if (!todo.length) return log(`所有页面已有 ${voice} 朗读`);
+
+    setBusy('audio');
+    log(`🔊 [${voice}] 生成 ${todo.length} 页朗读…`);
+    let done = 0;
+    // Sequential: Azure throttles per-key, and a 15-page story finishes in
+    // well under the time a parallel burst would spend on retries.
+    for (const p of todo) {
+      if (await generateAudio(p, { force: overwrite, quiet: true })) done++;
+    }
+    log(`✓ 朗读完成 ${done}/${todo.length} 页`);
+    setBusy(null);
   }
 
   async function updatePage(id, patch) {
@@ -289,6 +437,9 @@ function StoryPagesEditor({ storyId, onUpdated }) {
 
   if (loading) return <div style={{ color: V.text3, fontSize: 12 }}>加载页面…</div>;
 
+  const withAudio = pages.filter(p => p.audio_url).length;
+  const anyBusy   = !!busy;
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -301,6 +452,69 @@ function StoryPagesEditor({ storyId, onUpdated }) {
           ➕ 加一页
         </button>
       </div>
+
+      {/* ── AI + 朗读 toolbar ───────────────────────────────────────────── */}
+      {pages.length > 0 && (
+        <div style={{ background: V.bg, border: `1px solid ${V.border}`, borderRadius: 10,
+          padding: '8px 10px', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: V.vermillion }}>🤖 整篇处理</span>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 8,
+              background: withAudio === pages.length ? '#e8f5e9' : '#f5ede0',
+              color: withAudio === pages.length ? '#2E7D32' : V.text3 }}>
+              🔊 {withAudio}/{pages.length}
+            </span>
+
+            <div style={{ flex: 1 }} />
+
+            <select value={provider} onChange={e => setProvider(e.target.value)}
+              title="AI 引擎 · Provider"
+              style={{ fontSize: 11, padding: '3px 6px', borderRadius: 6,
+                border: `1px solid ${V.border}`, background: '#fff', color: V.text2 }}>
+              <option value="claude">Claude</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">GPT-4o</option>
+              <option value="gemini">Gemini</option>
+            </select>
+
+            <select value={voice} onChange={e => setVoice(e.target.value)}
+              title="朗读音色 · Voice"
+              style={{ fontSize: 11, padding: '3px 6px', borderRadius: 6,
+                border: `1px solid ${V.border}`, background: '#fff', color: V.text2 }}>
+              {STORY_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+            </select>
+
+            <label title="重做已有内容 · Redo pages that already have content"
+              style={{ fontSize: 11, color: V.text3, display: 'flex',
+                alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <input type="checkbox" checked={overwrite}
+                onChange={e => setOverwrite(e.target.checked)} style={{ cursor: 'pointer' }} />
+              覆盖
+            </label>
+
+            <ToolBtn onClick={runPinyin} disabled={anyBusy}
+              title="为所有缺拼音的页面注音 · Fill missing pinyin">
+              {busy === 'pinyin' ? '⏳ 注音中…' : '🔤 生成拼音'}
+            </ToolBtn>
+            <ToolBtn onClick={runTranslate} disabled={anyBusy}
+              title="以中文为源补全英文/意大利文 · Fill missing EN/IT from Chinese">
+              {busy === 'translate' ? '⏳ 翻译中…' : '🌐 补全翻译'}
+            </ToolBtn>
+            <ToolBtn onClick={runBatchAudio} disabled={anyBusy} primary
+              title="为所有页面生成朗读 · Generate narration for every page">
+              {busy === 'audio' ? '⏳ 朗读中…' : '🔊 批量朗读'}
+            </ToolBtn>
+          </div>
+
+          {logLines.length > 0 && (
+            <div style={{ marginTop: 8, maxHeight: 96, overflowY: 'auto',
+              fontSize: 10, lineHeight: 1.6, color: V.text3,
+              fontFamily: 'ui-monospace, Menlo, monospace' }}>
+              {logLines.map((l, i) => <div key={i}>{l}</div>)}
+            </div>
+          )}
+        </div>
+      )}
       {pages.length === 0 ? (
         <div style={{ color: V.text3, fontSize: 12, textAlign: 'center', padding: 20 }}>
           还没有故事页 — 点击「➕ 加一页」
@@ -313,6 +527,9 @@ function StoryPagesEditor({ storyId, onUpdated }) {
               onDelete={() => deletePage(p.id)}
               onMoveUp={() => movePage(idx, -1)}
               onMoveDown={() => movePage(idx, +1)}
+              audioBusy={!!audioBusy[p.id]}
+              audioStale={!!p.audio_url && p.audio_voice !== voice}
+              onGenerateAudio={() => generateAudio(p, { force: !!p.audio_url })}
             />
           ))}
         </div>
@@ -321,7 +538,25 @@ function StoryPagesEditor({ storyId, onUpdated }) {
   );
 }
 
-function PageRow({ page, index, total, onChange, onDelete, onMoveUp, onMoveDown }) {
+function ToolBtn({ onClick, disabled, title, primary, children }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title}
+      style={{
+        padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8,
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+        border: primary ? 'none' : `1px solid ${V.vermillion}`,
+        background: primary ? V.vermillion : '#fff',
+        color: primary ? '#fdf6e3' : V.vermillion,
+      }}>
+      {children}
+    </button>
+  );
+}
+
+function PageRow({
+  page, index, total, onChange, onDelete, onMoveUp, onMoveDown,
+  audioBusy, audioStale, onGenerateAudio,
+}) {
   return (
     <div style={{ background: V.bg, border: `1px solid ${V.border}`, borderRadius: 8, padding: 10 }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -370,6 +605,33 @@ function PageRow({ page, index, total, onChange, onDelete, onMoveUp, onMoveDown 
           style={{ flex: 1, fontSize: 12, padding: 6, borderRadius: 4, border: `1px solid ${V.border}`,
             resize: 'vertical', minHeight: 40 }} />
       </div>
+
+      {/* ── Narration ─────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <button type="button" onClick={onGenerateAudio}
+          disabled={audioBusy || !(page.text_zh || '').trim()}
+          title={page.audio_url ? '用当前音色重新生成 · Regenerate with the selected voice'
+                                : '生成本页朗读 · Generate narration for this page'}
+          style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6,
+            border: `1px solid ${V.border}`, background: page.audio_url ? '#fff8e1' : '#fff',
+            color: V.text2, flexShrink: 0,
+            cursor: audioBusy || !(page.text_zh || '').trim() ? 'default' : 'pointer',
+            opacity: audioBusy || !(page.text_zh || '').trim() ? 0.5 : 1 }}>
+          {audioBusy ? '⏳ 生成中…' : page.audio_url ? '🔊 重新朗读' : '🔊 朗读'}
+        </button>
+
+        {page.audio_url ? (
+          <>
+            <audio key={page.audio_url} controls preload="none" src={page.audio_url}
+              style={{ height: 30, flex: 1, minWidth: 0 }} />
+            <span style={{ fontSize: 10, color: audioStale ? '#E65100' : V.text3, flexShrink: 0 }}>
+              {page.audio_voice}{audioStale ? ' · 与所选音色不同' : ''}
+            </span>
+          </>
+        ) : (
+          <span style={{ fontSize: 10, color: V.text3 }}>还没有朗读音频</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -384,7 +646,45 @@ function CreateStoryModal({ onClose, onSubmit }) {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
 
+  // AI drafting
+  const [idea,       setIdea]       = useState('');
+  const [pageCount,  setPageCount]  = useState(6);
+  const [provider,   setProvider]   = useState('claude');
+  const [drafting,   setDrafting]   = useState(false);
+  const [draftPages, setDraftPages] = useState([]);
+  const [draftNote,  setDraftNote]  = useState('');
+
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function runDraft() {
+    setDrafting(true);
+    setErr(null);
+    setDraftNote('AI 正在写故事… Writing the story…');
+    try {
+      const story = await draftStory({
+        idea,
+        pageCount,
+        difficulty: parseInt(form.difficulty) || 1,
+        provider,
+      });
+      setForm(f => ({
+        ...f,
+        slug:       story.slug       || f.slug,
+        title_zh:   story.title_zh   || f.title_zh,
+        title_en:   story.title_en   || f.title_en,
+        title_it:   story.title_it   || f.title_it,
+        summary_zh: story.summary_zh || f.summary_zh,
+        summary_en: story.summary_en || f.summary_en,
+        summary_it: story.summary_it || f.summary_it,
+      }));
+      setDraftPages(story.pages);
+      setDraftNote(`✓ 已生成 ${story.pages.length} 页 — 创建后可继续编辑、注音、朗读`);
+    } catch (e) {
+      setDraftNote('');
+      setErr(e.message);
+    }
+    setDrafting(false);
+  }
 
   async function handleSubmit() {
     setErr(null);
@@ -396,7 +696,7 @@ function CreateStoryModal({ onClose, onSubmit }) {
     }
     setSubmitting(true);
     try {
-      await onSubmit(form);
+      await onSubmit(form, draftPages);
     } catch (e) {
       setErr(e.message);
       setSubmitting(false);
@@ -410,6 +710,88 @@ function CreateStoryModal({ onClose, onSubmit }) {
         maxHeight: '90vh', overflowY: 'auto', padding: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: V.text, marginBottom: 4 }}>新建故事</div>
         <div style={{ fontSize: 12, color: V.text3, marginBottom: 16 }}>Create new story</div>
+
+        {/* ── AI: draft the whole story from one line ──────────────────── */}
+        <div style={{ background: V.bg, border: `1px solid ${V.border}`,
+          borderRadius: 10, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: V.vermillion, marginBottom: 6 }}>
+            ✨ AI 一键成文
+          </div>
+          <textarea value={idea} onChange={e => setIdea(e.target.value)}
+            placeholder="一句话故事灵感,中英意皆可 — 例:小猫钓鱼,三心二意最后什么也没钓到"
+            style={{ width: '100%', padding: 8, fontSize: 13, borderRadius: 6,
+              border: `1px solid ${V.border}`, resize: 'vertical', minHeight: 52 }} />
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center',
+            flexWrap: 'wrap', marginTop: 8 }}>
+            <label style={{ fontSize: 11, color: V.text3 }}>页数</label>
+            <input type="number" min={1} max={20} value={pageCount}
+              onChange={e => setPageCount(e.target.value)}
+              style={{ width: 58, padding: '4px 6px', fontSize: 12, borderRadius: 6,
+                border: `1px solid ${V.border}` }} />
+
+            <select value={form.difficulty} onChange={e => set('difficulty', e.target.value)}
+              title="难度 · Level"
+              style={{ fontSize: 11, padding: '4px 6px', borderRadius: 6,
+                border: `1px solid ${V.border}`, background: '#fff', color: V.text2 }}>
+              {DIFFICULTIES.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+
+            <select value={provider} onChange={e => setProvider(e.target.value)}
+              title="AI 引擎 · Provider"
+              style={{ fontSize: 11, padding: '4px 6px', borderRadius: 6,
+                border: `1px solid ${V.border}`, background: '#fff', color: V.text2 }}>
+              <option value="claude">Claude</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">GPT-4o</option>
+              <option value="gemini">Gemini</option>
+            </select>
+
+            <div style={{ flex: 1 }} />
+
+            <button type="button" onClick={runDraft} disabled={drafting || !idea.trim()}
+              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                border: 'none', background: V.vermillion, color: '#fdf6e3',
+                cursor: drafting || !idea.trim() ? 'default' : 'pointer',
+                opacity: drafting || !idea.trim() ? 0.5 : 1 }}>
+              {drafting ? '⏳ 生成中…' : '✨ 生成故事'}
+            </button>
+          </div>
+
+          {draftNote && (
+            <div style={{ fontSize: 11, marginTop: 8,
+              color: draftNote.startsWith('✓') ? '#2E7D32' : V.text3 }}>
+              {draftNote}
+            </div>
+          )}
+
+          {draftPages.length > 0 && (
+            <div style={{ marginTop: 8, maxHeight: 150, overflowY: 'auto',
+              background: '#fff', border: `1px solid ${V.border}`, borderRadius: 8, padding: 8 }}>
+              {draftPages.map((p, i) => (
+                <div key={i} style={{ fontSize: 11, color: V.text2, marginBottom: 6, lineHeight: 1.5 }}>
+                  <span style={{ color: V.text3 }}>{i + 1}. </span>{p.text_zh}
+                  {p.pinyin && (
+                    <div style={{ fontSize: 10, color: V.text3, fontStyle: 'italic' }}>{p.pinyin}</div>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => { setDraftPages([]); setDraftNote(''); }}
+                style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, cursor: 'pointer',
+                  border: '1px solid #FFCDD2', background: '#FFEBEE', color: '#C62828' }}>
+                丢弃这些页 · Discard pages
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Fills whichever of zh/en/it titles + summaries are still empty. */}
+        <AiFieldAssistant
+          values={form}
+          onPatch={patch => setForm(f => ({ ...f, ...patch }))}
+          context={`A children's story for Chinese learners${form.title_zh ? `: ${form.title_zh}` : ''}`}
+          compact
+        />
 
         <Field label="Slug *" hint="URL 友好的 ID,只能小写字母+数字+连字符"
           value={form.slug} onChange={v => set('slug', v)} placeholder="kitten-fishing" />
