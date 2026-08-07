@@ -14,6 +14,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import AiFieldAssistant from './components/AiFieldAssistant.jsx';
+import StoryCoverField from './components/StoryCoverField.jsx';
 import {
   draftStory, translatePages, pinyinForPages, STORY_VOICES,
 } from './lib/storyAi.js';
@@ -364,8 +365,15 @@ function StoryInfoEditor({ story, onSaved, flash }) {
       <Field label="Sommario italiano" value={form.summary_it} onChange={v => set('summary_it', v)} multiline />
       <Field label="难度" select value={form.difficulty}
         onChange={v => set('difficulty', v)} options={DIFFICULTIES} />
-      <Field label="封面图 URL" value={form.cover_image_url}
-        onChange={v => set('cover_image_url', v)} placeholder="https://..." />
+      <StoryCoverField
+        value={form.cover_image_url}
+        onChange={v => set('cover_image_url', v)}
+        slug={form.slug}
+        titles={{
+          title_zh: form.title_zh, title_en: form.title_en,
+          summary_zh: form.summary_zh, summary_en: form.summary_en,
+        }}
+      />
 
       {err && (
         <div style={{ background: '#ffebee', color: '#b71c1c', padding: '8px 12px',
@@ -931,8 +939,15 @@ function CreateStoryModal({ onClose, onSubmit }) {
         <Field label="难度" select value={form.difficulty}
           onChange={v => set('difficulty', v)} options={DIFFICULTIES} />
 
-        <Field label="封面图 URL" value={form.cover_image_url} onChange={v => set('cover_image_url', v)}
-          placeholder="https://..." hint="留空则显示 📖 占位图" />
+        <StoryCoverField
+          value={form.cover_image_url}
+          onChange={v => set('cover_image_url', v)}
+          slug={form.slug}
+          titles={{
+            title_zh: form.title_zh, title_en: form.title_en,
+            summary_zh: form.summary_zh, summary_en: form.summary_en,
+          }}
+        />
 
         {err && (
           <div style={{ background: '#ffebee', color: '#b71c1c', padding: '8px 12px',
