@@ -98,6 +98,13 @@ export async function askAIForJSON({ prompt, provider = 'claude', maxTokens = 20
   const bodyText = await res.text();
   if (!bodyText) throw new Error('AI 网关返回空响应 · Empty response from ai-gateway.');
   if (bodyText.trimStart().startsWith('<')) {
+    // An HTML body here is the platform, not the app — almost always the
+    // function exceeding its time limit while the model was still writing.
+    if (res.status === 502 || res.status === 504) {
+      throw new Error(
+        `AI 网关超时 (${res.status}) · The request took longer than the function is allowed to run. Ask for fewer items in one go.`
+      );
+    }
     throw new Error(`AI 网关错误 (${res.status}) · Check the Netlify function logs.`);
   }
   let payload;

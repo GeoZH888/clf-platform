@@ -58,6 +58,9 @@ export async function draftStory({
   const n = Math.max(1, Math.min(20, Number(pageCount) || 6));
   const level = DIFFICULTY_BRIEF[difficulty] || DIFFICULTY_BRIEF[1];
 
+  // Chinese only. Asking for pinyin and both translations in the same call
+  // quadrupled the output and pushed the request past Netlify's function
+  // timeout — the caller stages those as separate requests instead.
   const prompt = `You are a children's author writing graded readers for a platform that teaches Chinese to English- and Italian-speaking children.
 
 Write a complete illustrated story based on this idea:
@@ -69,9 +72,8 @@ Structure it as exactly ${n} pages. Each page is one illustration plus 1–3 sen
 
 Rules:
 - Use ONLY Simplified Chinese (简体字). Never Traditional.
-- pinyin: tone-marked (nǐ hǎo, not ni3 hao3), one space between syllables, capitalised at sentence start, keeping the sentence punctuation.
-- text_en and text_it are natural translations for a child, not word-for-word glosses.
 - Recycle key vocabulary across pages — repetition is what makes a graded reader work.
+- The three titles and three summaries are the ONLY non-Chinese text; page text is Chinese only.
 - slug: lowercase English words joined by hyphens, no spaces, e.g. kitten-goes-fishing
 - Never use double quotes inside a value — use 「」 for Chinese speech and rephrase elsewhere.
 
@@ -85,13 +87,12 @@ Return ONLY a valid JSON object, no markdown fences, no text before or after:
   "summary_en": "one sentence",
   "summary_it": "one sentence",
   "pages": [
-    { "text_zh": "...", "pinyin": "...", "text_en": "...", "text_it": "..." }
+    { "text_zh": "..." }
   ]
 }`;
 
-  // ~220 tokens per trilingual page, plus the story-level fields and slack.
   const parsed = await askAIForJSON({
-    prompt, provider, maxTokens: Math.min(8000, 1200 + n * 320),
+    prompt, provider, maxTokens: Math.min(4000, 700 + n * 110),
   });
 
   const pages = Array.isArray(parsed?.pages) ? parsed.pages.map(normalisePage) : [];
