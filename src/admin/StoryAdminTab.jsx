@@ -885,10 +885,14 @@ function CreateStoryModal({ onClose, onSubmit }) {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
+  // Three short calls, not one long one: a single request for Chinese plus
+  // pinyin plus both translations runs past Netlify's function timeout and
+  // comes back as a 504. Each stage here finishes well inside it, and a
+  // failure in stage 2 or 3 still leaves a usable Chinese draft on screen.
   async function runDraft() {
     setDrafting(true);
     setErr(null);
-    setDraftNote('AI 正在写故事… Writing the story…');
+    setDraftNote('① 正在写故事… Writing the story…');
     try {
       const story = await draftStory({
         idea,
@@ -906,8 +910,40 @@ function CreateStoryModal({ onClose, onSubmit }) {
         summary_en: story.summary_en || f.summary_en,
         summary_it: story.summary_it || f.summary_it,
       }));
-      setDraftPages(story.pages);
-      setDraftNote(`✓ 已生成 ${story.pages.length} 页 — 创建后可继续编辑、注音、朗读`);
+
+      // The page helpers key their patches by page id; drafts have no row yet,
+      // so give them a temporary one and map the results back by the same key.
+      let pages = story.pages.map((p, i) => ({ ...p, id: `draft-${i}`, page_order: i + 1 }));
+      setDraftPages(pages);
+
+      const merge = patches => {
+        pages = pages.map(p => patches[p.id] ? { ...p, ...patches[p.id] } : p);
+        setDraftPages(pages);
+      };
+
+      // Neither stage is fatal — the Chinese draft is already worth keeping,
+      // and both can be re-run from the pages editor after creation.
+      let warn = '';
+      setDraftNote(`② 已写 ${pages.length} 页,正在注音… Adding pinyin…`);
+      try {
+        merge(await pinyinForPages({ pages, provider }));
+      } catch (e) {
+        warn += ` 注音失败(${e.message});`;
+      }
+
+      setDraftNote(`③ 正在翻译… Translating…`);
+      try {
+        merge(await translatePages({
+          pages, sourceLang: 'zh', provider,
+          storyTitle: story.title_zh || story.title_en || '',
+        }));
+      } catch (e) {
+        warn += ` 翻译失败(${e.message});`;
+      }
+
+      setDraftNote(warn
+        ? `⚠ 已生成 ${pages.length} 页,但${warn} 创建后可在「故事页」重试`
+        : `✓ 已生成 ${pages.length} 页(含拼音与翻译)— 创建后可继续编辑、朗读、配图`);
     } catch (e) {
       setDraftNote('');
       setErr(e.message);
@@ -988,8 +1024,9 @@ function CreateStoryModal({ onClose, onSubmit }) {
           </div>
 
           {draftNote && (
-            <div style={{ fontSize: 11, marginTop: 8,
-              color: draftNote.startsWith('✓') ? '#2E7D32' : V.text3 }}>
+            <div style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5,
+              color: draftNote.startsWith('✓') ? '#2E7D32'
+                   : draftNote.startsWith('⚠') ? '#E65100' : V.text3 }}>
               {draftNote}
             </div>
           )}

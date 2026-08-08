@@ -359,7 +359,7 @@ async function handleAnalyseImage({ imageBase64, mediaType = "image/jpeg" }, hea
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `Anthropic HTTP ${res.status}`);
-  const text = (data.content?.[0]?.text || "").replace(/```json|```/g, "").trim();
+  const text = claudeText(data).replace(/```json|```/g, "").trim();
   return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: JSON.parse(text) }) };
 }
 
@@ -380,6 +380,33 @@ async function callAI(provider, prompt, maxTokens = 1500) {
 }
 
 // ── Claude ────────────────────────────────────────────────────────────────────
+// A reply is an ARRAY of content blocks, and a reasoning model puts a thinking
+// block first. Reading content[0].text therefore yields undefined and the reply
+// looks empty — the caller then reports "could not parse AI response" with a
+// blank Raw, which points at the prompt instead of at this line.
+// Join every text block, and make a genuinely empty reply say why.
+function claudeText(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const text = blocks
+    .filter(b => b?.type === "text")
+    .map(b => b.text || "")
+    .join("")
+    .trim();
+  if (text) return text;
+
+  const reason = data?.stop_reason || "unknown";
+  if (reason === "max_tokens") {
+    throw new Error(
+      "Claude reached max_tokens before emitting any text. Raise max_tokens, or ask for less in one call."
+    );
+  }
+  throw new Error(
+    `Claude returned no text block (stop_reason: ${reason}, blocks: ${
+      blocks.map(b => b?.type).join(",") || "none"
+    }).`
+  );
+}
+
 async function callClaude(prompt, maxTokens = 1500) {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in Netlify env vars.");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -389,7 +416,7 @@ async function callClaude(prompt, maxTokens = 1500) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `Anthropic HTTP ${res.status}`);
-  return data.content?.[0]?.text || "";
+  return claudeText(data);
 }
 
 // ── DeepSeek ──────────────────────────────────────────────────────────────────
