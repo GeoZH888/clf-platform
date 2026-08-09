@@ -91,9 +91,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
-// Toggle the PWA install nudges (top banner + bottom card). Off for now —
-// flip to true to re-enable both.
-const PWA_INSTALL_ENABLED = false;
+// Toggle the PWA install nudges (top banner + bottom card).
+// These were off because they could not work: index.html had no
+// <link rel="manifest">, so the browser never treated the app as installable
+// and `beforeinstallprompt` never fired. With the manifest linked, the nudge
+// has something to offer.
+const PWA_INSTALL_ENABLED = true;
 
 // /admin-v2 was merged into /admin — the panel is called /admin, full stop.
 // This redirect only keeps old bookmarks and the v2 sidebar's own links alive.

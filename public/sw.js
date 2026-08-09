@@ -47,6 +47,8 @@ self.addEventListener('activate', (event) => {
         .filter(k => k.startsWith('jgw-') && k !== SHELL_CACHE && k !== DATA_CACHE)
         .map(k => caches.delete(k))
     );
+    // Note: the filter above already removes previous versions' data caches,
+    // which is what evicts the Supabase responses older SWs stored.
     await self.clients.claim();
   })());
 });
@@ -79,21 +81,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Supabase / REST — network-first, cache for offline fallback.
+  // 2. Supabase / REST — network only, never cached.
+  //
+  //    These responses are per-user: a cache entry is keyed by URL alone, so
+  //    the Authorization header that made it private is not part of the key.
+  //    On a shared device — which is the normal case here, one tablet and
+  //    several children — the next person to open the app offline would be
+  //    served the previous person's rows, and signing out would not remove
+  //    them. Offline reads of personal data are not worth that.
   if (url.hostname.includes('supabase.co') || url.pathname.includes('/rest/')) {
-    event.respondWith((async () => {
-      try {
-        const res = await fetch(req);
-        if (res && res.ok) {
-          const clone = res.clone();
-          caches.open(DATA_CACHE).then(c => c.put(req, clone));
-        }
-        return res;
-      } catch {
-        return caches.match(req);
-      }
-    })());
-    return;
+    return; // fall through to the network, no SW involvement
   }
 
   // 3. CDN libraries (HanziWriter etc.) — cache-first.
