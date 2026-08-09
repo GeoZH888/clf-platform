@@ -1,8 +1,10 @@
 {
-  "name": "甲骨文描红 · Oracle Bone Tracing",
-  "short_name": "甲骨文",
-  "description": "Trace oracle bone script characters from the Shang Dynasty (c.1250 BCE)",
+  "name": "中文世界 · Chinese World",
+  "short_name": "中文世界",
+  "description": "汉字书写、拼音、词汇、故事与游戏 — Learn Chinese: characters, pinyin, vocabulary, stories and games",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#fdf6e3",
@@ -11,29 +13,10 @@
   "categories": ["education", "language"],
   "icons": [
     {
-      "src": "/icons/icon-72.png",
-      "sizes": "72x72",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-96.png",
-      "sizes": "96x96",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-128.png",
-      "sizes": "128x128",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-144.png",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-152.png",
-      "sizes": "152x152",
-      "type": "image/png"
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-192.png",
@@ -42,31 +25,30 @@
       "purpose": "maskable"
     },
     {
-      "src": "/icons/icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png"
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshots/practice.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "label": "Tracing practice screen"
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Practice 日",
-      "short_name": "日",
-      "url": "/?char=%E6%97%A5",
-      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+      "name": "练字 · Character writing",
+      "short_name": "练字",
+      "url": "/learn?module=lianzi",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "故事会 · Story time",
+      "short_name": "故事",
+      "url": "/learn?module=story",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

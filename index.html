@@ -7,10 +7,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="中文世界" />
-    <meta name="description" content="Trace oracle bone script characters from the Shang Dynasty — 描红练习" />
+    <meta name="description" content="中文世界 — 汉字书写、拼音、词汇、故事与游戏 · Learn Chinese: characters, pinyin, vocabulary, stories and games" />
+
+    <!-- Without this link the browser never fetches the manifest, so the app
+         is not installable no matter what manifest.json says. It was missing. -->
+    <link rel="manifest" href="/manifest.json" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Points at a file that exists; /apple-touch-icon.png was a 404. -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
 
     <!-- ═══════════════════════════════════════════════════════════
          四体字库:楷 · 行 · 隶 · 篆
