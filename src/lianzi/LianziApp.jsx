@@ -146,7 +146,14 @@ function LianziAppInner() {
       <div style={{ flex:1, overflowY:'auto', paddingBottom:72 }}>
         {screen === 'home' && (
           <HomeScreen sets={SETS} progress={progress} stats={stats}
-            onSelectSet={s=>{ setSet(s); setCharIdx(0); setScreen('set'); }}
+            onStartAdaptive={queue => {
+              // The queue is presented to the rest of the flow as a set, so
+              // PracticeScreen keeps working unchanged — it just happens to be
+              // a set the scheduler assembled rather than one an editor did.
+              setSet({ id:'adaptive', name:'今日练习', nameEn:'Today', nameIt:'Oggi', chars:queue });
+              setCharIdx(0);
+              setScreen('practice');
+            }}
             onBack={null}/>
         )}
         {screen === 'set' && activeSet && (
@@ -158,7 +165,7 @@ function LianziAppInner() {
           <PracticeScreen
             char={currentChar} set={activeSet}
             initialMode="free"
-            onBack={()=>setScreen('set')}
+            onBack={()=>setScreen('home')}
             onNext={(nextCharObj) => {
               const pool = activeSet?.chars || [];
               if (nextCharObj?.c) {
@@ -167,7 +174,7 @@ function LianziAppInner() {
               }
               const n = charIdx + 1;
               if (n < pool.length) setCharIdx(n);
-              else setScreen('set');
+              else setScreen('home');   // queue finished — home rebuilds the next one
             }}
             onPracticed={c=>recordPractice(c)}
             onQuizComplete={(c,m)=>recordQuiz(c,m)}/>

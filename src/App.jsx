@@ -416,7 +416,13 @@ function UserApp() {
           )}
           {screen === 'home' && (
             <HomeScreen sets={SETS} progress={progress} stats={stats}
-              onSelectSet={s=>{ setSet(s); setCharIdx(0); setScreen('set'); }}
+              onStartAdaptive={queue => {
+                // Presented downstream as a set so PracticeScreen is unchanged —
+                // it is simply a set the scheduler assembled, not an editor.
+                setSet({ id:'adaptive', name:'今日练习', nameEn:'Today', nameIt:'Oggi', chars:queue });
+                setCharIdx(0);
+                setScreen('practice');
+              }}
               onGames={()=>setScreen('games')}
               onBack={()=>{ window.location.href = '/community'; }}/>
           )}
@@ -440,7 +446,7 @@ function UserApp() {
                 }
                 // Fallback: sequential (preserves old behavior if picker returns nothing)
                 const n = charIdx + 1;
-                n < pool.length ? setCharIdx(n) : setScreen('set');
+                n < pool.length ? setCharIdx(n) : setScreen('home');
               }}
               onPracticed={c=>recordPractice(c)}
               onQuizComplete={(c,m)=>recordQuiz(c,m)}/>
