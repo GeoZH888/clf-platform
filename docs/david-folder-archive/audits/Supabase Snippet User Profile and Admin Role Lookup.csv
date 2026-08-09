@@ -1,0 +1,8 @@
+id,email,created_at,last_sign_in_at,meta_display_name,jgw_admin_role,profile_role,profile_display_name
+90c637d6-e293-4497-bf17-3fc41fc9bac4,superadmin@jiaguwen.admin,2026-04-07 23:17:49.877693+00,2026-05-02 08:47:25.134888+00,null,admin,null,null
+655c2117-eb99-4c46-bfff-2394ff0ea03b,admin@wenzi-learn.net,2026-04-17 21:15:33.589561+00,2026-04-21 22:14:21.202894+00,null,superadmin,null,null
+ac27aaf6-15dc-4c2e-8516-0bdade2f3fc5,marco@users.david-zhongwen.net,2026-04-26 13:02:30.639483+00,null,marco,null,null,null
+a677e990-f08a-4546-8868-f574b48d1464,zhang@users.david-zhongwen.net,2026-04-27 20:10:32.307892+00,null,zhang,null,null,null
+63739017-4616-41b2-976f-1b36ad33b354,wenping@users.david-zhongwen.net,2026-04-28 21:53:00.51769+00,null,wenping,null,null,null
+5b554999-62be-4015-94af-57891cfce656,xiaomi@users.david-zhongwen.net,2026-04-29 10:28:25.135603+00,null,xiaomi,null,null,null
+6c4991d7-2c16-49cc-a6f3-8a9dc0c3ed02,superadmin@david-zhongwen.net,2026-05-01 16:44:18.448809+00,2026-05-02 09:12:37.74158+00,null,null,super_admin,Super Admin

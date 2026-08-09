@@ -1,0 +1,14 @@
+table_name
+clf_chengyu_progress
+clf_grammar_progress
+clf_progress
+clf_unit_progress
+jgw_hsk_progress
+jgw_progress
+pg_stat_progress_analyze
+pg_stat_progress_basebackup
+pg_stat_progress_cluster
+pg_stat_progress_copy
+pg_stat_progress_create_index
+pg_stat_progress_vacuum
+pinyin_progress

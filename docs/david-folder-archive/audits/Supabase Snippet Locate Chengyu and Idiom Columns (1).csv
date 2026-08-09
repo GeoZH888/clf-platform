@@ -1,0 +1,55 @@
+table_name,column_name,data_type
+clf_chengyu,id,uuid
+clf_chengyu,idiom,text
+clf_chengyu,pinyin,text
+clf_chengyu,meaning_zh,text
+clf_chengyu,meaning_en,text
+clf_chengyu,meaning_it,text
+clf_chengyu,story_zh,text
+clf_chengyu,story_en,text
+clf_chengyu,story_it,text
+clf_chengyu,example_zh,text
+clf_chengyu,example_en,text
+clf_chengyu,difficulty,integer
+clf_chengyu,hsk_level,integer
+clf_chengyu,theme,text
+clf_chengyu,image_url,text
+clf_chengyu,image_style,text
+clf_chengyu,image_scene,text
+clf_chengyu,sort_order,integer
+clf_chengyu,active,boolean
+clf_chengyu,related_grammar_topic_id,text
+clf_chengyu,related_character_ids,ARRAY
+clf_chengyu,created_at,timestamp with time zone
+clf_chengyu,updated_at,timestamp with time zone
+clf_chengyu_progress,id,uuid
+clf_chengyu_progress,user_id,uuid
+clf_chengyu_progress,device_token,text
+clf_chengyu_progress,idiom_id,uuid
+clf_chengyu_progress,practiced_at,timestamp with time zone
+clf_chengyu_progress,score,integer
+clf_chengyu_progress,correct,boolean
+clf_chengyu_progress,mode,text
+clf_chengyu_progress,created_at,timestamp with time zone
+clf_idioms,id,uuid
+clf_idioms,idiom,text
+clf_idioms,pinyin,text
+clf_idioms,meaning_zh,text
+clf_idioms,meaning_en,text
+clf_idioms,meaning_it,text
+clf_idioms,story_zh,text
+clf_idioms,story_en,text
+clf_idioms,story_it,text
+clf_idioms,image_scene,text
+clf_idioms,image_url,text
+clf_idioms,audio_url,text
+clf_idioms,example_zh,text
+clf_idioms,example_en,text
+clf_idioms,hsk_level,integer
+clf_idioms,difficulty,integer
+clf_idioms,theme,text
+clf_idioms,tags,ARRAY
+clf_idioms,level,integer
+clf_idioms,active,boolean
+clf_idioms,sort_order,integer
+clf_idioms,created_at,timestamp with time zone

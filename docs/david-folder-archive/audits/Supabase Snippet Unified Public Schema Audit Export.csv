@@ -1,0 +1,1045 @@
+query_type,table_name,c1,c2,c3,c4,c5,c6
+CHECK,ai_agent_conversations,2200_17776_6_not_null,content IS NOT NULL,,,,
+CHECK,ai_agent_conversations,2200_17776_5_not_null,role IS NOT NULL,,,,
+CHECK,ai_agent_conversations,2200_17776_3_not_null,agent_type IS NOT NULL,,,,
+CHECK,ai_agent_conversations,2200_17776_1_not_null,id IS NOT NULL,,,,
+CHECK,ai_jobs,2200_37294_1_not_null,id IS NOT NULL,,,,
+CHECK,ai_recommendations,2200_17785_1_not_null,id IS NOT NULL,,,,
+CHECK,ai_settings,2200_17870_1_not_null,id IS NOT NULL,,,,
+CHECK,ai_usage_logs,2200_24921_2_not_null,provider IS NOT NULL,,,,
+CHECK,ai_usage_logs,2200_24921_1_not_null,id IS NOT NULL,,,,
+CHECK,attendance,2200_36117_1_not_null,id IS NOT NULL,,,,
+CHECK,attendance,2200_36117_4_not_null,date IS NOT NULL,,,,
+CHECK,attendance_records,2200_17637_1_not_null,id IS NOT NULL,,,,
+CHECK,attendance_sessions,2200_17622_4_not_null,session_date IS NOT NULL,,,,
+CHECK,attendance_sessions,2200_17622_1_not_null,id IS NOT NULL,,,,
+CHECK,chengyu,chengyu_hsk_level_check,((hsk_level >= 1) AND (hsk_level <= 6)),,,,
+CHECK,chengyu,2200_25069_1_not_null,id IS NOT NULL,,,,
+CHECK,chengyu,2200_25069_2_not_null,chengyu IS NOT NULL,,,,
+CHECK,class_attendance,2200_36279_1_not_null,id IS NOT NULL,,,,
+CHECK,class_attendance,2200_36279_4_not_null,date IS NOT NULL,,,,
+CHECK,class_attendance,class_attendance_status_check,"(status = ANY (ARRAY['present'::text, 'absent'::text, 'late'::text, 'excused'::text]))",,,,
+CHECK,class_enrollments,2200_17576_1_not_null,id IS NOT NULL,,,,
+CHECK,class_lessons,2200_36265_3_not_null,title IS NOT NULL,,,,
+CHECK,class_lessons,2200_36265_1_not_null,id IS NOT NULL,,,,
+CHECK,class_students,2200_36095_1_not_null,id IS NOT NULL,,,,
+CHECK,classes,2200_17559_1_not_null,id IS NOT NULL,,,,
+CHECK,classes,2200_17559_4_not_null,name IS NOT NULL,,,,
+CHECK,custom_knowledge_points,2200_38435_1_not_null,id IS NOT NULL,,,,
+CHECK,dwxz_panda_assets,2200_36254_2_not_null,emotion IS NOT NULL,,,,
+CHECK,dwxz_panda_assets,2200_36254_1_not_null,id IS NOT NULL,,,,
+CHECK,events,2200_33609_1_not_null,id IS NOT NULL,,,,
+CHECK,exhibition_plans,2200_18070_1_not_null,id IS NOT NULL,,,,
+CHECK,exhibition_plans,2200_18070_2_not_null,product_id IS NOT NULL,,,,
+CHECK,grades,2200_36139_1_not_null,id IS NOT NULL,,,,
+CHECK,homework,2200_17589_13_not_null,due_date IS NOT NULL,,,,
+CHECK,homework,2200_17589_4_not_null,title IS NOT NULL,,,,
+CHECK,homework,2200_17589_1_not_null,id IS NOT NULL,,,,
+CHECK,homework_submissions,2200_17606_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_audio_files,2200_24994_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_audio_files,2200_24994_3_not_null,filename IS NOT NULL,,,,
+CHECK,hsk_test_answers,2200_25037_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_test_attempts,2200_25013_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_test_attempts,2200_25013_2_not_null,student_id IS NOT NULL,,,,
+CHECK,hsk_test_papers,hsk_test_papers_hsk_level_check,((hsk_level >= 1) AND (hsk_level <= 6)),,,,
+CHECK,hsk_test_papers,2200_24931_2_not_null,name IS NOT NULL,,,,
+CHECK,hsk_test_papers,2200_24931_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_test_papers,2200_24931_4_not_null,hsk_level IS NOT NULL,,,,
+CHECK,hsk_test_questions,hsk_test_questions_difficulty_check,((difficulty >= 1) AND (difficulty <= 5)),,,,
+CHECK,hsk_test_questions,2200_24967_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_test_questions,2200_24967_4_not_null,question_number IS NOT NULL,,,,
+CHECK,hsk_test_questions,2200_24967_5_not_null,question_type IS NOT NULL,,,,
+CHECK,hsk_test_sections,2200_24949_1_not_null,id IS NOT NULL,,,,
+CHECK,hsk_test_sections,2200_24949_3_not_null,section_type IS NOT NULL,,,,
+CHECK,invitation_codes,2200_17698_3_not_null,role IS NOT NULL,,,,
+CHECK,invitation_codes,2200_17698_2_not_null,code IS NOT NULL,,,,
+CHECK,invitation_codes,2200_17698_1_not_null,id IS NOT NULL,,,,
+CHECK,invites,2200_36171_3_not_null,role IS NOT NULL,,,,
+CHECK,invites,2200_36171_1_not_null,id IS NOT NULL,,,,
+CHECK,invites,2200_36171_2_not_null,code IS NOT NULL,,,,
+CHECK,join_requests,2200_36159_1_not_null,id IS NOT NULL,,,,
+CHECK,knowledge_categories,2200_22663_2_not_null,name IS NOT NULL,,,,
+CHECK,knowledge_categories,2200_22663_1_not_null,id IS NOT NULL,,,,
+CHECK,knowledge_materials,2200_22643_1_not_null,id IS NOT NULL,,,,
+CHECK,material_categories,2200_33593_1_not_null,id IS NOT NULL,,,,
+CHECK,material_categories,2200_33593_2_not_null,name IS NOT NULL,,,,
+CHECK,messages,2200_17894_1_not_null,id IS NOT NULL,,,,
+CHECK,messages,2200_17894_5_not_null,content IS NOT NULL,,,,
+CHECK,notifications,2200_17884_3_not_null,type IS NOT NULL,,,,
+CHECK,notifications,2200_17884_1_not_null,id IS NOT NULL,,,,
+CHECK,notifications,2200_17884_4_not_null,title IS NOT NULL,,,,
+CHECK,panda_assets,2200_36209_2_not_null,emotion IS NOT NULL,,,,
+CHECK,panda_assets,2200_36209_1_not_null,id IS NOT NULL,,,,
+CHECK,parent_messages,2200_39632_1_not_null,id IS NOT NULL,,,,
+CHECK,parent_student_links,2200_39617_2_not_null,student_id IS NOT NULL,,,,
+CHECK,parent_student_links,2200_39617_1_not_null,parent_id IS NOT NULL,,,,
+CHECK,point_transactions,2200_36233_3_not_null,amount IS NOT NULL,,,,
+CHECK,point_transactions,2200_36233_1_not_null,id IS NOT NULL,,,,
+CHECK,points_transactions,2200_17665_3_not_null,points IS NOT NULL,,,,
+CHECK,points_transactions,2200_17665_1_not_null,id IS NOT NULL,,,,
+CHECK,points_transactions,2200_17665_4_not_null,type IS NOT NULL,,,,
+CHECK,rag_chunks,2200_17827_4_not_null,content IS NOT NULL,,,,
+CHECK,rag_chunks,2200_17827_1_not_null,id IS NOT NULL,,,,
+CHECK,rag_config,2200_17846_1_not_null,id IS NOT NULL,,,,
+CHECK,rag_documents,2200_17811_3_not_null,title IS NOT NULL,,,,
+CHECK,rag_documents,2200_17811_1_not_null,id IS NOT NULL,,,,
+CHECK,rag_files,2200_36185_1_not_null,id IS NOT NULL,,,,
+CHECK,rag_files,2200_36185_2_not_null,name IS NOT NULL,,,,
+CHECK,rag_knowledge_bases,2200_17796_1_not_null,id IS NOT NULL,,,,
+CHECK,rag_knowledge_bases,2200_17796_2_not_null,name IS NOT NULL,,,,
+CHECK,rag_query_logs,2200_17861_3_not_null,query IS NOT NULL,,,,
+CHECK,rag_query_logs,2200_17861_1_not_null,id IS NOT NULL,,,,
+CHECK,reward_redemptions,2200_17685_1_not_null,id IS NOT NULL,,,,
+CHECK,reward_redemptions,2200_17685_4_not_null,points_spent IS NOT NULL,,,,
+CHECK,rewards,2200_17674_1_not_null,id IS NOT NULL,,,,
+CHECK,rewards,2200_17674_2_not_null,name IS NOT NULL,,,,
+CHECK,rewards,2200_17674_5_not_null,points_cost IS NOT NULL,,,,
+CHECK,schools,2200_17549_1_not_null,id IS NOT NULL,,,,
+CHECK,schools,2200_17549_2_not_null,name IS NOT NULL,,,,
+CHECK,student_learning_profiles,2200_17720_1_not_null,id IS NOT NULL,,,,
+CHECK,student_mistake_patterns,2200_17741_1_not_null,id IS NOT NULL,,,,
+CHECK,student_mistake_patterns,2200_17741_3_not_null,mistake_type IS NOT NULL,,,,
+CHECK,student_points,2200_36221_1_not_null,id IS NOT NULL,,,,
+CHECK,system_settings,2200_36197_1_not_null,id IS NOT NULL,,,,
+CHECK,system_settings,2200_36197_2_not_null,setting_key IS NOT NULL,,,,
+CHECK,teacher_teaching_profiles,2200_17753_1_not_null,id IS NOT NULL,,,,
+CHECK,teaching_materials,2200_17765_2_not_null,title IS NOT NULL,,,,
+CHECK,teaching_materials,2200_17765_1_not_null,id IS NOT NULL,,,,
+CHECK,teaching_progress,2200_38418_1_not_null,id IS NOT NULL,,,,
+CHECK,training_configs,2200_18045_2_not_null,name IS NOT NULL,,,,
+CHECK,training_configs,2200_18045_1_not_null,id IS NOT NULL,,,,
+CHECK,training_images,2200_18020_2_not_null,filename IS NOT NULL,,,,
+CHECK,training_images,2200_18020_1_not_null,id IS NOT NULL,,,,
+CHECK,training_images,training_images_quality_score_check,((quality_score >= 0) AND (quality_score <= 5)),,,,
+CHECK,training_images,2200_18020_3_not_null,storage_path IS NOT NULL,,,,
+CHECK,training_images,2200_18020_16_not_null,project_id IS NOT NULL,,,,
+CHECK,training_materials,2200_21450_3_not_null,file_name IS NOT NULL,,,,
+CHECK,training_materials,2200_21450_1_not_null,id IS NOT NULL,,,,
+CHECK,training_materials,2200_21450_4_not_null,file_type IS NOT NULL,,,,
+CHECK,user_applications,2200_17710_2_not_null,username IS NOT NULL,,,,
+CHECK,user_applications,2200_17710_1_not_null,id IS NOT NULL,,,,
+CHECK,user_applications,2200_17710_7_not_null,requested_role IS NOT NULL,,,,
+CHECK,user_points,2200_17653_1_not_null,id IS NOT NULL,,,,
+CHECK,users,2200_17532_2_not_null,username IS NOT NULL,,,,
+CHECK,users,2200_17532_4_not_null,password_hash IS NOT NULL,,,,
+CHECK,users,2200_17532_1_not_null,id IS NOT NULL,,,,
+COLUMN,ai_agent_conversations,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,ai_agent_conversations,user_id,uuid,uuid,YES,null,2
+COLUMN,ai_agent_conversations,agent_type,character varying,varchar,NO,null,3
+COLUMN,ai_agent_conversations,session_id,uuid,uuid,YES,null,4
+COLUMN,ai_agent_conversations,role,character varying,varchar,NO,null,5
+COLUMN,ai_agent_conversations,content,text,text,NO,null,6
+COLUMN,ai_agent_conversations,metadata,jsonb,jsonb,YES,null,7
+COLUMN,ai_agent_conversations,created_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,ai_jobs,id,uuid,uuid,NO,null,1
+COLUMN,ai_jobs,status,text,text,YES,'pending'::text,2
+COLUMN,ai_jobs,action,text,text,YES,null,3
+COLUMN,ai_jobs,result,jsonb,jsonb,YES,null,4
+COLUMN,ai_jobs,created_at,timestamp with time zone,timestamptz,YES,now(),5
+COLUMN,ai_jobs,updated_at,timestamp with time zone,timestamptz,YES,now(),6
+COLUMN,ai_recommendations,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,ai_recommendations,created_at,timestamp without time zone,timestamp,YES,now(),10
+COLUMN,ai_recommendations,user_id,uuid,uuid,YES,null,2
+COLUMN,ai_recommendations,recommendation_type,character varying,varchar,YES,null,3
+COLUMN,ai_recommendations,title,character varying,varchar,YES,null,4
+COLUMN,ai_recommendations,description,text,text,YES,null,5
+COLUMN,ai_recommendations,resource_id,uuid,uuid,YES,null,6
+COLUMN,ai_recommendations,resource_type,character varying,varchar,YES,null,7
+COLUMN,ai_recommendations,priority,integer,int4,YES,0,8
+COLUMN,ai_recommendations,is_completed,boolean,bool,YES,false,9
+COLUMN,ai_settings,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,ai_settings,updated_by,uuid,uuid,YES,null,10
+COLUMN,ai_settings,updated_at,timestamp without time zone,timestamp,YES,now(),11
+COLUMN,ai_settings,provider,character varying,varchar,YES,'anthropic'::character varying,2
+COLUMN,ai_settings,model,character varying,varchar,YES,'claude-sonnet-4-20250514'::character varying,3
+COLUMN,ai_settings,api_key,text,text,YES,null,4
+COLUMN,ai_settings,api_url,text,text,YES,null,5
+COLUMN,ai_settings,max_tokens,integer,int4,YES,4096,6
+COLUMN,ai_settings,temperature,numeric,numeric,YES,0.7,7
+COLUMN,ai_settings,system_prompt,text,text,YES,null,8
+COLUMN,ai_settings,is_active,boolean,bool,YES,true,9
+COLUMN,ai_usage_logs,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,ai_usage_logs,provider,character varying,varchar,NO,null,2
+COLUMN,ai_usage_logs,model,character varying,varchar,YES,null,3
+COLUMN,ai_usage_logs,action,character varying,varchar,YES,null,4
+COLUMN,ai_usage_logs,tokens_used,integer,int4,YES,0,5
+COLUMN,ai_usage_logs,cost_estimate,numeric,numeric,YES,0,6
+COLUMN,ai_usage_logs,user_id,uuid,uuid,YES,null,7
+COLUMN,ai_usage_logs,created_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,attendance,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,attendance,class_id,uuid,uuid,YES,null,2
+COLUMN,attendance,student_id,uuid,uuid,YES,null,3
+COLUMN,attendance,date,date,date,NO,null,4
+COLUMN,attendance,status,text,text,YES,'absent'::text,5
+COLUMN,attendance,recorded_by,uuid,uuid,YES,null,6
+COLUMN,attendance,created_at,timestamp with time zone,timestamptz,YES,now(),7
+COLUMN,attendance_records,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,attendance_records,session_id,uuid,uuid,YES,null,2
+COLUMN,attendance_records,student_id,uuid,uuid,YES,null,3
+COLUMN,attendance_records,check_in_time,timestamp without time zone,timestamp,YES,now(),4
+COLUMN,attendance_records,check_in_method,character varying,varchar,YES,'qr'::character varying,5
+COLUMN,attendance_records,status,character varying,varchar,YES,'present'::character varying,6
+COLUMN,attendance_records,notes,text,text,YES,null,7
+COLUMN,attendance_sessions,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,attendance_sessions,class_id,uuid,uuid,YES,null,2
+COLUMN,attendance_sessions,teacher_id,uuid,uuid,YES,null,3
+COLUMN,attendance_sessions,session_date,date,date,NO,null,4
+COLUMN,attendance_sessions,start_time,timestamp without time zone,timestamp,YES,null,5
+COLUMN,attendance_sessions,end_time,timestamp without time zone,timestamp,YES,null,6
+COLUMN,attendance_sessions,qr_code,text,text,YES,null,7
+COLUMN,attendance_sessions,status,character varying,varchar,YES,'active'::character varying,8
+COLUMN,attendance_sessions,created_at,timestamp without time zone,timestamp,YES,now(),9
+COLUMN,captioning_stats,ready_for_training,bigint,int8,YES,null,1
+COLUMN,captioning_stats,approved_no_caption,bigint,int8,YES,null,2
+COLUMN,captioning_stats,captioned_not_approved,bigint,int8,YES,null,3
+COLUMN,captioning_stats,caption_pct,numeric,numeric,YES,null,4
+COLUMN,captioning_stats,approved_pct,numeric,numeric,YES,null,5
+COLUMN,chengyu,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,chengyu,example,text,text,YES,null,10
+COLUMN,chengyu,example_en,text,text,YES,null,11
+COLUMN,chengyu,category,character varying,varchar,YES,'fable'::character varying,12
+COLUMN,chengyu,hsk_level,integer,int4,YES,3,13
+COLUMN,chengyu,is_active,boolean,bool,YES,true,14
+COLUMN,chengyu,created_at,timestamp without time zone,timestamp,YES,now(),15
+COLUMN,chengyu,updated_at,timestamp without time zone,timestamp,YES,now(),16
+COLUMN,chengyu,created_by,uuid,uuid,YES,null,17
+COLUMN,chengyu,chengyu,character varying,varchar,NO,null,2
+COLUMN,chengyu,pinyin,character varying,varchar,YES,null,3
+COLUMN,chengyu,literal,character varying,varchar,YES,null,4
+COLUMN,chengyu,meaning_zh,text,text,YES,null,5
+COLUMN,chengyu,meaning_en,text,text,YES,null,6
+COLUMN,chengyu,meaning_it,text,text,YES,null,7
+COLUMN,chengyu,story,text,text,YES,null,8
+COLUMN,chengyu,story_en,text,text,YES,null,9
+COLUMN,class_attendance,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,class_attendance,class_id,uuid,uuid,YES,null,2
+COLUMN,class_attendance,student_id,uuid,uuid,YES,null,3
+COLUMN,class_attendance,date,date,date,NO,null,4
+COLUMN,class_attendance,status,text,text,YES,null,5
+COLUMN,class_attendance,recorded_by,uuid,uuid,YES,null,6
+COLUMN,class_attendance,created_at,timestamp with time zone,timestamptz,YES,now(),7
+COLUMN,class_enrollments,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,class_enrollments,class_id,uuid,uuid,YES,null,2
+COLUMN,class_enrollments,student_id,uuid,uuid,YES,null,3
+COLUMN,class_enrollments,enrolled_at,timestamp without time zone,timestamp,YES,now(),4
+COLUMN,class_enrollments,status,character varying,varchar,YES,'active'::character varying,5
+COLUMN,class_lessons,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,class_lessons,class_id,uuid,uuid,YES,null,2
+COLUMN,class_lessons,title,text,text,NO,null,3
+COLUMN,class_lessons,lesson_date,date,date,YES,null,4
+COLUMN,class_lessons,start_time,time without time zone,time,YES,null,5
+COLUMN,class_lessons,end_time,time without time zone,time,YES,null,6
+COLUMN,class_lessons,room,text,text,YES,null,7
+COLUMN,class_lessons,notes,text,text,YES,null,8
+COLUMN,class_lessons,created_at,timestamp with time zone,timestamptz,YES,now(),9
+COLUMN,class_students,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,class_students,class_id,uuid,uuid,YES,null,2
+COLUMN,class_students,student_id,uuid,uuid,YES,null,3
+COLUMN,class_students,status,text,text,YES,'active'::text,4
+COLUMN,class_students,joined_at,timestamp with time zone,timestamptz,YES,now(),5
+COLUMN,classes,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,classes,is_active,boolean,bool,YES,true,10
+COLUMN,classes,created_at,timestamp without time zone,timestamp,YES,now(),11
+COLUMN,classes,level,text,text,YES,null,12
+COLUMN,classes,room,text,text,YES,null,13
+COLUMN,classes,color,text,text,YES,'#c41e3a'::text,14
+COLUMN,classes,school_id,uuid,uuid,YES,null,2
+COLUMN,classes,teacher_id,uuid,uuid,YES,null,3
+COLUMN,classes,name,character varying,varchar,NO,null,4
+COLUMN,classes,name_zh,character varying,varchar,YES,null,5
+COLUMN,classes,description,text,text,YES,null,6
+COLUMN,classes,hsk_level,integer,int4,YES,1,7
+COLUMN,classes,schedule,text,text,YES,null,8
+COLUMN,classes,max_students,integer,int4,YES,30,9
+COLUMN,custom_knowledge_points,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,custom_knowledge_points,class_id,uuid,uuid,YES,null,2
+COLUMN,custom_knowledge_points,hsk_level,integer,int4,YES,null,3
+COLUMN,custom_knowledge_points,label,text,text,YES,null,4
+COLUMN,custom_knowledge_points,teacher_id,uuid,uuid,YES,null,5
+COLUMN,custom_knowledge_points,created_at,timestamp with time zone,timestamptz,YES,now(),6
+COLUMN,dataset_stats,project_id,text,text,YES,null,1
+COLUMN,dataset_stats,unscored,bigint,int8,YES,null,10
+COLUMN,dataset_stats,avg_quality,numeric,numeric,YES,null,11
+COLUMN,dataset_stats,total_mb,numeric,numeric,YES,null,12
+COLUMN,dataset_stats,total_images,bigint,int8,YES,null,2
+COLUMN,dataset_stats,approved_count,bigint,int8,YES,null,3
+COLUMN,dataset_stats,captioned_count,bigint,int8,YES,null,4
+COLUMN,dataset_stats,score_5,bigint,int8,YES,null,5
+COLUMN,dataset_stats,score_4,bigint,int8,YES,null,6
+COLUMN,dataset_stats,score_3,bigint,int8,YES,null,7
+COLUMN,dataset_stats,score_2,bigint,int8,YES,null,8
+COLUMN,dataset_stats,score_1,bigint,int8,YES,null,9
+COLUMN,dwxz_panda_assets,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,dwxz_panda_assets,emotion,text,text,NO,null,2
+COLUMN,dwxz_panda_assets,label,text,text,YES,null,3
+COLUMN,dwxz_panda_assets,color,text,text,YES,null,4
+COLUMN,dwxz_panda_assets,prompt,text,text,YES,null,5
+COLUMN,dwxz_panda_assets,image_url,text,text,YES,null,6
+COLUMN,dwxz_panda_assets,updated_at,timestamp with time zone,timestamptz,YES,now(),7
+COLUMN,events,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,events,is_active,boolean,bool,YES,true,10
+COLUMN,events,created_by,uuid,uuid,YES,null,11
+COLUMN,events,created_at,timestamp with time zone,timestamptz,YES,now(),12
+COLUMN,events,updated_at,timestamp with time zone,timestamptz,YES,now(),13
+COLUMN,events,title,character varying,varchar,YES,null,2
+COLUMN,events,title_zh,character varying,varchar,YES,null,3
+COLUMN,events,description,text,text,YES,null,4
+COLUMN,events,description_zh,text,text,YES,null,5
+COLUMN,events,start_date,timestamp with time zone,timestamptz,YES,null,6
+COLUMN,events,end_date,timestamp with time zone,timestamptz,YES,null,7
+COLUMN,events,location,character varying,varchar,YES,null,8
+COLUMN,events,event_type,character varying,varchar,YES,null,9
+COLUMN,exhibition_plans,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,exhibition_plans,updated_at,timestamp with time zone,timestamptz,YES,now(),10
+COLUMN,exhibition_plans,product_id,text,text,NO,null,2
+COLUMN,exhibition_plans,planned,boolean,bool,YES,false,3
+COLUMN,exhibition_plans,notes,text,text,YES,''::text,4
+COLUMN,exhibition_plans,quantity,integer,int4,YES,0,5
+COLUMN,exhibition_plans,budget_cny,numeric,numeric,YES,0,6
+COLUMN,exhibition_plans,supplier,text,text,YES,''::text,7
+COLUMN,exhibition_plans,deadline,date,date,YES,null,8
+COLUMN,exhibition_plans,created_at,timestamp with time zone,timestamptz,YES,now(),9
+COLUMN,grades,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,grades,class_id,uuid,uuid,YES,null,2
+COLUMN,grades,student_id,uuid,uuid,YES,null,3
+COLUMN,grades,score,numeric,numeric,YES,null,4
+COLUMN,grades,note,text,text,YES,null,5
+COLUMN,grades,date,date,date,YES,CURRENT_DATE,6
+COLUMN,grades,created_by,uuid,uuid,YES,null,7
+COLUMN,grades,created_at,timestamp with time zone,timestamptz,YES,now(),8
+COLUMN,homework,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,homework,reading_text,text,text,YES,null,10
+COLUMN,homework,reading_text_zh,text,text,YES,null,11
+COLUMN,homework,type,character varying,varchar,YES,'general'::character varying,12
+COLUMN,homework,due_date,timestamp without time zone,timestamp,NO,null,13
+COLUMN,homework,max_score,integer,int4,YES,100,14
+COLUMN,homework,is_active,boolean,bool,YES,true,15
+COLUMN,homework,created_at,timestamp without time zone,timestamp,YES,now(),16
+COLUMN,homework,class_id,uuid,uuid,YES,null,2
+COLUMN,homework,teacher_id,uuid,uuid,YES,null,3
+COLUMN,homework,title,character varying,varchar,NO,null,4
+COLUMN,homework,title_zh,character varying,varchar,YES,null,5
+COLUMN,homework,description,text,text,YES,null,6
+COLUMN,homework,description_zh,text,text,YES,null,7
+COLUMN,homework,instructions,text,text,YES,null,8
+COLUMN,homework,instructions_zh,text,text,YES,null,9
+COLUMN,homework_submissions,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,homework_submissions,teacher_correction_audio,text,text,YES,null,10
+COLUMN,homework_submissions,graded_at,timestamp without time zone,timestamp,YES,null,11
+COLUMN,homework_submissions,graded_by,uuid,uuid,YES,null,12
+COLUMN,homework_submissions,submitted_at,timestamp without time zone,timestamp,YES,now(),13
+COLUMN,homework_submissions,updated_at,timestamp without time zone,timestamp,YES,now(),14
+COLUMN,homework_submissions,homework_id,uuid,uuid,YES,null,2
+COLUMN,homework_submissions,student_id,uuid,uuid,YES,null,3
+COLUMN,homework_submissions,content,text,text,YES,null,4
+COLUMN,homework_submissions,voice_recording,text,text,YES,null,5
+COLUMN,homework_submissions,file_url,text,text,YES,null,6
+COLUMN,homework_submissions,status,character varying,varchar,YES,'submitted'::character varying,7
+COLUMN,homework_submissions,score,integer,int4,YES,null,8
+COLUMN,homework_submissions,feedback,text,text,YES,null,9
+COLUMN,hsk_audio_files,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,hsk_audio_files,transcript_source,character varying,varchar,YES,'none'::character varying,10
+COLUMN,hsk_audio_files,transcription_status,character varying,varchar,YES,'pending'::character varying,11
+COLUMN,hsk_audio_files,transcription_error,text,text,YES,null,12
+COLUMN,hsk_audio_files,language,character varying,varchar,YES,'zh'::character varying,13
+COLUMN,hsk_audio_files,speaker_count,integer,int4,YES,1,14
+COLUMN,hsk_audio_files,created_at,timestamp without time zone,timestamp,YES,now(),15
+COLUMN,hsk_audio_files,updated_at,timestamp without time zone,timestamp,YES,now(),16
+COLUMN,hsk_audio_files,paper_id,uuid,uuid,YES,null,2
+COLUMN,hsk_audio_files,filename,character varying,varchar,NO,null,3
+COLUMN,hsk_audio_files,original_filename,character varying,varchar,YES,null,4
+COLUMN,hsk_audio_files,file_url,text,text,YES,null,5
+COLUMN,hsk_audio_files,file_size,integer,int4,YES,null,6
+COLUMN,hsk_audio_files,duration,integer,int4,YES,null,7
+COLUMN,hsk_audio_files,transcript,text,text,YES,null,8
+COLUMN,hsk_audio_files,transcript_pinyin,text,text,YES,null,9
+COLUMN,hsk_test_answers,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,hsk_test_answers,graded_at,timestamp without time zone,timestamp,YES,null,10
+COLUMN,hsk_test_answers,answered_at,timestamp without time zone,timestamp,YES,now(),11
+COLUMN,hsk_test_answers,attempt_id,uuid,uuid,YES,null,2
+COLUMN,hsk_test_answers,question_id,uuid,uuid,YES,null,3
+COLUMN,hsk_test_answers,student_answer,text,text,YES,null,4
+COLUMN,hsk_test_answers,is_correct,boolean,bool,YES,null,5
+COLUMN,hsk_test_answers,points_earned,numeric,numeric,YES,0,6
+COLUMN,hsk_test_answers,teacher_score,numeric,numeric,YES,null,7
+COLUMN,hsk_test_answers,teacher_feedback,text,text,YES,null,8
+COLUMN,hsk_test_answers,graded_by,uuid,uuid,YES,null,9
+COLUMN,hsk_test_attempts,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,hsk_test_attempts,percentage,numeric,numeric,YES,0,10
+COLUMN,hsk_test_attempts,listening_score,numeric,numeric,YES,0,11
+COLUMN,hsk_test_attempts,reading_score,numeric,numeric,YES,0,12
+COLUMN,hsk_test_attempts,writing_score,numeric,numeric,YES,0,13
+COLUMN,hsk_test_attempts,correct_count,integer,int4,YES,0,14
+COLUMN,hsk_test_attempts,wrong_count,integer,int4,YES,0,15
+COLUMN,hsk_test_attempts,unanswered_count,integer,int4,YES,0,16
+COLUMN,hsk_test_attempts,created_at,timestamp without time zone,timestamp,YES,now(),17
+COLUMN,hsk_test_attempts,student_id,uuid,uuid,NO,null,2
+COLUMN,hsk_test_attempts,paper_id,uuid,uuid,YES,null,3
+COLUMN,hsk_test_attempts,status,character varying,varchar,YES,'in_progress'::character varying,4
+COLUMN,hsk_test_attempts,started_at,timestamp without time zone,timestamp,YES,now(),5
+COLUMN,hsk_test_attempts,completed_at,timestamp without time zone,timestamp,YES,null,6
+COLUMN,hsk_test_attempts,time_spent,integer,int4,YES,0,7
+COLUMN,hsk_test_attempts,total_score,numeric,numeric,YES,0,8
+COLUMN,hsk_test_attempts,max_score,numeric,numeric,YES,0,9
+COLUMN,hsk_test_papers,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,hsk_test_papers,total_duration,integer,int4,YES,0,10
+COLUMN,hsk_test_papers,listening_questions,integer,int4,YES,0,11
+COLUMN,hsk_test_papers,reading_questions,integer,int4,YES,0,12
+COLUMN,hsk_test_papers,writing_questions,integer,int4,YES,0,13
+COLUMN,hsk_test_papers,is_active,boolean,bool,YES,true,14
+COLUMN,hsk_test_papers,created_by,uuid,uuid,YES,null,15
+COLUMN,hsk_test_papers,created_at,timestamp without time zone,timestamp,YES,now(),16
+COLUMN,hsk_test_papers,updated_at,timestamp without time zone,timestamp,YES,now(),17
+COLUMN,hsk_test_papers,name,character varying,varchar,NO,null,2
+COLUMN,hsk_test_papers,name_zh,character varying,varchar,YES,null,3
+COLUMN,hsk_test_papers,hsk_level,integer,int4,NO,null,4
+COLUMN,hsk_test_papers,year,integer,int4,YES,null,5
+COLUMN,hsk_test_papers,test_type,character varying,varchar,YES,'official'::character varying,6
+COLUMN,hsk_test_papers,source,character varying,varchar,YES,null,7
+COLUMN,hsk_test_papers,description,text,text,YES,null,8
+COLUMN,hsk_test_papers,total_questions,integer,int4,YES,0,9
+COLUMN,hsk_test_questions,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,hsk_test_questions,audio_duration,integer,int4,YES,null,10
+COLUMN,hsk_test_questions,audio_transcript,text,text,YES,null,11
+COLUMN,hsk_test_questions,audio_transcript_pinyin,text,text,YES,null,12
+COLUMN,hsk_test_questions,transcript_source,character varying,varchar,YES,'none'::character varying,13
+COLUMN,hsk_test_questions,options,jsonb,jsonb,YES,'[]'::jsonb,14
+COLUMN,hsk_test_questions,correct_answer,text,text,YES,null,15
+COLUMN,hsk_test_questions,answer_explanation,text,text,YES,null,16
+COLUMN,hsk_test_questions,answer_explanation_zh,text,text,YES,null,17
+COLUMN,hsk_test_questions,difficulty,integer,int4,YES,3,18
+COLUMN,hsk_test_questions,points,integer,int4,YES,1,19
+COLUMN,hsk_test_questions,paper_id,uuid,uuid,YES,null,2
+COLUMN,hsk_test_questions,tags,ARRAY,_text,YES,null,20
+COLUMN,hsk_test_questions,is_indexed,boolean,bool,YES,false,21
+COLUMN,hsk_test_questions,embedding_id,uuid,uuid,YES,null,22
+COLUMN,hsk_test_questions,sort_order,integer,int4,YES,0,23
+COLUMN,hsk_test_questions,created_at,timestamp without time zone,timestamp,YES,now(),24
+COLUMN,hsk_test_questions,updated_at,timestamp without time zone,timestamp,YES,now(),25
+COLUMN,hsk_test_questions,section_id,uuid,uuid,YES,null,3
+COLUMN,hsk_test_questions,question_number,integer,int4,NO,null,4
+COLUMN,hsk_test_questions,question_type,character varying,varchar,NO,null,5
+COLUMN,hsk_test_questions,question_text,text,text,YES,null,6
+COLUMN,hsk_test_questions,question_text_zh,text,text,YES,null,7
+COLUMN,hsk_test_questions,question_image_url,text,text,YES,null,8
+COLUMN,hsk_test_questions,audio_url,text,text,YES,null,9
+COLUMN,hsk_test_sections,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,hsk_test_sections,question_count,integer,int4,YES,0,10
+COLUMN,hsk_test_sections,sort_order,integer,int4,YES,0,11
+COLUMN,hsk_test_sections,created_at,timestamp without time zone,timestamp,YES,now(),12
+COLUMN,hsk_test_sections,paper_id,uuid,uuid,YES,null,2
+COLUMN,hsk_test_sections,section_type,character varying,varchar,NO,null,3
+COLUMN,hsk_test_sections,section_number,integer,int4,YES,1,4
+COLUMN,hsk_test_sections,title,character varying,varchar,YES,null,5
+COLUMN,hsk_test_sections,title_zh,character varying,varchar,YES,null,6
+COLUMN,hsk_test_sections,instructions,text,text,YES,null,7
+COLUMN,hsk_test_sections,instructions_zh,text,text,YES,null,8
+COLUMN,hsk_test_sections,duration,integer,int4,YES,0,9
+COLUMN,hsk_test_stats,id,uuid,uuid,YES,null,1
+COLUMN,hsk_test_stats,name_zh,character varying,varchar,YES,null,2
+COLUMN,hsk_test_stats,hsk_level,integer,int4,YES,null,3
+COLUMN,hsk_test_stats,year,integer,int4,YES,null,4
+COLUMN,hsk_test_stats,attempt_count,bigint,int8,YES,null,5
+COLUMN,hsk_test_stats,student_count,bigint,int8,YES,null,6
+COLUMN,hsk_test_stats,avg_score,numeric,numeric,YES,null,7
+COLUMN,hsk_test_stats,highest_score,numeric,numeric,YES,null,8
+COLUMN,invitation_codes,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,invitation_codes,is_active,boolean,bool,YES,true,10
+COLUMN,invitation_codes,created_at,timestamp without time zone,timestamp,YES,now(),11
+COLUMN,invitation_codes,code,character varying,varchar,NO,null,2
+COLUMN,invitation_codes,role,character varying,varchar,NO,null,3
+COLUMN,invitation_codes,school_id,uuid,uuid,YES,null,4
+COLUMN,invitation_codes,class_id,uuid,uuid,YES,null,5
+COLUMN,invitation_codes,max_uses,integer,int4,YES,1,6
+COLUMN,invitation_codes,current_uses,integer,int4,YES,0,7
+COLUMN,invitation_codes,expires_at,timestamp without time zone,timestamp,YES,null,8
+COLUMN,invitation_codes,created_by,uuid,uuid,YES,null,9
+COLUMN,invites,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,invites,expires_at,date,date,YES,null,10
+COLUMN,invites,code,text,text,NO,null,2
+COLUMN,invites,role,text,text,NO,null,3
+COLUMN,invites,used,integer,int4,YES,0,4
+COLUMN,invites,max_uses,integer,int4,YES,10,5
+COLUMN,invites,note,text,text,YES,null,6
+COLUMN,invites,school_id,uuid,uuid,YES,null,7
+COLUMN,invites,is_active,boolean,bool,YES,true,8
+COLUMN,invites,created_at,timestamp with time zone,timestamptz,YES,now(),9
+COLUMN,join_requests,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,join_requests,updated_at,timestamp with time zone,timestamptz,YES,now(),10
+COLUMN,join_requests,user_name,text,text,YES,null,2
+COLUMN,join_requests,user_name_zh,text,text,YES,null,3
+COLUMN,join_requests,class_name,text,text,YES,null,4
+COLUMN,join_requests,school,text,text,YES,null,5
+COLUMN,join_requests,role,text,text,YES,'student'::text,6
+COLUMN,join_requests,status,text,text,YES,'pending'::text,7
+COLUMN,join_requests,note,text,text,YES,null,8
+COLUMN,join_requests,created_at,timestamp with time zone,timestamptz,YES,now(),9
+COLUMN,knowledge_categories,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,knowledge_categories,name,character varying,varchar,NO,null,2
+COLUMN,knowledge_categories,name_zh,character varying,varchar,YES,null,3
+COLUMN,knowledge_categories,parent_id,uuid,uuid,YES,null,4
+COLUMN,knowledge_categories,icon,character varying,varchar,YES,null,5
+COLUMN,knowledge_categories,sort_order,integer,int4,YES,0,6
+COLUMN,knowledge_categories,created_at,timestamp without time zone,timestamp,YES,now(),7
+COLUMN,knowledge_materials,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,knowledge_materials,category,character varying,varchar,YES,'textbook'::character varying,10
+COLUMN,knowledge_materials,hsk_levels,ARRAY,_int4,YES,"'{1,2,3,4,5,6}'::integer[]",11
+COLUMN,knowledge_materials,extracted_text,text,text,YES,null,12
+COLUMN,knowledge_materials,chunk_count,integer,int4,YES,0,13
+COLUMN,knowledge_materials,status,character varying,varchar,YES,'pending'::character varying,14
+COLUMN,knowledge_materials,tags,ARRAY,_text,YES,null,15
+COLUMN,knowledge_materials,metadata,jsonb,jsonb,YES,'{}'::jsonb,16
+COLUMN,knowledge_materials,uploaded_by,uuid,uuid,YES,null,17
+COLUMN,knowledge_materials,created_at,timestamp without time zone,timestamp,YES,now(),18
+COLUMN,knowledge_materials,updated_at,timestamp without time zone,timestamp,YES,now(),19
+COLUMN,knowledge_materials,knowledge_base_id,uuid,uuid,YES,null,2
+COLUMN,knowledge_materials,ai_classify_confidence,double precision,float8,YES,null,20
+COLUMN,knowledge_materials,ai_classify_method,text,text,YES,null,21
+COLUMN,knowledge_materials,summary,text,text,YES,null,22
+COLUMN,knowledge_materials,storage_path,text,text,YES,null,23
+COLUMN,knowledge_materials,storage_url,text,text,YES,null,24
+COLUMN,knowledge_materials,pages,integer,int4,YES,null,25
+COLUMN,knowledge_materials,pages_read,integer,int4,YES,null,26
+COLUMN,knowledge_materials,pagesRead,integer,int4,YES,null,27
+COLUMN,knowledge_materials,title,character varying,varchar,YES,null,3
+COLUMN,knowledge_materials,title_zh,character varying,varchar,YES,null,4
+COLUMN,knowledge_materials,file_name,character varying,varchar,YES,null,5
+COLUMN,knowledge_materials,file_type,character varying,varchar,YES,null,6
+COLUMN,knowledge_materials,file_size,integer,int4,YES,null,7
+COLUMN,knowledge_materials,file_url,text,text,YES,null,8
+COLUMN,knowledge_materials,file_data,text,text,YES,null,9
+COLUMN,material_categories,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,material_categories,name,character varying,varchar,NO,null,2
+COLUMN,material_categories,name_zh,character varying,varchar,YES,null,3
+COLUMN,material_categories,parent_id,uuid,uuid,YES,null,4
+COLUMN,material_categories,description,text,text,YES,null,5
+COLUMN,material_categories,created_at,timestamp with time zone,timestamptz,YES,now(),6
+COLUMN,messages,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,messages,sender_id,uuid,uuid,YES,null,2
+COLUMN,messages,receiver_id,uuid,uuid,YES,null,3
+COLUMN,messages,subject,character varying,varchar,YES,null,4
+COLUMN,messages,content,text,text,NO,null,5
+COLUMN,messages,is_read,boolean,bool,YES,false,6
+COLUMN,messages,parent_id,uuid,uuid,YES,null,7
+COLUMN,messages,created_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,notifications,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,notifications,user_id,uuid,uuid,YES,null,2
+COLUMN,notifications,type,character varying,varchar,NO,null,3
+COLUMN,notifications,title,character varying,varchar,NO,null,4
+COLUMN,notifications,content,text,text,YES,null,5
+COLUMN,notifications,is_read,boolean,bool,YES,false,6
+COLUMN,notifications,link,text,text,YES,null,7
+COLUMN,notifications,created_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,panda_assets,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,panda_assets,emotion,text,text,NO,null,2
+COLUMN,panda_assets,emotion_zh,text,text,YES,null,3
+COLUMN,panda_assets,image_url,text,text,YES,null,4
+COLUMN,panda_assets,prompt,text,text,YES,null,5
+COLUMN,panda_assets,color,text,text,YES,null,6
+COLUMN,panda_assets,usage_desc,text,text,YES,null,7
+COLUMN,panda_assets,created_at,timestamp with time zone,timestamptz,YES,now(),8
+COLUMN,panda_assets,updated_at,timestamp with time zone,timestamptz,YES,now(),9
+COLUMN,parent_messages,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,parent_messages,from_id,uuid,uuid,YES,null,2
+COLUMN,parent_messages,from_name,text,text,YES,null,3
+COLUMN,parent_messages,to_id,uuid,uuid,YES,null,4
+COLUMN,parent_messages,subject,text,text,YES,null,5
+COLUMN,parent_messages,content,text,text,YES,null,6
+COLUMN,parent_messages,is_read,boolean,bool,YES,false,7
+COLUMN,parent_messages,created_at,timestamp with time zone,timestamptz,YES,now(),8
+COLUMN,parent_student_links,parent_id,uuid,uuid,NO,null,1
+COLUMN,parent_student_links,student_id,uuid,uuid,NO,null,2
+COLUMN,point_transactions,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,point_transactions,student_id,uuid,uuid,YES,null,2
+COLUMN,point_transactions,amount,integer,int4,NO,null,3
+COLUMN,point_transactions,reason,text,text,YES,null,4
+COLUMN,point_transactions,source,text,text,YES,null,5
+COLUMN,point_transactions,created_at,timestamp with time zone,timestamptz,YES,now(),6
+COLUMN,points_transactions,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,points_transactions,user_id,uuid,uuid,YES,null,2
+COLUMN,points_transactions,points,integer,int4,NO,null,3
+COLUMN,points_transactions,type,character varying,varchar,NO,null,4
+COLUMN,points_transactions,description,text,text,YES,null,5
+COLUMN,points_transactions,reference_id,uuid,uuid,YES,null,6
+COLUMN,points_transactions,created_at,timestamp without time zone,timestamp,YES,now(),7
+COLUMN,rag_chunks,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rag_chunks,document_id,uuid,uuid,YES,null,2
+COLUMN,rag_chunks,knowledge_base_id,uuid,uuid,YES,null,3
+COLUMN,rag_chunks,content,text,text,NO,null,4
+COLUMN,rag_chunks,chunk_index,integer,int4,YES,null,5
+COLUMN,rag_chunks,metadata,jsonb,jsonb,YES,null,7
+COLUMN,rag_chunks,created_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,rag_chunks,embedding,USER-DEFINED,vector,YES,null,9
+COLUMN,rag_config,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rag_config,system_prompt_template,text,text,YES,null,10
+COLUMN,rag_config,updated_by,uuid,uuid,YES,null,11
+COLUMN,rag_config,updated_at,timestamp without time zone,timestamp,YES,now(),12
+COLUMN,rag_config,chat_model,character varying,varchar,YES,'gpt-4o-mini'::character varying,13
+COLUMN,rag_config,chat_api_key,text,text,YES,null,14
+COLUMN,rag_config,chunk_size,integer,int4,YES,500,15
+COLUMN,rag_config,chunk_overlap,integer,int4,YES,50,16
+COLUMN,rag_config,top_k,integer,int4,YES,5,17
+COLUMN,rag_config,ai_provider,character varying,varchar,YES,'openai'::character varying,18
+COLUMN,rag_config,openai_api_key,text,text,YES,null,19
+COLUMN,rag_config,embedding_provider,character varying,varchar,YES,'openai'::character varying,2
+COLUMN,rag_config,openai_model,character varying,varchar,YES,'gpt-4o-mini'::character varying,20
+COLUMN,rag_config,claude_api_key,text,text,YES,null,21
+COLUMN,rag_config,claude_model,character varying,varchar,YES,'claude-sonnet-4-20250514'::character varying,22
+COLUMN,rag_config,deepseek_api_key,text,text,YES,null,23
+COLUMN,rag_config,deepseek_model,character varying,varchar,YES,'deepseek-chat'::character varying,24
+COLUMN,rag_config,auto_process_uploads,boolean,bool,YES,true,25
+COLUMN,rag_config,auto_generate_embeddings,boolean,bool,YES,true,26
+COLUMN,rag_config,auto_classify_materials,boolean,bool,YES,true,27
+COLUMN,rag_config,embedding_model,character varying,varchar,YES,'text-embedding-3-small'::character varying,3
+COLUMN,rag_config,embedding_api_key,text,text,YES,null,4
+COLUMN,rag_config,embedding_api_url,text,text,YES,null,5
+COLUMN,rag_config,search_top_k,integer,int4,YES,5,6
+COLUMN,rag_config,similarity_threshold,numeric,numeric,YES,0.7,7
+COLUMN,rag_config,include_sources,boolean,bool,YES,true,8
+COLUMN,rag_config,max_context_length,integer,int4,YES,4000,9
+COLUMN,rag_config_backup,id,uuid,uuid,YES,null,1
+COLUMN,rag_config_backup,system_prompt_template,text,text,YES,null,10
+COLUMN,rag_config_backup,updated_by,uuid,uuid,YES,null,11
+COLUMN,rag_config_backup,updated_at,timestamp without time zone,timestamp,YES,null,12
+COLUMN,rag_config_backup,chat_model,character varying,varchar,YES,null,13
+COLUMN,rag_config_backup,chat_api_key,text,text,YES,null,14
+COLUMN,rag_config_backup,chunk_size,integer,int4,YES,null,15
+COLUMN,rag_config_backup,chunk_overlap,integer,int4,YES,null,16
+COLUMN,rag_config_backup,top_k,integer,int4,YES,null,17
+COLUMN,rag_config_backup,embedding_provider,character varying,varchar,YES,null,2
+COLUMN,rag_config_backup,embedding_model,character varying,varchar,YES,null,3
+COLUMN,rag_config_backup,embedding_api_key,text,text,YES,null,4
+COLUMN,rag_config_backup,embedding_api_url,text,text,YES,null,5
+COLUMN,rag_config_backup,search_top_k,integer,int4,YES,null,6
+COLUMN,rag_config_backup,similarity_threshold,numeric,numeric,YES,null,7
+COLUMN,rag_config_backup,include_sources,boolean,bool,YES,null,8
+COLUMN,rag_config_backup,max_context_length,integer,int4,YES,null,9
+COLUMN,rag_documents,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rag_documents,category,character varying,varchar,YES,null,10
+COLUMN,rag_documents,hsk_levels,ARRAY,_int4,YES,null,11
+COLUMN,rag_documents,tags,ARRAY,_text,YES,null,12
+COLUMN,rag_documents,status,character varying,varchar,YES,'pending'::character varying,13
+COLUMN,rag_documents,chunk_count,integer,int4,YES,0,14
+COLUMN,rag_documents,error_message,text,text,YES,null,15
+COLUMN,rag_documents,metadata,jsonb,jsonb,YES,null,16
+COLUMN,rag_documents,uploaded_by,uuid,uuid,YES,null,17
+COLUMN,rag_documents,created_at,timestamp without time zone,timestamp,YES,now(),18
+COLUMN,rag_documents,processed_at,timestamp without time zone,timestamp,YES,null,19
+COLUMN,rag_documents,knowledge_base_id,uuid,uuid,YES,null,2
+COLUMN,rag_documents,title,character varying,varchar,NO,null,3
+COLUMN,rag_documents,title_zh,character varying,varchar,YES,null,4
+COLUMN,rag_documents,file_name,character varying,varchar,YES,null,5
+COLUMN,rag_documents,file_type,character varying,varchar,YES,null,6
+COLUMN,rag_documents,file_size,integer,int4,YES,null,7
+COLUMN,rag_documents,file_url,text,text,YES,null,8
+COLUMN,rag_documents,raw_content,text,text,YES,null,9
+COLUMN,rag_files,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rag_files,created_at,timestamp with time zone,timestamptz,YES,now(),10
+COLUMN,rag_files,indexed_at,timestamp with time zone,timestamptz,YES,null,11
+COLUMN,rag_files,name,text,text,NO,null,2
+COLUMN,rag_files,size,text,text,YES,null,3
+COLUMN,rag_files,file_type,text,text,YES,null,4
+COLUMN,rag_files,file_url,text,text,YES,null,5
+COLUMN,rag_files,status,text,text,YES,'processing'::text,6
+COLUMN,rag_files,chunks,integer,int4,YES,0,7
+COLUMN,rag_files,tags,ARRAY,_text,YES,'{}'::text[],8
+COLUMN,rag_files,uploaded_by,uuid,uuid,YES,null,9
+COLUMN,rag_knowledge_bases,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rag_knowledge_bases,total_chunks,integer,int4,YES,0,10
+COLUMN,rag_knowledge_bases,last_updated,timestamp without time zone,timestamp,YES,null,11
+COLUMN,rag_knowledge_bases,created_by,uuid,uuid,YES,null,12
+COLUMN,rag_knowledge_bases,created_at,timestamp without time zone,timestamp,YES,now(),13
+COLUMN,rag_knowledge_bases,category,character varying,varchar,YES,'general'::character varying,14
+COLUMN,rag_knowledge_bases,chunk_count,integer,int4,YES,0,15
+COLUMN,rag_knowledge_bases,name,character varying,varchar,NO,null,2
+COLUMN,rag_knowledge_bases,name_zh,character varying,varchar,YES,null,3
+COLUMN,rag_knowledge_bases,description,text,text,YES,null,4
+COLUMN,rag_knowledge_bases,embedding_model,character varying,varchar,YES,'text-embedding-3-small'::character varying,5
+COLUMN,rag_knowledge_bases,chunk_size,integer,int4,YES,500,6
+COLUMN,rag_knowledge_bases,chunk_overlap,integer,int4,YES,50,7
+COLUMN,rag_knowledge_bases,is_active,boolean,bool,YES,true,8
+COLUMN,rag_knowledge_bases,document_count,integer,int4,YES,0,9
+COLUMN,rag_query_logs,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rag_query_logs,user_feedback,text,text,YES,null,10
+COLUMN,rag_query_logs,created_at,timestamp without time zone,timestamp,YES,now(),11
+COLUMN,rag_query_logs,user_id,uuid,uuid,YES,null,2
+COLUMN,rag_query_logs,query,text,text,NO,null,3
+COLUMN,rag_query_logs,knowledge_base_ids,ARRAY,_uuid,YES,null,4
+COLUMN,rag_query_logs,retrieved_chunks,jsonb,jsonb,YES,null,5
+COLUMN,rag_query_logs,retrieval_time_ms,integer,int4,YES,null,6
+COLUMN,rag_query_logs,generated_response,text,text,YES,null,7
+COLUMN,rag_query_logs,generation_time_ms,integer,int4,YES,null,8
+COLUMN,rag_query_logs,user_rating,integer,int4,YES,null,9
+COLUMN,reward_redemptions,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,reward_redemptions,user_id,uuid,uuid,YES,null,2
+COLUMN,reward_redemptions,reward_id,uuid,uuid,YES,null,3
+COLUMN,reward_redemptions,points_spent,integer,int4,NO,null,4
+COLUMN,reward_redemptions,status,character varying,varchar,YES,'pending'::character varying,5
+COLUMN,reward_redemptions,redeemed_at,timestamp without time zone,timestamp,YES,now(),6
+COLUMN,rewards,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,rewards,created_at,timestamp without time zone,timestamp,YES,now(),10
+COLUMN,rewards,name,character varying,varchar,NO,null,2
+COLUMN,rewards,name_zh,character varying,varchar,YES,null,3
+COLUMN,rewards,description,text,text,YES,null,4
+COLUMN,rewards,points_cost,integer,int4,NO,null,5
+COLUMN,rewards,category,character varying,varchar,YES,null,6
+COLUMN,rewards,image_url,text,text,YES,null,7
+COLUMN,rewards,stock,integer,int4,YES,'-1'::integer,8
+COLUMN,rewards,is_active,boolean,bool,YES,true,9
+COLUMN,schools,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,schools,code,text,text,YES,null,10
+COLUMN,schools,max_teachers,integer,int4,YES,10,11
+COLUMN,schools,max_students,integer,int4,YES,50,12
+COLUMN,schools,current_teachers,integer,int4,YES,0,13
+COLUMN,schools,current_students,integer,int4,YES,0,14
+COLUMN,schools,updated_at,timestamp with time zone,timestamptz,YES,now(),15
+COLUMN,schools,name,character varying,varchar,NO,null,2
+COLUMN,schools,name_zh,character varying,varchar,YES,null,3
+COLUMN,schools,address,text,text,YES,null,4
+COLUMN,schools,phone,character varying,varchar,YES,null,5
+COLUMN,schools,email,character varying,varchar,YES,null,6
+COLUMN,schools,is_active,boolean,bool,YES,true,7
+COLUMN,schools,created_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,schools,city,text,text,YES,null,9
+COLUMN,student_learning_profiles,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,student_learning_profiles,skill_grammar,integer,int4,YES,50,10
+COLUMN,student_learning_profiles,strengths,ARRAY,_text,YES,null,11
+COLUMN,student_learning_profiles,weaknesses,ARRAY,_text,YES,null,12
+COLUMN,student_learning_profiles,learning_style,character varying,varchar,YES,null,13
+COLUMN,student_learning_profiles,streak_days,integer,int4,YES,0,14
+COLUMN,student_learning_profiles,total_study_time,integer,int4,YES,0,15
+COLUMN,student_learning_profiles,last_study_date,date,date,YES,null,16
+COLUMN,student_learning_profiles,updated_at,timestamp without time zone,timestamp,YES,now(),17
+COLUMN,student_learning_profiles,student_id,uuid,uuid,YES,null,2
+COLUMN,student_learning_profiles,current_hsk_level,integer,int4,YES,1,3
+COLUMN,student_learning_profiles,target_hsk_level,integer,int4,YES,2,4
+COLUMN,student_learning_profiles,estimated_vocabulary,integer,int4,YES,0,5
+COLUMN,student_learning_profiles,skill_listening,integer,int4,YES,50,6
+COLUMN,student_learning_profiles,skill_speaking,integer,int4,YES,50,7
+COLUMN,student_learning_profiles,skill_reading,integer,int4,YES,50,8
+COLUMN,student_learning_profiles,skill_writing,integer,int4,YES,50,9
+COLUMN,student_mistake_patterns,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,student_mistake_patterns,student_id,uuid,uuid,YES,null,2
+COLUMN,student_mistake_patterns,mistake_type,character varying,varchar,NO,null,3
+COLUMN,student_mistake_patterns,description,text,text,YES,null,4
+COLUMN,student_mistake_patterns,related_words,ARRAY,_text,YES,null,5
+COLUMN,student_mistake_patterns,occurrence_count,integer,int4,YES,1,6
+COLUMN,student_mistake_patterns,first_occurred,timestamp without time zone,timestamp,YES,now(),7
+COLUMN,student_mistake_patterns,last_occurred,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,student_mistake_patterns,is_resolved,boolean,bool,YES,false,9
+COLUMN,student_points,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,student_points,student_id,uuid,uuid,YES,null,2
+COLUMN,student_points,total_xp,integer,int4,YES,0,3
+COLUMN,student_points,streak_days,integer,int4,YES,0,4
+COLUMN,student_points,last_active,date,date,YES,CURRENT_DATE,5
+COLUMN,student_points,updated_at,timestamp with time zone,timestamptz,YES,now(),6
+COLUMN,system_settings,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,system_settings,setting_key,text,text,NO,null,2
+COLUMN,system_settings,setting_value,text,text,YES,null,3
+COLUMN,system_settings,category,text,text,YES,'general'::text,4
+COLUMN,system_settings,updated_at,timestamp with time zone,timestamptz,YES,now(),5
+COLUMN,system_settings,updated_by,uuid,uuid,YES,null,6
+COLUMN,teacher_teaching_profiles,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,teacher_teaching_profiles,teacher_id,uuid,uuid,YES,null,2
+COLUMN,teacher_teaching_profiles,specializations,ARRAY,_text,YES,null,3
+COLUMN,teacher_teaching_profiles,teaching_style,character varying,varchar,YES,null,4
+COLUMN,teacher_teaching_profiles,years_experience,integer,int4,YES,0,5
+COLUMN,teacher_teaching_profiles,certifications,ARRAY,_text,YES,null,6
+COLUMN,teacher_teaching_profiles,preferred_materials,ARRAY,_text,YES,null,7
+COLUMN,teacher_teaching_profiles,updated_at,timestamp without time zone,timestamp,YES,now(),8
+COLUMN,teaching_materials,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,teaching_materials,tags,ARRAY,_text,YES,null,10
+COLUMN,teaching_materials,is_active,boolean,bool,YES,true,11
+COLUMN,teaching_materials,uploaded_by,uuid,uuid,YES,null,12
+COLUMN,teaching_materials,created_at,timestamp without time zone,timestamp,YES,now(),13
+COLUMN,teaching_materials,title,character varying,varchar,NO,null,2
+COLUMN,teaching_materials,title_zh,character varying,varchar,YES,null,3
+COLUMN,teaching_materials,description,text,text,YES,null,4
+COLUMN,teaching_materials,type,character varying,varchar,YES,null,5
+COLUMN,teaching_materials,hsk_levels,ARRAY,_int4,YES,null,6
+COLUMN,teaching_materials,content,text,text,YES,null,7
+COLUMN,teaching_materials,file_url,text,text,YES,null,8
+COLUMN,teaching_materials,source_type,character varying,varchar,YES,'internal'::character varying,9
+COLUMN,teaching_progress,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,teaching_progress,class_id,uuid,uuid,YES,null,2
+COLUMN,teaching_progress,hsk_level,integer,int4,YES,null,3
+COLUMN,teaching_progress,point_key,text,text,YES,null,4
+COLUMN,teaching_progress,completed,boolean,bool,YES,false,5
+COLUMN,teaching_progress,teacher_id,uuid,uuid,YES,null,6
+COLUMN,teaching_progress,updated_at,timestamp with time zone,timestamptz,YES,now(),7
+COLUMN,training_configs,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,training_configs,batch_size,integer,int4,YES,2,10
+COLUMN,training_configs,resolution,integer,int4,YES,1024,11
+COLUMN,training_configs,save_every,integer,int4,YES,500,12
+COLUMN,training_configs,trigger_word,text,text,YES,'ZANG'::text,13
+COLUMN,training_configs,mixed_precision,text,text,YES,'bf16'::text,14
+COLUMN,training_configs,optimizer,text,text,YES,'AdamW8bit'::text,15
+COLUMN,training_configs,lr_scheduler,text,text,YES,'cosine_with_restarts'::text,16
+COLUMN,training_configs,notes,text,text,YES,''::text,17
+COLUMN,training_configs,created_at,timestamp with time zone,timestamptz,YES,now(),18
+COLUMN,training_configs,name,text,text,NO,'ZANG LoRA v1'::text,2
+COLUMN,training_configs,base_model,text,text,YES,'sdxl'::text,3
+COLUMN,training_configs,base_model_path,text,text,YES,''::text,4
+COLUMN,training_configs,lora_rank,integer,int4,YES,32,5
+COLUMN,training_configs,lora_alpha,integer,int4,YES,16,6
+COLUMN,training_configs,learning_rate,double precision,float8,YES,0.00008,7
+COLUMN,training_configs,max_steps,integer,int4,YES,4000,8
+COLUMN,training_configs,repeat_factor,integer,int4,YES,8,9
+COLUMN,training_images,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,training_images,tags,text,text,YES,''::text,10
+COLUMN,training_images,style_notes,text,text,YES,''::text,11
+COLUMN,training_images,quality_score,integer,int4,YES,0,12
+COLUMN,training_images,approved,boolean,bool,YES,false,13
+COLUMN,training_images,created_at,timestamp with time zone,timestamptz,YES,now(),14
+COLUMN,training_images,updated_at,timestamp with time zone,timestamptz,YES,now(),15
+COLUMN,training_images,project_id,text,text,NO,'ZANG'::text,16
+COLUMN,training_images,filename,text,text,NO,null,2
+COLUMN,training_images,storage_path,text,text,NO,null,3
+COLUMN,training_images,public_url,text,text,YES,null,4
+COLUMN,training_images,width,integer,int4,YES,0,5
+COLUMN,training_images,height,integer,int4,YES,0,6
+COLUMN,training_images,file_size,integer,int4,YES,0,7
+COLUMN,training_images,caption,text,text,YES,''::text,8
+COLUMN,training_images,trigger_word,text,text,YES,'ZANG'::text,9
+COLUMN,training_materials,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,training_materials,tags,ARRAY,_text,YES,null,10
+COLUMN,training_materials,description,text,text,YES,null,11
+COLUMN,training_materials,review_status,character varying,varchar,YES,'pending'::character varying,12
+COLUMN,training_materials,reviewed_by,uuid,uuid,YES,null,13
+COLUMN,training_materials,reviewed_at,timestamp without time zone,timestamp,YES,null,14
+COLUMN,training_materials,reject_reason,text,text,YES,null,15
+COLUMN,training_materials,process_status,character varying,varchar,YES,'pending'::character varying,16
+COLUMN,training_materials,chunk_count,integer,int4,YES,0,17
+COLUMN,training_materials,processed_at,timestamp without time zone,timestamp,YES,null,18
+COLUMN,training_materials,error_message,text,text,YES,null,19
+COLUMN,training_materials,knowledge_base_id,uuid,uuid,YES,null,2
+COLUMN,training_materials,uploaded_by,uuid,uuid,YES,null,20
+COLUMN,training_materials,created_at,timestamp without time zone,timestamp,YES,now(),21
+COLUMN,training_materials,updated_at,timestamp without time zone,timestamp,YES,now(),22
+COLUMN,training_materials,file_name,character varying,varchar,NO,null,3
+COLUMN,training_materials,file_type,character varying,varchar,NO,null,4
+COLUMN,training_materials,file_size,integer,int4,YES,null,5
+COLUMN,training_materials,file_data,text,text,YES,null,6
+COLUMN,training_materials,file_url,text,text,YES,null,7
+COLUMN,training_materials,category,character varying,varchar,YES,null,8
+COLUMN,training_materials,hsk_levels,ARRAY,_int4,YES,null,9
+COLUMN,training_stats,knowledge_base_id,uuid,uuid,YES,null,1
+COLUMN,training_stats,pending_count,bigint,int8,YES,null,2
+COLUMN,training_stats,approved_count,bigint,int8,YES,null,3
+COLUMN,training_stats,rejected_count,bigint,int8,YES,null,4
+COLUMN,training_stats,processed_count,bigint,int8,YES,null,5
+COLUMN,training_stats,total_chunks,bigint,int8,YES,null,6
+COLUMN,training_stats,total_size,bigint,int8,YES,null,7
+COLUMN,user_applications,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,user_applications,reviewed_by,uuid,uuid,YES,null,10
+COLUMN,user_applications,reviewed_at,timestamp without time zone,timestamp,YES,null,11
+COLUMN,user_applications,review_notes,text,text,YES,null,12
+COLUMN,user_applications,created_at,timestamp without time zone,timestamp,YES,now(),13
+COLUMN,user_applications,username,character varying,varchar,NO,null,2
+COLUMN,user_applications,email,character varying,varchar,YES,null,3
+COLUMN,user_applications,name,character varying,varchar,YES,null,4
+COLUMN,user_applications,name_zh,character varying,varchar,YES,null,5
+COLUMN,user_applications,phone,character varying,varchar,YES,null,6
+COLUMN,user_applications,requested_role,character varying,varchar,NO,null,7
+COLUMN,user_applications,reason,text,text,YES,null,8
+COLUMN,user_applications,status,character varying,varchar,YES,'pending'::character varying,9
+COLUMN,user_points,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,user_points,user_id,uuid,uuid,YES,null,2
+COLUMN,user_points,total_points,integer,int4,YES,0,3
+COLUMN,user_points,current_points,integer,int4,YES,0,4
+COLUMN,user_points,level,integer,int4,YES,1,5
+COLUMN,user_points,updated_at,timestamp without time zone,timestamp,YES,now(),6
+COLUMN,users,id,uuid,uuid,NO,gen_random_uuid(),1
+COLUMN,users,avatar_url,text,text,YES,null,10
+COLUMN,users,language_preference,character varying,varchar,YES,'zh'::character varying,11
+COLUMN,users,is_active,boolean,bool,YES,true,12
+COLUMN,users,last_login,timestamp without time zone,timestamp,YES,null,13
+COLUMN,users,created_at,timestamp without time zone,timestamp,YES,now(),14
+COLUMN,users,updated_at,timestamp without time zone,timestamp,YES,now(),15
+COLUMN,users,hsk_level,integer,int4,YES,1,16
+COLUMN,users,avatar,text,text,YES,null,17
+COLUMN,users,student_id,text,text,YES,null,18
+COLUMN,users,gender,text,text,YES,null,19
+COLUMN,users,username,character varying,varchar,NO,null,2
+COLUMN,users,birth_year,integer,int4,YES,null,20
+COLUMN,users,parent_name,text,text,YES,null,21
+COLUMN,users,parent_phone,text,text,YES,null,22
+COLUMN,users,apply_class,text,text,YES,null,23
+COLUMN,users,temp_password,text,text,YES,null,24
+COLUMN,users,password_changed,boolean,bool,YES,true,25
+COLUMN,users,login_type,text,text,YES,'username'::text,26
+COLUMN,users,approved_by,uuid,uuid,YES,null,27
+COLUMN,users,approved_at,timestamp with time zone,timestamptz,YES,null,28
+COLUMN,users,rejected,boolean,bool,YES,false,29
+COLUMN,users,email,character varying,varchar,YES,null,3
+COLUMN,users,password_hash,character varying,varchar,NO,null,4
+COLUMN,users,name,character varying,varchar,YES,null,5
+COLUMN,users,name_zh,character varying,varchar,YES,null,6
+COLUMN,users,role,character varying,varchar,YES,'student'::character varying,7
+COLUMN,users,school_id,uuid,uuid,YES,null,8
+COLUMN,users,phone,character varying,varchar,YES,null,9
+FK,attendance,class_id,classes,id,attendance_class_id_fkey,,
+FK,attendance,student_id,users,id,attendance_student_id_fkey,,
+FK,attendance_records,session_id,attendance_sessions,id,attendance_records_session_id_fkey,,
+FK,attendance_sessions,class_id,classes,id,attendance_sessions_class_id_fkey,,
+FK,class_attendance,class_id,classes,id,class_attendance_class_id_fkey,,
+FK,class_enrollments,class_id,classes,id,class_enrollments_class_id_fkey,,
+FK,class_lessons,class_id,classes,id,class_lessons_class_id_fkey,,
+FK,class_students,student_id,users,id,class_students_student_id_fkey,,
+FK,class_students,class_id,classes,id,class_students_class_id_fkey,,
+FK,classes,school_id,schools,id,classes_school_id_fkey,,
+FK,custom_knowledge_points,class_id,classes,id,custom_knowledge_points_class_id_fkey,,
+FK,grades,class_id,classes,id,grades_class_id_fkey,,
+FK,grades,student_id,users,id,grades_student_id_fkey,,
+FK,homework,class_id,classes,id,homework_class_id_fkey,,
+FK,homework_submissions,homework_id,homework,id,homework_submissions_homework_id_fkey,,
+FK,hsk_audio_files,paper_id,hsk_test_papers,id,hsk_audio_files_paper_id_fkey,,
+FK,hsk_test_answers,question_id,hsk_test_questions,id,hsk_test_answers_question_id_fkey,,
+FK,hsk_test_answers,attempt_id,hsk_test_attempts,id,hsk_test_answers_attempt_id_fkey,,
+FK,hsk_test_attempts,paper_id,hsk_test_papers,id,hsk_test_attempts_paper_id_fkey,,
+FK,hsk_test_questions,section_id,hsk_test_sections,id,hsk_test_questions_section_id_fkey,,
+FK,hsk_test_questions,paper_id,hsk_test_papers,id,hsk_test_questions_paper_id_fkey,,
+FK,hsk_test_sections,paper_id,hsk_test_papers,id,hsk_test_sections_paper_id_fkey,,
+FK,knowledge_categories,parent_id,knowledge_categories,id,knowledge_categories_parent_id_fkey,,
+FK,knowledge_materials,knowledge_base_id,rag_knowledge_bases,id,knowledge_materials_knowledge_base_id_fkey,,
+FK,material_categories,parent_id,material_categories,id,material_categories_parent_id_fkey,,
+FK,parent_student_links,parent_id,users,id,parent_student_links_parent_id_fkey,,
+FK,parent_student_links,student_id,users,id,parent_student_links_student_id_fkey,,
+FK,rag_chunks,knowledge_base_id,rag_knowledge_bases,id,rag_chunks_knowledge_base_id_fkey,,
+FK,rag_chunks,document_id,rag_documents,id,rag_chunks_document_id_fkey,,
+FK,rag_documents,knowledge_base_id,rag_knowledge_bases,id,rag_documents_knowledge_base_id_fkey,,
+FK,reward_redemptions,reward_id,rewards,id,reward_redemptions_reward_id_fkey,,
+FK,teaching_progress,class_id,classes,id,teaching_progress_class_id_fkey,,
+FK,training_materials,knowledge_base_id,rag_knowledge_bases,id,training_materials_knowledge_base_id_fkey,,
+INDEX,ai_agent_conversations,idx_conversations_user,CREATE INDEX idx_conversations_user ON public.ai_agent_conversations USING btree (user_id),,,,
+INDEX,ai_jobs,ai_jobs_created_at_idx,CREATE INDEX ai_jobs_created_at_idx ON public.ai_jobs USING btree (created_at),,,,
+INDEX,attendance,attendance_class_id_student_id_date_key,"CREATE UNIQUE INDEX attendance_class_id_student_id_date_key ON public.attendance USING btree (class_id, student_id, date)",,,,
+INDEX,attendance_records,idx_attendance_session,CREATE INDEX idx_attendance_session ON public.attendance_records USING btree (session_id),,,,
+INDEX,chengyu,idx_chengyu_hsk,CREATE INDEX idx_chengyu_hsk ON public.chengyu USING btree (hsk_level),,,,
+INDEX,chengyu,idx_chengyu_text,CREATE INDEX idx_chengyu_text ON public.chengyu USING btree (chengyu),,,,
+INDEX,chengyu,idx_chengyu_category,CREATE INDEX idx_chengyu_category ON public.chengyu USING btree (category),,,,
+INDEX,class_attendance,class_attendance_class_id_student_id_date_key,"CREATE UNIQUE INDEX class_attendance_class_id_student_id_date_key ON public.class_attendance USING btree (class_id, student_id, date)",,,,
+INDEX,class_enrollments,idx_enrollments_student,CREATE INDEX idx_enrollments_student ON public.class_enrollments USING btree (student_id),,,,
+INDEX,class_enrollments,idx_enrollments_class,CREATE INDEX idx_enrollments_class ON public.class_enrollments USING btree (class_id),,,,
+INDEX,class_students,class_students_class_id_student_id_key,"CREATE UNIQUE INDEX class_students_class_id_student_id_key ON public.class_students USING btree (class_id, student_id)",,,,
+INDEX,classes,idx_classes_teacher,CREATE INDEX idx_classes_teacher ON public.classes USING btree (teacher_id),,,,
+INDEX,classes,idx_classes_school,CREATE INDEX idx_classes_school ON public.classes USING btree (school_id),,,,
+INDEX,dwxz_panda_assets,dwxz_panda_assets_emotion_key,CREATE UNIQUE INDEX dwxz_panda_assets_emotion_key ON public.dwxz_panda_assets USING btree (emotion),,,,
+INDEX,exhibition_plans,exhibition_plans_product_id_key,CREATE UNIQUE INDEX exhibition_plans_product_id_key ON public.exhibition_plans USING btree (product_id),,,,
+INDEX,homework,idx_homework_due,CREATE INDEX idx_homework_due ON public.homework USING btree (due_date),,,,
+INDEX,homework,idx_homework_class,CREATE INDEX idx_homework_class ON public.homework USING btree (class_id),,,,
+INDEX,homework_submissions,idx_submissions_homework,CREATE INDEX idx_submissions_homework ON public.homework_submissions USING btree (homework_id),,,,
+INDEX,homework_submissions,idx_submissions_student,CREATE INDEX idx_submissions_student ON public.homework_submissions USING btree (student_id),,,,
+INDEX,hsk_test_answers,idx_hsk_answers_attempt,CREATE INDEX idx_hsk_answers_attempt ON public.hsk_test_answers USING btree (attempt_id),,,,
+INDEX,hsk_test_attempts,idx_hsk_attempts_paper,CREATE INDEX idx_hsk_attempts_paper ON public.hsk_test_attempts USING btree (paper_id),,,,
+INDEX,hsk_test_attempts,idx_hsk_attempts_student,CREATE INDEX idx_hsk_attempts_student ON public.hsk_test_attempts USING btree (student_id),,,,
+INDEX,hsk_test_papers,idx_hsk_papers_level,CREATE INDEX idx_hsk_papers_level ON public.hsk_test_papers USING btree (hsk_level),,,,
+INDEX,hsk_test_questions,idx_hsk_questions_paper,CREATE INDEX idx_hsk_questions_paper ON public.hsk_test_questions USING btree (paper_id),,,,
+INDEX,hsk_test_questions,idx_hsk_questions_section,CREATE INDEX idx_hsk_questions_section ON public.hsk_test_questions USING btree (section_id),,,,
+INDEX,invitation_codes,idx_invitations_code,CREATE INDEX idx_invitations_code ON public.invitation_codes USING btree (code),,,,
+INDEX,invitation_codes,invitation_codes_code_key,CREATE UNIQUE INDEX invitation_codes_code_key ON public.invitation_codes USING btree (code),,,,
+INDEX,invites,invites_code_key,CREATE UNIQUE INDEX invites_code_key ON public.invites USING btree (code),,,,
+INDEX,knowledge_materials,idx_materials_status,CREATE INDEX idx_materials_status ON public.knowledge_materials USING btree (status),,,,
+INDEX,knowledge_materials,idx_materials_kb,CREATE INDEX idx_materials_kb ON public.knowledge_materials USING btree (knowledge_base_id),,,,
+INDEX,knowledge_materials,idx_knowledge_materials_category,CREATE INDEX idx_knowledge_materials_category ON public.knowledge_materials USING btree (category),,,,
+INDEX,knowledge_materials,idx_knowledge_materials_status,CREATE INDEX idx_knowledge_materials_status ON public.knowledge_materials USING btree (status),,,,
+INDEX,knowledge_materials,idx_knowledge_materials_kb,CREATE INDEX idx_knowledge_materials_kb ON public.knowledge_materials USING btree (knowledge_base_id),,,,
+INDEX,messages,idx_messages_receiver,CREATE INDEX idx_messages_receiver ON public.messages USING btree (receiver_id),,,,
+INDEX,notifications,idx_notifications_user,CREATE INDEX idx_notifications_user ON public.notifications USING btree (user_id),,,,
+INDEX,panda_assets,panda_assets_emotion_key,CREATE UNIQUE INDEX panda_assets_emotion_key ON public.panda_assets USING btree (emotion),,,,
+INDEX,points_transactions,idx_transactions_user,CREATE INDEX idx_transactions_user ON public.points_transactions USING btree (user_id),,,,
+INDEX,rag_chunks,idx_rag_chunks_kb,CREATE INDEX idx_rag_chunks_kb ON public.rag_chunks USING btree (knowledge_base_id),,,,
+INDEX,rag_chunks,idx_rag_chunks_doc,CREATE INDEX idx_rag_chunks_doc ON public.rag_chunks USING btree (document_id),,,,
+INDEX,rag_chunks,idx_rag_chunks_document,CREATE INDEX idx_rag_chunks_document ON public.rag_chunks USING btree (document_id),,,,
+INDEX,rag_chunks,rag_chunks_embedding_idx,CREATE INDEX rag_chunks_embedding_idx ON public.rag_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists='100'),,,,
+INDEX,rag_chunks,idx_rag_chunks_content,"CREATE INDEX idx_rag_chunks_content ON public.rag_chunks USING gin (to_tsvector('simple'::regconfig, content))",,,,
+INDEX,rag_documents,idx_rag_docs_kb,CREATE INDEX idx_rag_docs_kb ON public.rag_documents USING btree (knowledge_base_id),,,,
+INDEX,student_learning_profiles,student_learning_profiles_student_id_key,CREATE UNIQUE INDEX student_learning_profiles_student_id_key ON public.student_learning_profiles USING btree (student_id),,,,
+INDEX,student_learning_profiles,idx_profiles_student,CREATE INDEX idx_profiles_student ON public.student_learning_profiles USING btree (student_id),,,,
+INDEX,student_mistake_patterns,idx_mistakes_student,CREATE INDEX idx_mistakes_student ON public.student_mistake_patterns USING btree (student_id),,,,
+INDEX,student_points,student_points_student_id_key,CREATE UNIQUE INDEX student_points_student_id_key ON public.student_points USING btree (student_id),,,,
+INDEX,system_settings,system_settings_setting_key_key,CREATE UNIQUE INDEX system_settings_setting_key_key ON public.system_settings USING btree (setting_key),,,,
+INDEX,teacher_teaching_profiles,teacher_teaching_profiles_teacher_id_key,CREATE UNIQUE INDEX teacher_teaching_profiles_teacher_id_key ON public.teacher_teaching_profiles USING btree (teacher_id),,,,
+INDEX,teaching_progress,teaching_progress_class_id_hsk_level_point_key_key,"CREATE UNIQUE INDEX teaching_progress_class_id_hsk_level_point_key_key ON public.teaching_progress USING btree (class_id, hsk_level, point_key)",,,,
+INDEX,training_images,training_images_storage_path_key,CREATE UNIQUE INDEX training_images_storage_path_key ON public.training_images USING btree (storage_path),,,,
+INDEX,training_images,idx_training_images_approved,CREATE INDEX idx_training_images_approved ON public.training_images USING btree (approved),,,,
+INDEX,training_images,idx_training_images_project,CREATE INDEX idx_training_images_project ON public.training_images USING btree (project_id),,,,
+INDEX,training_images,idx_training_images_created,CREATE INDEX idx_training_images_created ON public.training_images USING btree (created_at DESC),,,,
+INDEX,training_images,idx_training_images_quality,CREATE INDEX idx_training_images_quality ON public.training_images USING btree (quality_score),,,,
+INDEX,training_materials,idx_training_process_status,CREATE INDEX idx_training_process_status ON public.training_materials USING btree (process_status),,,,
+INDEX,training_materials,idx_training_kb,CREATE INDEX idx_training_kb ON public.training_materials USING btree (knowledge_base_id),,,,
+INDEX,training_materials,idx_training_uploaded_by,CREATE INDEX idx_training_uploaded_by ON public.training_materials USING btree (uploaded_by),,,,
+INDEX,training_materials,idx_training_review_status,CREATE INDEX idx_training_review_status ON public.training_materials USING btree (review_status),,,,
+INDEX,user_applications,idx_applications_status,CREATE INDEX idx_applications_status ON public.user_applications USING btree (status),,,,
+INDEX,user_points,idx_points_user,CREATE INDEX idx_points_user ON public.user_points USING btree (user_id),,,,
+INDEX,user_points,user_points_user_id_key,CREATE UNIQUE INDEX user_points_user_id_key ON public.user_points USING btree (user_id),,,,
+INDEX,users,users_email_key,CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email),,,,
+INDEX,users,users_username_key,CREATE UNIQUE INDEX users_username_key ON public.users USING btree (username),,,,
+INDEX,users,idx_users_role,CREATE INDEX idx_users_role ON public.users USING btree (role),,,,
+INDEX,users,idx_users_school,CREATE INDEX idx_users_school ON public.users USING btree (school_id),,,,
+PK,ai_agent_conversations,id,ai_agent_conversations_pkey,,,,1
+PK,ai_jobs,id,ai_jobs_pkey,,,,1
+PK,ai_recommendations,id,ai_recommendations_pkey,,,,1
+PK,ai_settings,id,ai_settings_pkey,,,,1
+PK,ai_usage_logs,id,ai_usage_logs_pkey,,,,1
+PK,attendance,id,attendance_pkey,,,,1
+PK,attendance_records,id,attendance_records_pkey,,,,1
+PK,attendance_sessions,id,attendance_sessions_pkey,,,,1
+PK,chengyu,id,chengyu_pkey,,,,1
+PK,class_attendance,id,class_attendance_pkey,,,,1
+PK,class_enrollments,id,class_enrollments_pkey,,,,1
+PK,class_lessons,id,class_lessons_pkey,,,,1
+PK,class_students,id,class_students_pkey,,,,1
+PK,classes,id,classes_pkey,,,,1
+PK,custom_knowledge_points,id,custom_knowledge_points_pkey,,,,1
+PK,dwxz_panda_assets,id,dwxz_panda_assets_pkey,,,,1
+PK,events,id,events_pkey,,,,1
+PK,exhibition_plans,id,exhibition_plans_pkey,,,,1
+PK,grades,id,grades_pkey,,,,1
+PK,homework,id,homework_pkey,,,,1
+PK,homework_submissions,id,homework_submissions_pkey,,,,1
+PK,hsk_audio_files,id,hsk_audio_files_pkey,,,,1
+PK,hsk_test_answers,id,hsk_test_answers_pkey,,,,1
+PK,hsk_test_attempts,id,hsk_test_attempts_pkey,,,,1
+PK,hsk_test_papers,id,hsk_test_papers_pkey,,,,1
+PK,hsk_test_questions,id,hsk_test_questions_pkey,,,,1
+PK,hsk_test_sections,id,hsk_test_sections_pkey,,,,1
+PK,invitation_codes,id,invitation_codes_pkey,,,,1
+PK,invites,id,invites_pkey,,,,1
+PK,join_requests,id,join_requests_pkey,,,,1
+PK,knowledge_categories,id,knowledge_categories_pkey,,,,1
+PK,knowledge_materials,id,knowledge_materials_pkey,,,,1
+PK,material_categories,id,material_categories_pkey,,,,1
+PK,messages,id,messages_pkey,,,,1
+PK,messages,id,messages_pkey,,,,1
+PK,messages,inserted_at,messages_pkey,,,,2
+PK,notifications,id,notifications_pkey,,,,1
+PK,panda_assets,id,panda_assets_pkey,,,,1
+PK,parent_messages,id,parent_messages_pkey,,,,1
+PK,parent_student_links,parent_id,parent_student_links_pkey,,,,1
+PK,parent_student_links,student_id,parent_student_links_pkey,,,,2
+PK,point_transactions,id,point_transactions_pkey,,,,1
+PK,points_transactions,id,points_transactions_pkey,,,,1
+PK,rag_chunks,id,rag_chunks_pkey,,,,1
+PK,rag_config,id,rag_config_pkey,,,,1
+PK,rag_documents,id,rag_documents_pkey,,,,1
+PK,rag_files,id,rag_files_pkey,,,,1
+PK,rag_knowledge_bases,id,rag_knowledge_bases_pkey,,,,1
+PK,rag_query_logs,id,rag_query_logs_pkey,,,,1
+PK,reward_redemptions,id,reward_redemptions_pkey,,,,1
+PK,rewards,id,rewards_pkey,,,,1
+PK,schools,id,schools_pkey,,,,1
+PK,student_learning_profiles,id,student_learning_profiles_pkey,,,,1
+PK,student_mistake_patterns,id,student_mistake_patterns_pkey,,,,1
+PK,student_points,id,student_points_pkey,,,,1
+PK,system_settings,id,system_settings_pkey,,,,1
+PK,teacher_teaching_profiles,id,teacher_teaching_profiles_pkey,,,,1
+PK,teaching_materials,id,teaching_materials_pkey,,,,1
+PK,teaching_progress,id,teaching_progress_pkey,,,,1
+PK,training_configs,id,training_configs_pkey,,,,1
+PK,training_images,id,training_images_pkey,,,,1
+PK,training_materials,id,training_materials_pkey,,,,1
+PK,user_applications,id,user_applications_pkey,,,,1
+PK,user_points,id,user_points_pkey,,,,1
+PK,users,id,users_pkey,,,,1
+PK,users,id,users_pkey,,,,1

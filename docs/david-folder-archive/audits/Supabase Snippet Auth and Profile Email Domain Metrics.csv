@@ -1,0 +1,8 @@
+check,value
+auth_users_total,10
+auth_users_local_domain,7
+profiles_total,10
+profiles_super_admin,1
+profiles_teacher,2
+profiles_student,7
+identities_local,7

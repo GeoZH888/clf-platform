@@ -1,0 +1,8 @@
+column_name,data_type
+user_id,uuid
+path,text
+target_hsk_level,integer
+current_grade,text
+onboarding_done,boolean
+selected_at,timestamp with time zone
+updated_at,timestamp with time zone

@@ -1,0 +1,8 @@
+id,username,email,phone,label,pwd_preview,modules,used_at,expires_at
+316c4762-3cd9-4f5c-b350-dd980a05c8d7,luigi,null,null,luigi,luig…,"lianzi,pinyin",2026-04-14 22:26:18.141+00,2026-05-14 21:47:57.613+00
+d6b1fe1b-ac1f-4ef6-9c17-465867da1752,zang,null,null,zang,zang…,"lianzi,pinyin,words,chengyu,grammar,games",2026-04-15 21:21:31.213+00,2026-05-15 21:10:09.1+00
+c5cba4ba-851e-4659-a22c-4cd61ae595a1,huang,null,null,huang,huan…,"lianzi,pinyin,words,chengyu,grammar,hsk,poetry,games",2026-04-16 16:56:10.419+00,2026-05-16 16:44:35.196+00
+14f5d58a-feaa-4084-919f-08f35b4ca42b,zunjie,null,null,zunjie,zunj…,"lianzi,pinyin,words",null,2026-05-23 15:08:50.577+00
+ebd6720b-0478-46a2-aac7-84466ee4cfad,qilin,null,null,qilin,qili…,"lianzi,pinyin,words",2026-04-25 13:10:37.427+00,2026-05-23 15:09:54.209+00
+dca08c73-0883-40da-abc7-d604abc37d87,panda,null,null,panda,pand…,"lianzi,pinyin,words",2026-04-23 15:25:52+00,2026-05-23 00:00:00+00
+f97a08fc-0275-4e21-961f-884648ab9beb,stefano,null,null,Stefano,stef…,"lianzi,pinyin,words",null,2026-05-23 15:29:49.377+00

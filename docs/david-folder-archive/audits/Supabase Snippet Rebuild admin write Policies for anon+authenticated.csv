@@ -1,0 +1,18 @@
+table_name,polname,roles
+clf_characters,admin write clf_characters,"{anon,authenticated}"
+clf_chengyu,admin write clf_chengyu,"{anon,authenticated}"
+clf_concepts,admin write clf_concepts,"{anon,authenticated}"
+clf_grammar,admin write clf_grammar,"{anon,authenticated}"
+clf_idioms,admin write clf_idioms,"{anon,authenticated}"
+clf_item_tags,admin write clf_item_tags,{anon}
+clf_knowledge_chunks,admin write clf_knowledge_chunks,"{anon,authenticated}"
+clf_links,admin write clf_links,{anon}
+clf_media,admin write clf_media,{anon}
+clf_poems,admin write clf_poems,"{anon,authenticated}"
+clf_radicals,admin write clf_radicals,"{anon,authenticated}"
+clf_sources,admin write clf_sources,"{anon,authenticated}"
+clf_tags,admin write clf_tags,{anon}
+clf_texts,admin write clf_texts,"{anon,authenticated}"
+clf_unit_items,admin write clf_unit_items,{anon}
+clf_units,admin write clf_units,{anon}
+clf_words,admin write clf_words,"{anon,authenticated}"

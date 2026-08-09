@@ -1,0 +1,7 @@
+column_name,data_type,is_nullable,column_default
+user_id,uuid,NO,null
+module_id,text,NO,null
+updated_at,timestamp with time zone,YES,now()
+updated_by,uuid,YES,null
+available,boolean,YES,true
+selected,boolean,YES,true

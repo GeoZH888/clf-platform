@@ -1,0 +1,9 @@
+check,value
+enum_values,super_admin
+enum_values,school_master
+enum_values,teacher
+enum_values,student
+enum_values,parent
+rls_enabled,true
+policy_count,8
+trigger,on_auth_user_created

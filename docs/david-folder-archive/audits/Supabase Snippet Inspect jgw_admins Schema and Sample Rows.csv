@@ -1,0 +1,3 @@
+id,user_id,created_at,email,role
+e25a5acc-66d6-4101-b380-6d9ef04a5fbb,90c637d6-e293-4497-bf17-3fc41fc9bac4,2026-04-07 23:35:25.936683+00,null,admin
+40f32e97-eeb7-4af9-b607-cc448cd5d047,655c2117-eb99-4c46-bfff-2394ff0ea03b,2026-04-17 21:15:51.201524+00,admin@wenzi-learn.net,superadmin
