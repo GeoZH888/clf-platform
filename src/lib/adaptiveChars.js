@@ -58,17 +58,41 @@ function easierFirst(a, b) {
   return (a.difficulty || 1) - (b.difficulty || 1);
 }
 
+// ── Starting point ────────────────────────────────────────────────────────
+// Asked once, on the first visit. Nothing about a learner is known yet, and
+// guessing wrong in either direction is costly: start too high and they cannot
+// write anything, start too low and a literate child spends a week on 一二三.
+// The ceiling is a stroke count, and it only governs the cold start — after a
+// few practices the measured level takes over and this value stops mattering.
+export const START_LEVELS = [
+  { id: 'zero',   ceiling: 4,  emoji: '🌱', zh: '从零开始',     en: 'Complete beginner', it: 'Da zero',
+    descZh: '没写过汉字',       descEn: 'Never written Chinese', descIt: 'Mai scritto cinese' },
+  { id: 'some',   ceiling: 8,  emoji: '🌿', zh: '认识一些字',   en: 'I know some',       it: 'Ne conosco alcuni',
+    descZh: '会写常用简单字',   descEn: 'Can write common simple characters', descIt: 'So scrivere caratteri semplici' },
+  { id: 'solid',  ceiling: 14, emoji: '🌳', zh: '有一定基础',   en: 'I have a foundation', it: 'Ho una base',
+    descZh: '想练复杂一点的字', descEn: 'Ready for harder characters', descIt: 'Pronto per caratteri complessi' },
+];
+
+export const DEFAULT_START = 'zero';
+
+const ceilingFor = id =>
+  (START_LEVELS.find(l => l.id === id) || START_LEVELS[0]).ceiling;
+
 /**
  * Estimate what the learner can handle, so new characters are introduced near
  * their level instead of alphabetically or by whatever set they sat in.
  * Returns a stroke count, not a difficulty band — strokes are what actually
  * makes a character hard to write.
+ *
+ * With no history at all, the answer is whatever starting point they chose.
  */
-export function estimateLevel(chars = [], characters = {}) {
+export function estimateLevel(chars = [], characters = {}, startLevel = DEFAULT_START) {
   const known = chars.filter(c => masteryOf(characters[c.c]) >= 0.5);
-  if (!known.length) return 4;                    // beginner: 1-4 stroke chars
+  if (!known.length) return ceilingFor(startLevel);
   const avg = known.reduce((s, c) => s + (c.strokes || 1), 0) / known.length;
-  return Math.max(4, Math.round(avg) + 3);        // reach a little past comfort
+  // Never fall below the declared start — a learner who said they have a
+  // foundation should not be dragged back to 一 by two shaky practices.
+  return Math.max(ceilingFor(startLevel), Math.round(avg) + 3);
 }
 
 /**
@@ -83,9 +107,9 @@ export function estimateLevel(chars = [], characters = {}) {
  * @param {object} characters progress map from useProgress(), keyed by glyph
  * @param {number} limit      how many to return
  */
-export function buildQueue(chars = [], characters = {}, limit = 20) {
+export function buildQueue(chars = [], characters = {}, limit = 20, startLevel = DEFAULT_START) {
   if (!chars.length) return [];
-  const ceiling = estimateLevel(chars, characters);
+  const ceiling = estimateLevel(chars, characters, startLevel);
 
   const scored = chars.map(ch => {
     const rec     = characters[ch.c];

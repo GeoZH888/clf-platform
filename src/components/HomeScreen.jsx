@@ -7,14 +7,17 @@
 // Sets still exist in the database and in the admin — they are how content is
 // organised and imported. They are simply no longer a thing a learner browses.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLang } from '../context/LanguageContext.jsx';
 import ModuleTemplate from './ModuleTemplate.jsx';
 import AdaptiveCard from './AdaptiveCard.jsx';
-import { buildQueue, queueStats, masteryOf, isDue } from '../lib/adaptiveChars.js';
+import {
+  buildQueue, queueStats, masteryOf, isDue, START_LEVELS, DEFAULT_START,
+} from '../lib/adaptiveChars.js';
 
 const QUEUE_LENGTH = 20;   // one sitting
 const PREVIEW      = 5;    // shown on the card
+const START_KEY    = 'lianzi_start_level';
 
 export default function HomeScreen({
   sets = [],
@@ -48,17 +51,35 @@ export default function HomeScreen({
     return out;
   }, [sets]);
 
+  const practicedCount = Object.keys(characters).length;
+  const totalChars     = allChars.length;
+
+  // Asked once, before the first character. Someone who has already practised
+  // is never asked — their history is a better answer than their self-estimate.
+  const [startLevel, setStartLevel] = useState(() => {
+    try { return localStorage.getItem(START_KEY); } catch { return null; }
+  });
+  // Set when the learner asks to pick again, so the chooser can be reopened
+  // after they already have history.
+  const [reChoosing, setReChoosing] = useState(false);
+
+  const needsStart =
+    totalChars > 0 && (reChoosing || (!startLevel && practicedCount === 0));
+
+  function chooseStart(id) {
+    try { localStorage.setItem(START_KEY, id); } catch {}
+    setStartLevel(id);
+    setReChoosing(false);
+  }
+
   const queue = useMemo(
-    () => buildQueue(allChars, characters, QUEUE_LENGTH),
-    [allChars, characters]
+    () => buildQueue(allChars, characters, QUEUE_LENGTH, startLevel || DEFAULT_START),
+    [allChars, characters, startLevel]
   );
   const qStats = useMemo(
     () => queueStats(allChars, characters),
     [allChars, characters]
   );
-
-  const practicedCount = Object.keys(characters).length;
-  const totalChars     = allChars.length;
 
   // No set cards — ModuleTemplate renders the practice card via `extra`.
   const modules = [];
@@ -82,12 +103,16 @@ export default function HomeScreen({
       lang={lang}
       extra={
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {/* The whole learner-facing entry point */}
-          {queue.length > 0 && (
+          {/* Asked once; after that the scheduler runs on its own */}
+          {needsStart ? (
+            <StartPointCard lang={lang} onChoose={chooseStart} t={t}/>
+          ) : queue.length > 0 && (
             <PracticeCard
               queue={queue}
               stats={qStats}
               characters={characters}
+              startLevel={startLevel}
+              onRestart={() => setReChoosing(true)}
               onStart={() => onStartAdaptive?.(queue)}
               t={t}
             />
@@ -143,7 +168,56 @@ export default function HomeScreen({
 // The practice card — the only way into 练字.
 // Shows what the scheduler picked, then starts the whole queue.
 // ─────────────────────────────────────────────────────────────────────────
-function PracticeCard({ queue, stats, characters, onStart, t }) {
+// ─────────────────────────────────────────────────────────────────────────
+// Asked once, before the first character: where should we start?
+// ─────────────────────────────────────────────────────────────────────────
+function StartPointCard({ lang, onChoose, t }) {
+  const label = l => lang === 'zh' ? l.zh : lang === 'it' ? l.it : l.en;
+  const desc  = l => lang === 'zh' ? l.descZh : lang === 'it' ? l.descIt : l.descEn;
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%)',
+      border: '1.5px solid #E8D5B0', borderRadius: 16, padding: '14px 16px',
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#8B4513', marginBottom: 3 }}>
+        {t('从哪里开始？', 'Where should we start?', 'Da dove iniziamo?')}
+      </div>
+      <div style={{ fontSize: 11, color: '#a07850', marginBottom: 12 }}>
+        {t('选一次就好,之后由练习记录决定难度',
+           'Asked once — after this your practice decides the difficulty',
+           'Una volta sola — poi decide la tua pratica')}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {START_LEVELS.map(l => (
+          <button key={l.id} onClick={() => onChoose(l.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+              padding: '11px 12px', borderRadius: 12, cursor: 'pointer',
+              border: '1.5px solid #E8D5B0', background: '#fff',
+              textAlign: 'left', fontFamily: 'inherit',
+              WebkitTapHighlightColor: 'transparent',
+            }}>
+            <span style={{ fontSize: 22 }}>{l.emoji}</span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#8B4513' }}>
+                {label(l)}
+              </span>
+              <span style={{ display: 'block', fontSize: 11, color: '#a07850', marginTop: 1 }}>
+                {desc(l)}
+              </span>
+            </span>
+            <span style={{ fontSize: 16, color: '#C8A87C' }}>›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+function PracticeCard({ queue, stats, characters, startLevel, onRestart, onStart, t }) {
   const dueCount = stats?.due ?? 0;
   const newCount = stats?.fresh ?? 0;
 
@@ -227,6 +301,17 @@ function PracticeCard({ queue, stats, characters, onStart, t }) {
       >
         {t('开始练习', 'Start practising', 'Inizia')} · {queue.length} {t('字', 'chars', 'car.')}
       </button>
+
+      {startLevel && (
+        <button onClick={onRestart}
+          style={{
+            marginTop: 8, width: '100%', padding: 0, border: 'none',
+            background: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 10, color: '#a07850', textDecoration: 'underline',
+          }}>
+          {t('重新选择起点', 'Change starting point', 'Cambia punto di partenza')}
+        </button>
+      )}
     </div>
   );
 }
