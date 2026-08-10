@@ -50,7 +50,12 @@ import TestPortalApp from './assessment/TestPortalApp.jsx';
 import ResultsPortalApp from './assessment/ResultsPortalApp.jsx';
 import { IS_TEACHING } from './lib/appMode.js';
 // ── Fix title + random panda favicon ─────────────────────────────
-document.title = '中文世界';
+// /admin installs as its own PWA (see the manifest swap in index.html), so it
+// keeps its own name and icon. A panda on the admin home screen would make the
+// two installed apps indistinguishable.
+const ON_ADMIN_PATH = window.location.pathname.startsWith('/admin');
+
+document.title = ON_ADMIN_PATH ? '中文世界 管理' : '中文世界';
 
 const PANDA_EMOTIONS = ['normal','excited','happy','thinking','cheering','surprised','writing'];
 
@@ -85,7 +90,7 @@ async function setRandomPandaFavicon() {
   } catch(e) { /* silent fail */ }
 }
 
-setRandomPandaFavicon();
+if (!ON_ADMIN_PATH) setRandomPandaFavicon();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
