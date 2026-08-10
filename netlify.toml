@@ -126,3 +126,15 @@
 #     AZURE_SPEECH_REGION       = "westeurope"
 #     ADMIN_EMAIL_ALLOWLIST     = "you@example.com"
 # ──────────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────
+#  Content types
+# ──────────────────────────────────────────────────────────────────────
+# Netlify has no mapping for .webmanifest and serves it as
+# application/octet-stream. Chrome tolerates that, but the spec asks for
+# application/manifest+json and stricter browsers can refuse the manifest —
+# which would silently make /admin non-installable while everything looked fine.
+[[headers]]
+  for = "/*.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
