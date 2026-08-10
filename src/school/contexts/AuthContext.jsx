@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 // clients against the same URL produce session mismatches and the
 // "Multiple GoTrueClient instances" warning.
 import { supabase } from '../../lib/supabase.js';
+import { claimDeviceHistory } from '../../lib/learningLog.js';
 
 const AuthContext = createContext(null);
 
@@ -92,6 +93,14 @@ export const AuthProvider = ({ children }) => {
     // happen elsewhere — another tab, or a different role panel on the same
     // domain.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user?.id) {
+        // Anything practised on this device before signing in belongs to this
+        // account now. Without it a visitor who tried the app, liked it and
+        // was then given an account appears to start from zero — the worst
+        // first impression of the thing they just paid for.
+        // Fire-and-forget: a failed claim must never block a login.
+        claimDeviceHistory().catch(() => {});
+      }
       if (event === 'SIGNED_OUT' || !session) {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
