@@ -32,6 +32,7 @@ import { useDeviceAuth } from './hooks/useDeviceAuth.js';
 import QRGate from './components/QRGate.jsx';
 import { SETS } from './data/characters.js';
 import CLFApp from './clf/CLFApp.jsx';
+import { canPromptInstall, markInstalled, markDismissed } from './lib/pwaInstallState.js';
 import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
 import FloatingLangMenu from './components/FloatingLangMenu.jsx';
@@ -234,10 +235,13 @@ function PWAInstallBanner() {
 
   const dismiss = () => {
     setDismissed(true);
-    localStorage.setItem('pwa_dismissed', '1');
+    markDismissed();
   };
 
-  if (window.matchMedia('(display-mode: standalone)').matches) return null;
+  // One shared answer for both nudges: installed, or already declined, means
+  // never ask again — including in a normal browser tab after installing,
+  // where display-mode is not standalone.
+  if (!canPromptInstall()) return null;
   if (dismissed) return null;
 
   return (
@@ -253,7 +257,11 @@ function PWAInstallBanner() {
           <button onClick={() => {
             if (prompt) {
               prompt.prompt();
-              prompt.userChoice.then(() => { setPrompt(null); dismiss(); });
+              prompt.userChoice.then(({ outcome }) => {
+                setPrompt(null);
+                if (outcome === 'accepted') markInstalled();
+                dismiss();
+              });
             } else {
               setShowGuide(true);
             }
