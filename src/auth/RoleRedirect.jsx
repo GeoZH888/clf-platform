@@ -25,8 +25,12 @@ export default function RoleRedirect() {
   const { user, loading } = useAuth();
   useEffect(() => {
     if (loading) return;
-    if (!user) { window.location.replace('/login'); return; }
-    window.location.replace(ROLE_HOME[user.role] || '/');
+    // This is the installed app's launch target, so it is reached by guests as
+    // well as by members. Sending a signed-out visitor to /login would demand a
+    // password from someone who is allowed to look around first — the community
+    // home carries its own 登录 button for when they want it.
+    if (!user) { window.location.replace('/community'); return; }
+    window.location.replace(ROLE_HOME[user.role] || '/community');
   }, [loading, user]);
   return <div style={{ padding:40, textAlign:'center', color:'#8B4513' }}>Redirecting…</div>;
 }
