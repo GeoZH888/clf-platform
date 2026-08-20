@@ -1,0 +1,13 @@
+id,email,metadata_role,created_at
+90c637d6-e293-4497-bf17-3fc41fc9bac4,superadmin@jiaguwen.admin,superadmin,2026-04-07 23:17:49.877693+00
+655c2117-eb99-4c46-bfff-2394ff0ea03b,admin@wenzi-learn.net,null,2026-04-17 21:15:33.589561+00
+6c4991d7-2c16-49cc-a6f3-8a9dc0c3ed02,superadmin@david-zhongwen.net,superadmin,2026-05-01 16:44:18.448809+00
+9e01724f-fd6a-46fc-9eea-0e25b4271217,luigi@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+9e4663ba-3379-4715-b43b-63adae2bc843,zang@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+c9326e28-e0c0-4029-a892-d6e7f18e8682,huang@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+2fed495c-d32c-42a6-937e-310f0cae35ed,panda@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+9c55aec1-765c-4a06-926d-0e835018cb85,zunjie@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+068b2b5c-7208-49e2-9d5a-ce4f8c1d44c2,stefano@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+2d98bdc9-dd6c-4769-99b7-dc8262776366,qilin@local.david-zhongwen.net,student,2026-05-02 10:39:56.659108+00
+229b02e6-d703-49e3-ae49-fb263d160c90,marco@users.david-zhongwen.net,null,2026-05-03 23:58:12.962157+00
+ba96e02b-a9b1-4a26-8a9a-de9eb2ce5a4e,xiaomi@users.david-zhongwen.net,null,2026-05-04 08:50:51.730798+00

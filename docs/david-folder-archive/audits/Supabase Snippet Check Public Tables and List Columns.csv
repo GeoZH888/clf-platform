@@ -1,0 +1,11 @@
+column_name
+id
+character_id
+source_type
+source_id
+source_label
+subject_slug
+grade_level
+lesson_name
+page_num
+extracted_at

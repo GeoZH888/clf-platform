@@ -1,0 +1,26 @@
+table_name,column_name,data_type
+clf_quicklogin_tokens,token,text
+clf_quicklogin_tokens,user_id,uuid
+clf_quicklogin_tokens,username,text
+clf_quicklogin_tokens,max_devices,integer
+clf_quicklogin_tokens,device_count,integer
+clf_quicklogin_tokens,expires_at,timestamp with time zone
+clf_quicklogin_tokens,label,text
+clf_quicklogin_tokens,created_by,uuid
+clf_quicklogin_tokens,created_at,timestamp with time zone
+clf_quicklogin_tokens,last_used_at,timestamp with time zone
+clf_user_modules,user_id,uuid
+clf_user_modules,module_id,text
+clf_user_modules,updated_at,timestamp with time zone
+clf_user_modules,updated_by,uuid
+clf_user_modules,available,boolean
+clf_user_modules,selected,boolean
+clf_user_profiles,user_id,uuid
+clf_user_profiles,email,text
+clf_user_profiles,role,USER-DEFINED
+clf_user_profiles,display_name,text
+clf_user_profiles,display_name_zh,text
+clf_user_profiles,school_id,uuid
+clf_user_profiles,is_active,boolean
+clf_user_profiles,created_at,timestamp with time zone
+clf_user_profiles,updated_at,timestamp with time zone

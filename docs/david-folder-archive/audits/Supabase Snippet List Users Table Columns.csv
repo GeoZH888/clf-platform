@@ -1,0 +1,30 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+username,character varying,NO,null
+email,character varying,YES,null
+password_hash,character varying,NO,null
+name,character varying,YES,null
+name_zh,character varying,YES,null
+role,character varying,YES,'student'::character varying
+school_id,uuid,YES,null
+phone,character varying,YES,null
+avatar_url,text,YES,null
+language_preference,character varying,YES,'zh'::character varying
+is_active,boolean,YES,true
+last_login,timestamp without time zone,YES,null
+created_at,timestamp without time zone,YES,now()
+updated_at,timestamp without time zone,YES,now()
+hsk_level,integer,YES,1
+avatar,text,YES,null
+student_id,text,YES,null
+gender,text,YES,null
+birth_year,integer,YES,null
+parent_name,text,YES,null
+parent_phone,text,YES,null
+apply_class,text,YES,null
+temp_password,text,YES,null
+password_changed,boolean,YES,true
+login_type,text,YES,'username'::text
+approved_by,uuid,YES,null
+approved_at,timestamp with time zone,YES,null
+rejected,boolean,YES,false

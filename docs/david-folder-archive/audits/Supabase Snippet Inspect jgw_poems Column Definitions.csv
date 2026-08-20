@@ -1,0 +1,22 @@
+column_name,data_type,is_nullable
+id,uuid,NO
+title,text,NO
+title_en,text,YES
+author,text,YES
+dynasty,text,YES
+type,text,YES
+difficulty,integer,YES
+lines,jsonb,YES
+translation_zh,text,YES
+translation_en,text,YES
+translation_it,text,YES
+notes_zh,text,YES
+notes_en,text,YES
+background_zh,text,YES
+background_en,text,YES
+active,boolean,YES
+sort_order,integer,YES
+created_at,timestamp with time zone,YES
+pinyin_map,jsonb,YES
+background_it,text,YES
+image_prompt,text,YES

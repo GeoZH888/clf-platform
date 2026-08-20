@@ -1,0 +1,10 @@
+column_name,data_type
+code,text
+max_uses,integer
+used_count,integer
+expires_at,timestamp with time zone
+notes,text
+created_by,uuid
+created_at,timestamp with time zone
+auto_approve,boolean
+label,text

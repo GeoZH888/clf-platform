@@ -1,0 +1,6 @@
+child_table,child_column,constraint_name
+attendance,student_id,attendance_student_id_fkey
+class_students,student_id,class_students_student_id_fkey
+grades,student_id,grades_student_id_fkey
+parent_student_links,parent_id,parent_student_links_parent_id_fkey
+parent_student_links,student_id,parent_student_links_student_id_fkey

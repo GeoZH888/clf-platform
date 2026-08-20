@@ -1,0 +1,14 @@
+column_name,data_type,is_nullable
+id,uuid,NO
+token,text,NO
+label,text,YES
+expires_at,timestamp with time zone,NO
+used_at,timestamp with time zone,YES
+device_ua,text,YES
+created_at,timestamp with time zone,YES
+max_devices,integer,YES
+modules,ARRAY,YES
+username,text,YES
+password,text,YES
+email,text,YES
+phone,text,YES

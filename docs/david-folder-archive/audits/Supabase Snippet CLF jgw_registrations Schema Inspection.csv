@@ -1,0 +1,16 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+name,text,NO,null
+username,text,NO,null
+password_hash,text,NO,null
+email,text,YES,null
+reason,text,NO,null
+status,text,NO,'pending'::text
+status_token,uuid,NO,gen_random_uuid()
+invite_code,text,YES,null
+rejection_reason,text,YES,null
+reviewed_at,timestamp with time zone,YES,null
+reviewed_by,uuid,YES,null
+approved_user_id,uuid,YES,null
+client_ip,text,YES,null
+created_at,timestamp with time zone,YES,now()
