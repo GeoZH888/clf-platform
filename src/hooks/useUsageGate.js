@@ -17,10 +17,16 @@ import {
 
 const TICK_MS = 5000;
 
-// Used until the setting loads, and if it never does. Matches the seeded row,
-// so a failed read behaves like the intended policy rather than like no limit
-// (which would give the app away) or zero (which would lock everyone out).
-const FALLBACK_MINUTES = 4;
+// Used until the setting loads, and if it never does. It must match the seeded
+// row, so that a failed read behaves like the intended policy rather than like
+// some other one.
+//
+// 0 = unlimited, matching the launch policy of open free use. This is also the
+// safe direction while the limit is off: if the settings table is unreachable —
+// or the migration has not been applied yet — learners keep learning instead of
+// being cut off after a few minutes by a limit nobody meant to impose.
+// Revisit this together with the seeded value when metering is switched on.
+const FALLBACK_MINUTES = 0;
 
 export function useUsageGate({ enabled = true } = {}) {
   const [limitMinutes, setLimitMinutes] = useState(null);   // null = still loading

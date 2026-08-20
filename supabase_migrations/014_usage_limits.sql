@@ -21,10 +21,16 @@ create table if not exists clf_app_settings (
 comment on table clf_app_settings is
   'Superadmin-tunable platform values. Read by anonymous visitors, so never put a secret here.';
 
+-- Seeded at 0 = UNLIMITED, because step one is open free use for everyone
+-- while the content is being built out. The metering machinery ships switched
+-- off rather than absent: turning it on later is a number in
+-- Admin → 账号管理, not a deploy.
+--
+-- 4 is the agreed figure for when that day comes.
 insert into clf_app_settings (key, value, description) values
   ('free_minutes_per_day',
-   '4'::jsonb,
-   'Minutes of learning an unpaid visitor gets per day. Metered per device, so clearing browser storage resets it — a nudge, not a wall.')
+   '0'::jsonb,
+   'Minutes of learning an unpaid visitor gets per day. 0 = unlimited (launch setting). Metered per device, so clearing browser storage resets it — a nudge, not a wall.')
 on conflict (key) do nothing;
 
 -- ── 2. Tier pricing ───────────────────────────────────────────────────────

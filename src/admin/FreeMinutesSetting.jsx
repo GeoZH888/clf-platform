@@ -28,7 +28,9 @@ export default function FreeMinutesSetting() {
     const { data, error } = await supabase
       .from('clf_app_settings').select('value').eq('key', KEY).maybeSingle();
     if (error) setMsg(`✗ ${error.message}`);
-    const v = data?.value != null ? String(data.value) : '4';
+    // 0 = unlimited, matching the seeded launch value. Showing 4 here when the
+    // row is missing would tell the superadmin a limit is in force when none is.
+    const v = data?.value != null ? String(data.value) : '0';
     setValue(v);
     setSaved(v);
     setLoading(false);
