@@ -8,6 +8,7 @@ import { useToneAnalysis, TONE_TEMPLATES, getToneFromPinyin } from '../hooks/use
 import { useScoring, scoreLabel } from '../hooks/useScoring.js';
 import { useCharacter } from '../hooks/useJiaguwen.js';
 import { logPractice } from '../hooks/usePracticeLog.js';
+import { recordLearning } from '../lib/learningLog.js';
 import { recordCharacterProgress } from '../hooks/useCharacterProgress.js';
 import { useCharacterProgress } from '../hooks/useCharacterProgress.js';
 import DictationMode from './modes/DictationMode.jsx';
@@ -604,6 +605,13 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
         if (!recorded.current && info.score >= 30) {
           recorded.current = true;
           onPracticed?.(char?.c);
+          // Free tracing used to reach localStorage only, so a child who
+          // practised without finishing a scored quiz left no server-side
+          // trace at all — invisible to a parent, a teacher, or a new device.
+          recordLearning({
+            module: 'lianzi', itemType: 'character', itemId: char?.c,
+            event: 'practice', score: Math.round(info.score),
+          });
         }
         setFreeFb('');
       } else {
@@ -681,6 +689,11 @@ export default function PracticeScreen({ char, set, initialMode = 'free', onBack
           // Log to personal stats
           const sc = Math.max(0, Math.round(100 - (summary.totalMistakes / Math.max(total,1)) * 50));
           logPractice({ character:char?.c, mistakes:summary.totalMistakes, totalStrokes:total, score:sc });
+          recordLearning({
+            module: 'lianzi', itemType: 'character', itemId: char?.c,
+            event: 'quiz', correct: summary.totalMistakes === 0, score: sc,
+            meta: { mistakes: summary.totalMistakes, strokes: total },
+          });
         },
       });
     });

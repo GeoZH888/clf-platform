@@ -2,10 +2,9 @@
 // Prominent install card shown on first visit after QR scan
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  window.navigator.standalone === true;
+import {
+  canPromptInstall, markInstalled, markDismissed,
+} from '../lib/pwaInstallState.js';
 
 const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const isAndroid = () => /Android/i.test(navigator.userAgent);
@@ -20,8 +19,9 @@ export default function PWAInstallCard({ lang = 'zh' }) {
   const t = (zh, en, it) => lang==='zh' ? zh : lang==='it' ? it : en;
 
   useEffect(() => {
-    if (isStandalone()) return;
-    if (sessionStorage.getItem('install_dismissed')) return;
+    // Asked once, ever. This used to be sessionStorage, so it came back on
+    // every new browser session however often it had been dismissed.
+    if (!canPromptInstall()) return;
 
     // Load RANDOM panda from Supabase
     supabase.from('jgw_panda_assets').select('image_url')
@@ -39,7 +39,7 @@ export default function PWAInstallCard({ lang = 'zh' }) {
   }, []);
 
   function dismiss() {
-    sessionStorage.setItem('install_dismissed', '1');
+    markDismissed();
     setShow(false);
   }
 
@@ -48,15 +48,31 @@ export default function PWAInstallCard({ lang = 'zh' }) {
       // Android Chrome — native install
       prompt.prompt();
       const { outcome } = await prompt.userChoice;
-      if (outcome === 'accepted') setShow(false);
+      if (outcome === 'accepted') {
+        // `appinstalled` also records this, but not every browser fires it —
+        // and being asked again right after accepting is the worst version of
+        // this bug, so record it here too.
+        markInstalled();
+        setShow(false);
+      } else {
+        // Declining the browser's own dialog is an answer. Asking again later
+        // would be nagging.
+        markDismissed();
+        setShow(false);
+      }
       setPrompt(null);
     } else if (isWeChat()) {
       setStep('wechat');
+      // No install API here, and no appinstalled event — showing the steps is
+      // all we can do, so treat it as asked and answered.
+      markDismissed();
     } else if (isIOS()) {
       setStep('ios');
+      markDismissed();     // iOS Safari never fires appinstalled
     } else {
       // Desktop or other — show manual instructions
       setStep('ios');
+      markDismissed();
     }
   }
 
