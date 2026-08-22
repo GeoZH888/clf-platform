@@ -38,6 +38,7 @@ import AiFieldAssistant from './components/AiFieldAssistant.jsx';
 // Merged in from the retired /admin-v2 shell. These reach Supabase directly
 // (no AuthContext), so they drop into this panel unchanged.
 import AccountsManagement from './v2/AccountsManagement';
+import FreeMinutesSetting from './FreeMinutesSetting.jsx';
 import PlatformAnalyticsTab from './v2/PlatformAnalyticsTab';
 import TeacherKnowledgeMap from './v2/pillars/TeacherKnowledgeMap';
 
@@ -1708,7 +1709,13 @@ export default function AdminApp() {
 
         {/* Merged in from /admin-v2. The superOnly tabs are gated here as well
             as in the sidebar, so a stale saved tab cannot render them. */}
-        {tab==='accounts'       && isSuper && <AccountsManagement/>}
+        {tab==='accounts'       && isSuper && (
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            {/* Who pays and who is metered belongs beside account management */}
+            <FreeMinutesSetting/>
+            <AccountsManagement/>
+          </div>
+        )}
         {tab==='platform'       && isSuper && <PlatformAnalyticsTab/>}
         {tab==='schema'         && isSuper && <SchemaDiscoveryTab/>}
         {tab==='teaching'       && <TeacherKnowledgeMap/>}

@@ -32,6 +32,8 @@ import { useDeviceAuth } from './hooks/useDeviceAuth.js';
 import QRGate from './components/QRGate.jsx';
 import { SETS } from './data/characters.js';
 import CLFApp from './clf/CLFApp.jsx';
+import UsagePaywall from './components/UsagePaywall.jsx';
+import { useUsageGate } from './hooks/useUsageGate.js';
 import { canPromptInstall, markInstalled, markDismissed } from './lib/pwaInstallState.js';
 import PWAInstallGuide from './components/PWAInstallGuide.jsx';
 import PWAInstallCard  from './components/PWAInstallCard.jsx';
@@ -283,6 +285,9 @@ function PWAInstallBanner() {
 function UserApp() {
   const { status, label, expiresAt, daysLeft, expiring, error, logout,
     modules, loginWithPassword } = useDeviceAuth();
+  // Meters unpaid devices against the superadmin's free-minutes setting.
+  // Paid tiers are detected inside and never metered.
+  const usage = useUsageGate();
   // ── Start at entrance so users always see the two-door menu first ──
   const [screen,     setScreen]  = useScreenHistory('entrance', 'app');
   const [activeSet,  setSet]     = useState(null);
@@ -350,6 +355,19 @@ function UserApp() {
     return (
       <LanguageProvider>
         <QRGate status={status} error={error} loginWithPassword={loginWithPassword}/>
+      </LanguageProvider>
+    );
+  }
+
+  // Free trial spent. A paid tier never reaches here — useUsageGate leaves the
+  // meter stopped for them — so this only ever interrupts an unpaid device.
+  if (usage.ready && usage.blocked) {
+    return (
+      <LanguageProvider>
+        <UsagePaywall
+          limitMinutes={usage.limitMinutes}
+          onLogin={() => { window.location.href = '/login'; }}
+        />
       </LanguageProvider>
     );
   }
