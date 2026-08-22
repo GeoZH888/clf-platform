@@ -1,0 +1,7 @@
+column_name,data_type,is_nullable
+id,uuid,NO
+device_token,text,NO
+idiom_id,uuid,YES
+practiced_at,timestamp with time zone,YES
+score,integer,YES
+mode,text,YES

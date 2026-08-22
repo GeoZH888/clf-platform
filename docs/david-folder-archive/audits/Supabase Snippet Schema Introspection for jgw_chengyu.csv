@@ -1,0 +1,22 @@
+column_name,data_type,is_nullable
+id,uuid,NO
+idiom,text,NO
+pinyin,text,NO
+meaning_zh,text,NO
+meaning_en,text,YES
+meaning_it,text,YES
+story_zh,text,YES
+story_en,text,YES
+example_zh,text,YES
+difficulty,integer,YES
+theme,text,YES
+hsk_level,integer,YES
+image_url,text,YES
+sort_order,integer,YES
+created_at,timestamp with time zone,YES
+active,boolean,YES
+image_style,text,YES
+story_it,text,YES
+example_en,text,YES
+updated_at,timestamp with time zone,YES
+image_scene,text,YES

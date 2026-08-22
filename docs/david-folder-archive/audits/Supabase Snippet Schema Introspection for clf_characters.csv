@@ -1,0 +1,25 @@
+column_name,data_type
+id,uuid
+character,text
+pinyin,text
+tones,ARRAY
+strokes,integer
+radical_id,uuid
+hsk_level,integer
+frequency_rank,integer
+meaning_zh,text
+meaning_en,text
+meaning_it,text
+example_word,text
+example_zh,text
+example_en,text
+stroke_order,jsonb
+stroke_svg,text
+audio_url,text
+image_url,text
+level,integer
+age_min,integer
+tags,ARRAY
+sort_order,integer
+active,boolean
+created_at,timestamp with time zone

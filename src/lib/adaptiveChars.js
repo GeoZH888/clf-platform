@@ -50,8 +50,48 @@ export function isDue(rec) {
   return daysSince(rec.lastDate) >= INTERVALS[step];
 }
 
-/** Cold start and tie-break: simplest character first. */
+// ── How hard is this character? ───────────────────────────────────────────
+// Everything is expressed on the HSK 1-9 scale, because that is the ladder
+// learners, parents and teachers already think in — and the one the syllabus
+// is written against. Stroke count was only ever a stand-in for it.
+//
+// Sources, in order of authority:
+//   1. hsk_level      the real answer where we have it
+//   2. renjiao_grade  人教版 primary grade 1-6, read as a comparable band
+//   3. stroke count   a guess, for characters carrying neither
+//
+// Filling hsk_level or renjiao_grade in the admin therefore improves the
+// ordering on its own, with no code change.
+const STROKES_TO_LEVEL = [
+  [4, 1], [7, 2], [10, 3], [13, 4], [16, 5],
+];
+
+export function levelOf(ch = {}) {
+  const hsk = Number(ch.hsk_level);
+  if (Number.isFinite(hsk) && hsk >= 1) return Math.min(9, hsk);
+
+  // 人教版 grade 1-6 spans roughly the same ground as HSK 1-6 for characters,
+  // close enough to order by and better than falling through to strokes.
+  const grade = Number(ch.renjiao_grade);
+  if (Number.isFinite(grade) && grade >= 1) return Math.min(9, grade);
+
+  const strokes = Number(ch.strokes ?? ch.stroke_count);
+  if (!Number.isFinite(strokes) || strokes <= 0) return 3;   // unknown: mid
+  for (const [maxStrokes, level] of STROKES_TO_LEVEL) {
+    if (strokes <= maxStrokes) return level;
+  }
+  return 6;
+}
+
+/** True when a character carries a real syllabus level rather than a guess. */
+export function hasKnownLevel(ch = {}) {
+  return Number(ch.hsk_level) >= 1 || Number(ch.renjiao_grade) >= 1;
+}
+
+/** Cold start and tie-break: easiest first, strokes breaking ties within a level. */
 function easierFirst(a, b) {
+  const la = levelOf(a), lb = levelOf(b);
+  if (la !== lb) return la - lb;
   const sa = a.strokes ?? a.stroke_count ?? 99;
   const sb = b.strokes ?? b.stroke_count ?? 99;
   if (sa !== sb) return sa - sb;
@@ -64,13 +104,15 @@ function easierFirst(a, b) {
 // write anything, start too low and a literate child spends a week on 一二三.
 // The ceiling is a stroke count, and it only governs the cold start — after a
 // few practices the measured level takes over and this value stops mattering.
+// `ceiling` is an HSK band, so the choice means the same thing to a learner,
+// a parent and a teacher — and matches how the content itself is graded.
 export const START_LEVELS = [
-  { id: 'zero',   ceiling: 4,  emoji: '🌱', zh: '从零开始',     en: 'Complete beginner', it: 'Da zero',
-    descZh: '没写过汉字',       descEn: 'Never written Chinese', descIt: 'Mai scritto cinese' },
-  { id: 'some',   ceiling: 8,  emoji: '🌿', zh: '认识一些字',   en: 'I know some',       it: 'Ne conosco alcuni',
-    descZh: '会写常用简单字',   descEn: 'Can write common simple characters', descIt: 'So scrivere caratteri semplici' },
-  { id: 'solid',  ceiling: 14, emoji: '🌳', zh: '有一定基础',   en: 'I have a foundation', it: 'Ho una base',
-    descZh: '想练复杂一点的字', descEn: 'Ready for harder characters', descIt: 'Pronto per caratteri complessi' },
+  { id: 'zero',   ceiling: 1, emoji: '🌱', zh: '从零开始',     en: 'Complete beginner', it: 'Da zero',
+    descZh: '没写过汉字 · HSK 1',        descEn: 'Never written Chinese · HSK 1', descIt: 'Mai scritto cinese · HSK 1' },
+  { id: 'some',   ceiling: 2, emoji: '🌿', zh: '认识一些字',   en: 'I know some',       it: 'Ne conosco alcuni',
+    descZh: '会写常用简单字 · HSK 1-2',  descEn: 'Common simple characters · HSK 1-2', descIt: 'Caratteri semplici · HSK 1-2' },
+  { id: 'solid',  ceiling: 4, emoji: '🌳', zh: '有一定基础',   en: 'I have a foundation', it: 'Ho una base',
+    descZh: '想练复杂一点的字 · HSK 3-4', descEn: 'Ready for harder characters · HSK 3-4', descIt: 'Caratteri complessi · HSK 3-4' },
 ];
 
 export const DEFAULT_START = 'zero';
@@ -89,10 +131,12 @@ const ceilingFor = id =>
 export function estimateLevel(chars = [], characters = {}, startLevel = DEFAULT_START) {
   const known = chars.filter(c => masteryOf(characters[c.c]) >= 0.5);
   if (!known.length) return ceilingFor(startLevel);
-  const avg = known.reduce((s, c) => s + (c.strokes || 1), 0) / known.length;
-  // Never fall below the declared start — a learner who said they have a
-  // foundation should not be dragged back to 一 by two shaky practices.
-  return Math.max(ceilingFor(startLevel), Math.round(avg) + 3);
+
+  // Where the learner is comfortable, plus one band — the next rung, not a leap.
+  const avg = known.reduce((s, c) => s + levelOf(c), 0) / known.length;
+  // Never fall below the declared start: someone who said they have a
+  // foundation should not be dragged back to HSK 1 by two shaky practices.
+  return Math.min(9, Math.max(ceilingFor(startLevel), Math.round(avg) + 1));
 }
 
 /**
@@ -109,22 +153,34 @@ export function estimateLevel(chars = [], characters = {}, startLevel = DEFAULT_
  */
 export function buildQueue(chars = [], characters = {}, limit = 20, startLevel = DEFAULT_START) {
   if (!chars.length) return [];
-  const ceiling = estimateLevel(chars, characters, startLevel);
+  // Where they said they were starting, and how far they have actually got.
+  const startBand = ceilingFor(startLevel);
+  const ceiling   = estimateLevel(chars, characters, startLevel);
 
   const scored = chars.map(ch => {
     const rec     = characters[ch.c];
     const mastery = masteryOf(rec);
     const seen    = !!rec?.practiced;
     const due     = isDue(rec);
-    const strokes = ch.strokes ?? 99;
+    const level   = levelOf(ch);
 
     let priority;
     if (seen && due) {
       // Weakest overdue characters first.
       priority = 300 - mastery * 100 + Math.min(60, daysSince(rec.lastDate));
     } else if (!seen) {
-      // New: prefer simple, and hold back anything well past the learner.
-      priority = (strokes <= ceiling ? 200 : 120) - strokes;
+      // New characters, in three tiers. `* 8` keeps a whole band clear of the
+      // next, so one band is worked through before the following one appears
+      // rather than the two interleaving.
+      if (level < startBand) {
+        // Below what they told us they can already do. Not skipped — a claimed
+        // level is a claim, and gaps are common — but it waits its turn.
+        priority = 140 - level * 8;
+      } else if (level <= ceiling) {
+        priority = 200 - level * 8;      // the band they are working in
+      } else {
+        priority = 120 - level * 8;      // beyond reach for now
+      }
     } else {
       // Known and not yet due — only to pad the queue.
       priority = 50 - mastery * 40;

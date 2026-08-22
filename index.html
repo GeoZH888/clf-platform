@@ -13,6 +13,32 @@
          is not installable no matter what manifest.json says. It was missing. -->
     <link rel="manifest" href="/manifest.json" />
 
+    <!--
+      /admin installs as its OWN app, separate from the learner app.
+
+      One origin can host two installable apps as long as each manifest
+      declares a distinct `id`. The swap happens here, inline and before the
+      bundle loads, because the browser reads the manifest during startup — do
+      it later from React and an install offered early would carry the wrong
+      identity, or install the learner app over the admin one.
+
+      Deliberately not a framework concern: it must run whether or not the JS
+      bundle ever finishes loading.
+    -->
+    <script>
+      (function () {
+        if (!location.pathname.startsWith('/admin')) return;
+        var link = document.querySelector('link[rel="manifest"]');
+        if (link) link.href = '/admin.webmanifest';
+        var theme = document.querySelector('meta[name="theme-color"]');
+        if (theme) theme.setAttribute('content', '#243447');
+        var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if (appleTitle) appleTitle.setAttribute('content', '管理');
+        var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+        if (appleIcon) appleIcon.href = '/icons/admin-192.png';
+      })();
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Points at a file that exists; /apple-touch-icon.png was a 404. -->
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />

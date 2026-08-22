@@ -1,0 +1,11 @@
+column_name,data_type
+svg_jiaguwen,text
+svg_modern,text
+svg_url,text
+meaning_zh,text
+meaning_en,text
+meaning_it,text
+mnemonic_image_url,text
+mnemonic_svg,text
+illustration_url,text
+image_url,text
