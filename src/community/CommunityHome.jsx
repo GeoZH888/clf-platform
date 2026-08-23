@@ -65,12 +65,9 @@ const ROUTES = {
   compose: '/learn?module=compose',
   scenario:'/learn?module=scenario',
   story:   '/learn?module=story',
-  // Built apps that no tile pointed at until now — they have their own routes
+  // A built app that no tile pointed at until now — it has its own route
   // rather than living inside UserApp.
   knowledge:'/knowledge-map',
-  placement:'/placement',
-  test:'/test',
-  test_results:'/test/teacher',   // staff only; never rendered on this grid
   // Non-learning links — leave as before until those routes are built
   lessons:'/lessons',
   chat:'/chat', voice:'/voice', homework:'/homework', shop:'/shop', parents:'/parents',

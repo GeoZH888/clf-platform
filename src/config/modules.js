@@ -52,14 +52,15 @@ export const MODULES = [
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
 
   // ── Built, previously reachable only by URL ─────────────────────────
-  // These are real apps (knowledge ~725 lines, placement ~734, assessment
-  // ~3300) that no tile ever pointed at.
+  // ~725 lines of working app that no tile ever pointed at.
   { id: 'knowledge',  label: '知识地图', icon: '🗺️', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community', audience: 'learner' },
-  { id: 'placement',  label: '分班测试', icon: '🎯', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community', audience: 'learner' },
-  { id: 'test',       label: '学生测评', icon: '📝', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community', audience: 'learner' },
-  // The staff half of the same feature — a different screen, different
-  // permissions, different route. Never shown on the community grid.
-  { id: 'test_results', label: '测评结果', icon: '📋', gateable: true, defaultEnabled: true, category: 'teaching' , pillar: 'community', audience: 'teacher' },
+
+  // NOT here on purpose: 分班测试 (placement) and 学生测评 (assessment).
+  // Those are school functions and belong to Lingua_School, which already has
+  // both. Their code is still in this repo only because PR #4 — the branch that
+  // strips the teaching system out — has not merged yet; it deletes
+  // src/placement/ and src/assessment/. Giving them community tiles would have
+  // meant advertising features that are about to be removed from this app.
 
   // ── Premium / opt-in (defaultEnabled: false) ────────────────────────
   { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' , pillar: 'community', audience: 'learner' },
