@@ -55,6 +55,12 @@ export const MODULES = [
   // ~725 lines of working app that no tile ever pointed at.
   { id: 'knowledge',  label: '知识地图', icon: '🗺️', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community', audience: 'learner' },
 
+  // ── A separate product, linked rather than embedded ─────────────────
+  // 非遗百科 is its own deployment on its own Supabase project. `external`
+  // makes that visible here so nothing tries to treat it as a local route:
+  // it opens in a new tab, and its content and accounts are not ours.
+  { id: 'feiyi',      label: '非遗百科', icon: '🪭', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
+
   // NOT here on purpose: 分班测试 (placement) and 学生测评 (assessment).
   // Those are school functions and belong to Lingua_School, which already has
   // both. Their code is still in this repo only because PR #4 — the branch that
