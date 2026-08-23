@@ -65,6 +65,12 @@ const ROUTES = {
   compose: '/learn?module=compose',
   scenario:'/learn?module=scenario',
   story:   '/learn?module=story',
+  // Built apps that no tile pointed at until now — they have their own routes
+  // rather than living inside UserApp.
+  knowledge:'/knowledge-map',
+  placement:'/placement',
+  test:'/test',
+  test_results:'/test/teacher',   // staff only; never rendered on this grid
   // Non-learning links — leave as before until those routes are built
   lessons:'/lessons',
   chat:'/chat', voice:'/voice', homework:'/homework', shop:'/shop', parents:'/parents',
@@ -195,8 +201,15 @@ export default function CommunityHome() {
 
   const myRole = user?.role;
 
+  // Learner tiles only. Staff-facing entries (the teacher results portal) live
+  // in the same registry so they are declared once, but this is the community
+  // grid — a superadmin browsing it should still see the learner's app, not a
+  // mixture of both. Their own tools are in /admin and the teaching panels.
   const visibleModules = allowedIds
-    ? MODULES.filter(m => allowedIds.includes(m.id) && m.category !== 'future')
+    ? MODULES.filter(m =>
+        allowedIds.includes(m.id) &&
+        m.category !== 'future' &&
+        (m.audience || 'learner') === 'learner')
     : [];
   // Pillar-based filtering
   const communityModules = visibleModules.filter(m =>
