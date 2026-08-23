@@ -65,6 +65,11 @@ const ROUTES = {
   compose: '/learn?module=compose',
   scenario:'/learn?module=scenario',
   story:   '/learn?module=story',
+  // A built app that no tile pointed at until now — it has its own route
+  // rather than living inside UserApp.
+  knowledge:'/knowledge-map',
+  // A separate product on its own domain — see `external` in modules.js.
+  feiyi:'https://feiyipedia.ci-world.com',
   // Non-learning links — leave as before until those routes are built
   lessons:'/lessons',
   chat:'/chat', voice:'/voice', homework:'/homework', shop:'/shop', parents:'/parents',
@@ -195,8 +200,15 @@ export default function CommunityHome() {
 
   const myRole = user?.role;
 
+  // Learner tiles only. Staff-facing entries (the teacher results portal) live
+  // in the same registry so they are declared once, but this is the community
+  // grid — a superadmin browsing it should still see the learner's app, not a
+  // mixture of both. Their own tools are in /admin and the teaching panels.
   const visibleModules = allowedIds
-    ? MODULES.filter(m => allowedIds.includes(m.id) && m.category !== 'future')
+    ? MODULES.filter(m =>
+        allowedIds.includes(m.id) &&
+        m.category !== 'future' &&
+        (m.audience || 'learner') === 'learner')
     : [];
   // Pillar-based filtering
   const communityModules = visibleModules.filter(m =>
@@ -516,7 +528,20 @@ function SortableModuleTile({ mod }) {
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <button
-        onClick={() => { if (!isDragging) window.location.href = ROUTES[mod.id] || '/'; }}
+        onClick={() => {
+          if (isDragging) return;
+          const url = ROUTES[mod.id] || '/';
+          if (mod.external) {
+            // A new tab, not a navigation. Inside the installed app the scope
+            // is '/', so sending it to another origin would either eject the
+            // learner from the PWA or strand them in an in-app browser with no
+            // way back. noopener because the opened page is a different
+            // product and has no business reaching window.opener.
+            window.open(url, '_blank', 'noopener,noreferrer');
+          } else {
+            window.location.href = url;
+          }
+        }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -553,6 +578,13 @@ function SortableModuleTile({ mod }) {
           lineHeight: 1.15,
         }}>
           {mod.label}
+          {/* Leaving the app is worth saying before the tap, not after. */}
+          {mod.external && (
+            <span style={{
+              fontSize: isPhone ? 11 : 13, marginLeft: 4, opacity: 0.55,
+              verticalAlign: 'super', letterSpacing: 0,
+            }} title="在新标签页打开 · opens in a new tab">↗</span>
+          )}
         </div>
       </button>
     </div>
