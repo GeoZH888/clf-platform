@@ -19,6 +19,7 @@ import RadicalGame    from './games/RadicalGame.jsx';
 import CompositionGame from './games/CompositionGame.jsx';
 import ChengyuApp     from './chengyu/ChengyuApp.jsx';
 import ScenarioApp    from './scenario/ScenarioApp.jsx';
+import VoiceApp       from './voice/VoiceApp.jsx';
 import StoryApp       from './story/StoryApp.jsx';
 import BottomNav      from './components/BottomNav.jsx';
 import GameHub        from './components/game/GameHub.jsx';
@@ -504,6 +505,9 @@ function UserApp() {
 
             {screen === 'scenario' && (
               <ScenarioApp onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'voice' && (
+              <VoiceApp onBack={()=>{ window.location.href = '/community'; }}/>
             )}
             {screen === 'story' && (
               <StoryApp onBack={()=>{ window.location.href = '/community'; }}/>
