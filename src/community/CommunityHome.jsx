@@ -68,11 +68,15 @@ const ROUTES = {
   // A built app that no tile pointed at until now — it has its own route
   // rather than living inside UserApp.
   knowledge:'/knowledge-map',
-  // A separate product on its own domain — see `external` in modules.js.
+  // Separate products on their own domains — see `external` in modules.js.
   feiyi:'https://feiyipedia.ci-world.com',
+  hsk:'https://hsk-levelup.netlify.app',
   // Non-learning links — leave as before until those routes are built
   lessons:'/lessons',
-  chat:'/chat', voice:'/voice', homework:'/homework', shop:'/shop', parents:'/parents',
+  // 语音评测 is a UserApp screen like the other learning modules, not a route
+  // of its own — /voice was never served and would have 404'd.
+  voice:'/learn?module=voice',
+  chat:'/chat', homework:'/homework', shop:'/shop', parents:'/parents',
 };
 
 // Home-only string bundle. We don't add these to LanguageContext because they

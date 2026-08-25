@@ -60,6 +60,9 @@ export const MODULES = [
   // makes that visible here so nothing tries to treat it as a local route:
   // it opens in a new tab, and its content and accounts are not ours.
   { id: 'feiyi',      label: '非遗百科', icon: '🪭', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
+  // HSK 1-6 courses, mock exams and error reports — its own deployment on its
+  // own Supabase project, so linked for the same reason 非遗百科 is.
+  { id: 'hsk',        label: 'HSK 进阶', icon: '🎓', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community', audience: 'learner', external: true },
 
   // NOT here on purpose: 分班测试 (placement) and 学生测评 (assessment).
   // Those are school functions and belong to Lingua_School, which already has
@@ -71,7 +74,10 @@ export const MODULES = [
   // ── Premium / opt-in (defaultEnabled: false) ────────────────────────
   { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' , pillar: 'community', audience: 'learner' },
   { id: 'chat',       label: '问答聊天', icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community', audience: 'learner' },
-  { id: 'voice',      label: '语音评测', icon: '🎤', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community', audience: 'learner' },
+  // Built now — per-character tone and pronunciation scoring. On by default:
+  // step one is open free use, and this is the feature that distinguishes the
+  // platform from tools that return one vague overall score.
+  { id: 'voice',      label: '语音评测', icon: '🎤', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
   { id: 'homework',   label: '作业',     icon: '✏️', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community', audience: 'learner' },
 
   // ── Future placeholder (defaultEnabled: false, hidden until built) ──
