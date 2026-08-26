@@ -48,6 +48,10 @@ export const MODULES = [
   { id: 'riddles',    label: '猜灯谜',   icon: '🏮', gateable: true,  defaultEnabled: true,  category: 'games' , pillar: 'community', audience: 'learner' },
   { id: 'radicals',   label: '部首听音', icon: '🧩', gateable: true,  defaultEnabled: true,  category: 'games' , pillar: 'community', audience: 'learner' },  // 偏旁部首 + 读音 drill
   { id: 'compose',    label: '组字工坊', icon: '🧱', gateable: true,  defaultEnabled: true,  category: 'games' , pillar: 'community', audience: 'learner' },  // 义符+声符 composition
+  // 连连看 — one engine, two decks. Both read the datasets the drills already
+  // use, so a radical or a sound added there shows up in the game too.
+  { id: 'radicalmatch', label: '部首连连看', icon: '🀄', gateable: true, defaultEnabled: true, category: 'games' , pillar: 'community', audience: 'learner' },
+  { id: 'pinyinmatch',  label: '拼音连连看', icon: '🔠', gateable: true, defaultEnabled: true, category: 'games' , pillar: 'community', audience: 'learner' },
   { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
 
