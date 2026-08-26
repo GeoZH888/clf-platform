@@ -20,6 +20,7 @@ import CompositionGame from './games/CompositionGame.jsx';
 import ChengyuApp     from './chengyu/ChengyuApp.jsx';
 import ScenarioApp    from './scenario/ScenarioApp.jsx';
 import VoiceApp       from './voice/VoiceApp.jsx';
+import LianLianKan    from './games/LianLianKan.jsx';
 import StoryApp       from './story/StoryApp.jsx';
 import BottomNav      from './components/BottomNav.jsx';
 import GameHub        from './components/game/GameHub.jsx';
@@ -508,6 +509,12 @@ function UserApp() {
             )}
             {screen === 'voice' && (
               <VoiceApp onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'radicalmatch' && (
+              <LianLianKan variant="radical" onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'pinyinmatch' && (
+              <LianLianKan variant="pinyin" onBack={()=>{ window.location.href = '/community'; }}/>
             )}
             {screen === 'story' && (
               <StoryApp onBack={()=>{ window.location.href = '/community'; }}/>
