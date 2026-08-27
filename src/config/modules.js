@@ -53,7 +53,9 @@ export const MODULES = [
   { id: 'radicalmatch', label: '部首连连看', icon: '🀄', gateable: true, defaultEnabled: true, category: 'games' , pillar: 'community', audience: 'learner' },
   { id: 'pinyinmatch',  label: '拼音连连看', icon: '🔠', gateable: true, defaultEnabled: true, category: 'games' , pillar: 'community', audience: 'learner' },
   { id: 'scenario',   label: '场景对话', icon: '💬', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
-  { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
+  // 文化 rather than 练习: the stories are fables and folk tales, so they sit
+  // with 成语 and 诗歌 more naturally than with conversation drills.
+  { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner' },
 
   // ── Built, previously reachable only by URL ─────────────────────────
   // ~725 lines of working app that no tile ever pointed at.
