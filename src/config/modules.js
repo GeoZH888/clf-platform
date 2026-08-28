@@ -69,6 +69,9 @@ export const MODULES = [
   // HSK 1-6 courses, mock exams and error reports — its own deployment on its
   // own Supabase project, so linked for the same reason 非遗百科 is.
   { id: 'hsk',        label: 'HSK 进阶', icon: '🎓', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community', audience: 'learner', external: true },
+  // 問骨 — the Hanzi platform (oracle bone script exhibition + 四书五经 reader).
+  // Its own deployment (hanzi.ci-world.com), linked like 非遗百科.
+  { id: 'hanzi',      label: '汉字探源', icon: '🐢', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
 
   // NOT here on purpose: 分班测试 (placement) and 学生测评 (assessment).
   // Those are school functions and belong to Lingua_School, which already has

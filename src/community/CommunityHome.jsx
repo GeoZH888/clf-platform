@@ -73,6 +73,7 @@ const ROUTES = {
   // Separate products on their own domains — see `external` in modules.js.
   feiyi:'https://feiyipedia.ci-world.com',
   hsk:'https://hsk-levelup.netlify.app',
+  hanzi:'https://hanzi.ci-world.com',
   // Non-learning links — leave as before until those routes are built
   lessons:'/lessons',
   // 语音评测 is a UserApp screen like the other learning modules, not a route
