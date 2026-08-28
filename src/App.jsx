@@ -21,6 +21,8 @@ import ChengyuApp     from './chengyu/ChengyuApp.jsx';
 import ScenarioApp    from './scenario/ScenarioApp.jsx';
 import VoiceApp       from './voice/VoiceApp.jsx';
 import LianLianKan    from './games/LianLianKan.jsx';
+import QuickPractice  from './lianzi/QuickPractice.jsx';
+import ChainGate      from './chengyu/ChainGate.jsx';
 import StoryApp       from './story/StoryApp.jsx';
 import BottomNav      from './components/BottomNav.jsx';
 import GameHub        from './components/game/GameHub.jsx';
@@ -509,6 +511,15 @@ function UserApp() {
             )}
             {screen === 'voice' && (
               <VoiceApp onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'dictation' && (
+              <QuickPractice mode="dictation" onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'completion' && (
+              <QuickPractice mode="completion" onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'chain' && (
+              <ChainGate onBack={()=>{ window.location.href = '/community'; }}/>
             )}
             {screen === 'radicalmatch' && (
               <LianLianKan variant="radical" onBack={()=>{ window.location.href = '/community'; }}/>

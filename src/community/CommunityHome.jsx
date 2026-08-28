@@ -65,6 +65,9 @@ const ROUTES = {
   compose: '/learn?module=compose',
   radicalmatch:'/learn?module=radicalmatch',
   pinyinmatch: '/learn?module=pinyinmatch',
+  dictation:  '/learn?module=dictation',
+  completion: '/learn?module=completion',
+  chain:      '/learn?module=chain',
   scenario:'/learn?module=scenario',
   story:   '/learn?module=story',
   // A built app that no tile pointed at until now — it has its own route

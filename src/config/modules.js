@@ -57,6 +57,14 @@ export const MODULES = [
   // with 成语 and 诗歌 more naturally than with conversation drills.
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner' },
 
+  // ── Built activities that had no door of their own ──────────────────
+  // 听写 and 填空 were modes buried inside 练字, and 接龙 inside 成语 —
+  // finished work (345 + 345 + 296 lines) a learner had to already know about
+  // to reach. Each gets a tile; none is reimplemented.
+  { id: 'dictation',  label: '汉字听写', icon: '👂', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
+  { id: 'completion', label: '补全填空', icon: '🧩', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
+  { id: 'chain',      label: '成语接龙', icon: '🔗', gateable: true,  defaultEnabled: true,  category: 'games' , pillar: 'community', audience: 'learner' },
+
   // ── Built, previously reachable only by URL ─────────────────────────
   // ~725 lines of working app that no tile ever pointed at.
   { id: 'knowledge',  label: '知识地图', icon: '🗺️', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community', audience: 'learner' },
