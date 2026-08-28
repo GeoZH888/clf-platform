@@ -56,6 +56,9 @@ export const MODULES = [
   // 文化 rather than 练习: the stories are fables and folk tales, so they sit
   // with 成语 and 诗歌 more naturally than with conversation drills.
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner' },
+  // 四书五经 — read natively rather than linked, because the reader has to be
+  // trilingual and the 汉字探源 site it also appears on is Chinese only.
+  { id: 'classics',   label: '四书五经', icon: '📜', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner' },
 
   // ── Built activities that had no door of their own ──────────────────
   // 听写 and 填空 were modes buried inside 练字, and 接龙 inside 成语 —
@@ -136,6 +139,7 @@ const MODULE_LABELS = {
   poetry:       { en:'Poetry',            it:'Poesia' },
   story:        { en:'Story Time',        it:'Ora delle storie' },
   feiyi:        { en:'Heritage',          it:'Patrimonio' },
+  classics:     { en:'Four Books & Five Classics', it:'Quattro Libri e Cinque Classici' },
 
   riddles:      { en:'Lantern Riddles',   it:'Indovinelli' },
   radicals:     { en:'Radical Sounds',    it:'Suoni dei radicali' },

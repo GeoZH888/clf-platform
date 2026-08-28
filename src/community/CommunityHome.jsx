@@ -70,6 +70,7 @@ const ROUTES = {
   chain:      '/learn?module=chain',
   scenario:'/learn?module=scenario',
   story:   '/learn?module=story',
+  classics:'/learn?module=classics',
   // A built app that no tile pointed at until now — it has its own route
   // rather than living inside UserApp.
   knowledge:'/knowledge-map',

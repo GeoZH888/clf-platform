@@ -24,6 +24,7 @@ import LianLianKan    from './games/LianLianKan.jsx';
 import QuickPractice  from './lianzi/QuickPractice.jsx';
 import ChainGate      from './chengyu/ChainGate.jsx';
 import StoryApp       from './story/StoryApp.jsx';
+import ClassicsApp    from './classics/ClassicsApp.jsx';
 import BottomNav      from './components/BottomNav.jsx';
 import GameHub        from './components/game/GameHub.jsx';
 import SearchScreen   from './components/SearchScreen.jsx';
@@ -526,6 +527,9 @@ function UserApp() {
             )}
             {screen === 'pinyinmatch' && (
               <LianLianKan variant="pinyin" onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'classics' && (
+              <ClassicsApp onBack={()=>{ window.location.href = '/community'; }}/>
             )}
             {screen === 'story' && (
               <StoryApp onBack={()=>{ window.location.href = '/community'; }}/>
