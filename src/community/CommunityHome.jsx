@@ -10,7 +10,7 @@ import { useAuth } from '../school/contexts/AuthContext';
 import { useLanguage } from '../school/contexts/LanguageContext';
 import PersonalDashboard from './dashboard/PersonalDashboard';
 import { supabase } from '../school/services/supabase';
-import { MODULES, ALWAYS_ON, STANDARD_BUNDLE } from '../config/modules';
+import { MODULES, ALWAYS_ON, STANDARD_BUNDLE, moduleLabel } from '../config/modules';
 import { usePhone } from '../hooks/useMediaQuery';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
@@ -377,7 +377,7 @@ export default function CommunityHome() {
                     strategy={rectSortingStrategy}>
                     <TileGrid>
                       {orderedTiles.map(m => (
-                        <SortableModuleTile key={m.id} mod={m}/>
+                        <SortableModuleTile key={m.id} mod={m} language={language}/>
                       ))}
                     </TileGrid>
                   </SortableContext>
@@ -391,7 +391,7 @@ export default function CommunityHome() {
                         strategy={rectSortingStrategy}>
                         <TileGrid>
                           {g.mods.map(m => (
-                            <SortableModuleTile key={m.id} mod={m}/>
+                            <SortableModuleTile key={m.id} mod={m} language={language}/>
                           ))}
                         </TileGrid>
                       </SortableContext>
@@ -513,7 +513,7 @@ function Empty({ msg }) {
 // Module tile — drag to reorder, tap to open.
 // dnd-kit's PointerSensor (8px) / TouchSensor (220ms) ensure a quick tap
 // does NOT start a drag, so navigation still works on click.
-function SortableModuleTile({ mod }) {
+function SortableModuleTile({ mod, language = 'zh' }) {
   const [hovered, setHovered] = useState(false);
   const isPhone = usePhone();
   const palette = paletteFor(mod.category);
@@ -579,14 +579,20 @@ function SortableModuleTile({ mod }) {
           fontSize: iconSize, lineHeight: 1,
           pointerEvents: 'none',
         }}>{mod.icon}</div>
+        {/* 楷书 and its wide tracking suit 四-character Chinese labels; the same
+            treatment on "Character Builder" reads as broken spacing, and a long
+            English name needs to shrink to survive the tile. */}
         <div style={{
-          fontSize: labelSize, fontWeight: 700, pointerEvents: 'none',
-          fontFamily: "'STKaiti','KaiTi',serif",
-          letterSpacing: isPhone ? 1 : 3,
+          fontSize: language === 'zh' ? labelSize : Math.round(labelSize * 0.62),
+          fontWeight: 700, pointerEvents: 'none',
+          fontFamily: language === 'zh'
+            ? "'STKaiti','KaiTi',serif"
+            : "system-ui, -apple-system, 'Segoe UI', sans-serif",
+          letterSpacing: language === 'zh' ? (isPhone ? 1 : 3) : 0,
           color: palette.accent,
-          lineHeight: 1.15,
+          lineHeight: 1.2,
         }}>
-          {mod.label}
+          {moduleLabel(mod, language)}
           {/* Leaving the app is worth saying before the tap, not after. */}
           {mod.external && (
             <span style={{
