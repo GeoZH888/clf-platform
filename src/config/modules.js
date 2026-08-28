@@ -57,6 +57,14 @@ export const MODULES = [
   // with 成语 and 诗歌 more naturally than with conversation drills.
   { id: 'story',      label: '故事会',   icon: '📖', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner' },
 
+  // ── Built activities that had no door of their own ──────────────────
+  // 听写 and 填空 were modes buried inside 练字, and 接龙 inside 成语 —
+  // finished work (345 + 345 + 296 lines) a learner had to already know about
+  // to reach. Each gets a tile; none is reimplemented.
+  { id: 'dictation',  label: '汉字听写', icon: '👂', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
+  { id: 'completion', label: '补全填空', icon: '🧩', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
+  { id: 'chain',      label: '成语接龙', icon: '🔗', gateable: true,  defaultEnabled: true,  category: 'games' , pillar: 'community', audience: 'learner' },
+
   // ── Built, previously reachable only by URL ─────────────────────────
   // ~725 lines of working app that no tile ever pointed at.
   { id: 'knowledge',  label: '知识地图', icon: '🗺️', gateable: true,  defaultEnabled: true,  category: 'learning' , pillar: 'community', audience: 'learner' },
@@ -105,6 +113,61 @@ export const MODULES = [
  */
 export function modulesFor(audience = 'learner') {
   return MODULES.filter(m => (m.audience || 'learner') === audience);
+}
+
+// ── Module names in each language ─────────────────────────────────────────
+// `label` above stays Chinese: it is the canonical name and several admin
+// screens read it directly. These are the learner-facing translations, kept
+// here rather than on each entry so the registry itself stays readable.
+//
+// A grid that translated its section headings but not the tiles under them —
+// "Learning" above 练字 — was half-translated, which reads as an oversight
+// rather than a choice.
+const MODULE_LABELS = {
+  home:         { en:'Home',              it:'Home' },
+  profile:      { en:'Profile',           it:'Profilo' },
+  progress:     { en:'Progress',          it:'Progressi' },
+
+  lianzi:       { en:'Character Writing', it:'Scrittura' },
+  words:        { en:'Words',             it:'Vocaboli' },
+  pinyin:       { en:'Pinyin',            it:'Pinyin' },
+  grammar:      { en:'Grammar',           it:'Grammatica' },
+  knowledge:    { en:'Knowledge Map',     it:'Mappa delle conoscenze' },
+  hsk:          { en:'HSK Level-up',      it:'HSK Level-up' },
+  lessons:      { en:'Lessons',           it:'Lezioni' },
+
+  chengyu:      { en:'Idioms',            it:'Modi di dire' },
+  poetry:       { en:'Poetry',            it:'Poesia' },
+  story:        { en:'Story Time',        it:'Ora delle storie' },
+  feiyi:        { en:'Heritage',          it:'Patrimonio' },
+
+  riddles:      { en:'Lantern Riddles',   it:'Indovinelli' },
+  radicals:     { en:'Radical Sounds',    it:'Suoni dei radicali' },
+  compose:      { en:'Character Builder', it:'Costruisci caratteri' },
+  radicalmatch: { en:'Radical Match',     it:'Abbina i radicali' },
+  pinyinmatch:  { en:'Pinyin Match',      it:'Abbina il pinyin' },
+  chain:        { en:'Idiom Chain',       it:'Catena di idiomi' },
+
+  scenario:     { en:'Scenarios',         it:'Dialoghi' },
+  dictation:    { en:'Dictation',         it:'Dettato' },
+  completion:   { en:'Fill the Gaps',     it:'Completa' },
+  voice:        { en:'Pronunciation',     it:'Pronuncia' },
+  chat:         { en:'Ask & Chat',        it:'Domande e chat' },
+  homework:     { en:'Homework',          it:'Compiti' },
+
+  shop:         { en:'Shop',              it:'Negozio' },
+  parents:      { en:'Parents',           it:'Genitori' },
+};
+
+/**
+ * A module's name in the reader's language.
+ * Falls back to the Chinese label, so a module added without a translation
+ * shows its real name rather than a blank tile or a raw id.
+ */
+export function moduleLabel(mod, lang = 'zh') {
+  if (!mod) return '';
+  if (lang === 'zh') return mod.label;
+  return MODULE_LABELS[mod.id]?.[lang] || mod.label;
 }
 
 // Module IDs that make up the "标准套餐" preset — what new students get by default.
