@@ -72,6 +72,10 @@ export const MODULES = [
   // 問骨 — the Hanzi platform (oracle bone script exhibition + 四书五经 reader).
   // Its own deployment (hanzi.ci-world.com), linked like 非遗百科.
   { id: 'hanzi',      label: '汉字探源', icon: '🐢', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
+  // 四书五经 — reading / understanding / listening on the 問骨 platform, but a
+  // destination of its own: the tile deep-links straight to the trilingual
+  // (中/EN/IT) classics reader rather than the exhibition landing.
+  { id: 'sishuwujing', label: '四书五经', icon: '📜', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
 
   // NOT here on purpose: 分班测试 (placement) and 学生测评 (assessment).
   // Those are school functions and belong to Lingua_School, which already has
