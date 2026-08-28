@@ -261,46 +261,77 @@ function BookReader({ book, L, isPhone }) {
   );
 }
 
-// Pairs each line of 原文 with its own line of pinyin.
+// Whitespace + Chinese and ASCII punctuation. Deliberately no /u flag: under
+// it, ASCII punctuation cannot be backslash-escaped inside a character class
+// and the build fails. Same expression the poetry grid uses.
+const PUNCT = /[\s，。！？、；：""''「」『』《》（）().,!?;:]/;
+
+// Pinyin sits ABOVE ITS OWN CHARACTER, not under the line.
 //
-// The two are matched by line index, which is the only alignment the data
-// gives us — so an editor who wants pinyin under line three must put it on
-// line three. When the counts disagree, the extra characters simply render
-// without pinyin rather than pairing with the wrong line: silence is better
-// than a confident mismatch, since a learner cannot tell that it is wrong.
+// A learner meeting 學而時習之 needs to know which sound belongs to which
+// character. Romanisation under the line makes them count positions to work it
+// out — and classical Chinese is exactly where they cannot, because they do not
+// yet know where the word boundaries fall.
+//
+// <ruby> is the element built for this: the pairing survives line wrapping,
+// screen readers announce it correctly, and selecting the text copies the
+// characters rather than an interleaved mess.
+//
+// Alignment follows the convention already used by the poetry grid: ONE pinyin
+// per non-punctuation character, whitespace separated. Punctuation takes none.
 function Original({ text, pinyin, isPhone }) {
-  const lines = String(text || '').split('\n');
-  const pys   = String(pinyin || '').split('\n');
-  const aligned = pinyin && pys.length === lines.length;
+  const chars  = Array.from(String(text || ''));
+  const tokens = String(pinyin || '').trim().split(/\s+/).filter(Boolean);
 
+  // Annotate only when the counts agree. A list that is off by one would shift
+  // every reading after the error onto the wrong character, and a learner has
+  // no way to notice — so a mismatch falls back to plain text with the
+  // romanisation below, clearly not claiming per-character alignment.
+  const needed  = chars.filter(c => !PUNCT.test(c)).length;
+  const aligned = tokens.length > 0 && tokens.length === needed;
+  const size    = isPhone ? 19 : 23;
+
+  if (!aligned) {
+    return (
+      <div>
+        <div style={{
+          fontSize: size, fontFamily:"'STKaiti','KaiTi',serif",
+          lineHeight: 2.2, letterSpacing: 2, color: P.ink, whiteSpace:'pre-wrap',
+        }}>{text}</div>
+        {pinyin && (
+          <div style={{ fontSize:12, color:P.ink3, marginTop:8, fontStyle:'italic',
+            lineHeight:1.8, whiteSpace:'pre-wrap' }}>{pinyin}</div>
+        )}
+      </div>
+    );
+  }
+
+  let t = 0;
   return (
-    <div>
-      {lines.map((line, i) => (
-        <div key={i} style={{ marginBottom: line.trim() ? (isPhone ? 12 : 16) : 0 }}>
-          <div style={{
-            fontSize: isPhone ? 19 : 23,
-            fontFamily:"'STKaiti','KaiTi',serif",
-            lineHeight: 1.9, letterSpacing: 2, color: P.ink,
-          }}>
-            {line || ' '}
-          </div>
-          {aligned && pys[i]?.trim() && (
-            <div style={{
-              fontSize: isPhone ? 11 : 12, color: P.ink3, fontStyle:'italic',
-              lineHeight: 1.6, marginTop: 2, letterSpacing: 0.4,
-            }}>
-              {pys[i]}
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* Pinyin that does not line up is still worth showing — just not
-          pretending to be per-line. */}
-      {pinyin && !aligned && (
-        <div style={{ fontSize:12, color:P.ink3, marginTop:8, fontStyle:'italic',
-          lineHeight:1.8, whiteSpace:'pre-wrap' }}>{pinyin}</div>
-      )}
+    <div style={{
+      fontSize: size,
+      fontFamily:"'STKaiti','KaiTi',serif",
+      color: P.ink,
+      // Ruby needs vertical room; without it the readings collide with the
+      // line above.
+      lineHeight: 2.9,
+    }}>
+      {chars.map((ch, i) => {
+        if (ch === '\n') return <br key={i}/>;
+        if (PUNCT.test(ch)) return <span key={i} style={{ letterSpacing: 2 }}>{ch}</span>;
+        const py = tokens[t++];
+        return (
+          <ruby key={i} style={{ rubyAlign:'center', margin:'0 1px' }}>
+            {ch}
+            <rt style={{
+              fontSize: isPhone ? 9 : 11,
+              fontFamily:'system-ui, -apple-system, sans-serif',
+              fontWeight: 400, color: P.ink3, letterSpacing: 0,
+              lineHeight: 1.1,
+            }}>{py}</rt>
+          </ruby>
+        );
+      })}
     </div>
   );
 }
