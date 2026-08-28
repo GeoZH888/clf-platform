@@ -200,19 +200,13 @@ function BookReader({ book, L, isPhone }) {
             )}
 
             {/* 原文 — set larger and looser than anything else in the app.
-                These lines were written to be recited, not skimmed. */}
-            <div style={{
-              fontSize: isPhone ? 19 : 23,
-              fontFamily:"'STKaiti','KaiTi',serif",
-              lineHeight:2.2, letterSpacing:2, color:P.ink, whiteSpace:'pre-wrap',
-            }}>
-              {p.original}
-            </div>
-
-            {p.pinyin && (
-              <div style={{ fontSize:12, color:P.ink3, marginTop:8, fontStyle:'italic',
-                lineHeight:1.8, whiteSpace:'pre-wrap' }}>{p.pinyin}</div>
-            )}
+                These lines were written to be recited, not skimmed.
+                Pinyin sits under its OWN line rather than in one block below
+                the passage: with four or eight lines of classical Chinese, a
+                single run of romanisation underneath cannot be matched back to
+                the characters it belongs to, which is exactly when a learner
+                needs it most. */}
+            <Original text={p.original} pinyin={p.pinyin} isPhone={isPhone}/>
 
             <div style={{ display:'flex', gap:8, marginTop:14, flexWrap:'wrap' }}>
               {rendering && (
@@ -263,6 +257,50 @@ function BookReader({ book, L, isPhone }) {
           </article>
         );
       })}
+    </div>
+  );
+}
+
+// Pairs each line of 原文 with its own line of pinyin.
+//
+// The two are matched by line index, which is the only alignment the data
+// gives us — so an editor who wants pinyin under line three must put it on
+// line three. When the counts disagree, the extra characters simply render
+// without pinyin rather than pairing with the wrong line: silence is better
+// than a confident mismatch, since a learner cannot tell that it is wrong.
+function Original({ text, pinyin, isPhone }) {
+  const lines = String(text || '').split('\n');
+  const pys   = String(pinyin || '').split('\n');
+  const aligned = pinyin && pys.length === lines.length;
+
+  return (
+    <div>
+      {lines.map((line, i) => (
+        <div key={i} style={{ marginBottom: line.trim() ? (isPhone ? 12 : 16) : 0 }}>
+          <div style={{
+            fontSize: isPhone ? 19 : 23,
+            fontFamily:"'STKaiti','KaiTi',serif",
+            lineHeight: 1.9, letterSpacing: 2, color: P.ink,
+          }}>
+            {line || ' '}
+          </div>
+          {aligned && pys[i]?.trim() && (
+            <div style={{
+              fontSize: isPhone ? 11 : 12, color: P.ink3, fontStyle:'italic',
+              lineHeight: 1.6, marginTop: 2, letterSpacing: 0.4,
+            }}>
+              {pys[i]}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Pinyin that does not line up is still worth showing — just not
+          pretending to be per-line. */}
+      {pinyin && !aligned && (
+        <div style={{ fontSize:12, color:P.ink3, marginTop:8, fontStyle:'italic',
+          lineHeight:1.8, whiteSpace:'pre-wrap' }}>{pinyin}</div>
+      )}
     </div>
   );
 }
