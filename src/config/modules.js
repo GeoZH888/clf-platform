@@ -80,9 +80,10 @@ export const MODULES = [
   // 問骨 — the Hanzi platform (oracle bone script exhibition + 四书五经 reader).
   // Its own deployment (hanzi.ci-world.com), linked like 非遗百科.
   { id: 'hanzi',      label: '汉字探源', icon: '🐢', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
-  // 四书五经 — reading / understanding / listening on the 問骨 platform, but a
-  // destination of its own: the tile deep-links straight to the trilingual
-  // (中/EN/IT) classics reader rather than the exhibition landing.
+  // 四书五经 — its own deployment now, split out of 問骨. Reading, a modern
+  // rendering, three languages, and pinyin above every character. Linked
+  // rather than rebuilt here: a native copy would be a third set of the same
+  // nine books to keep in step.
   { id: 'sishuwujing', label: '四书五经', icon: '📜', gateable: true,  defaultEnabled: true,  category: 'cultural' , pillar: 'community', audience: 'learner', external: true },
 
   // NOT here on purpose: 分班测试 (placement) and 学生测评 (assessment).
@@ -140,6 +141,7 @@ const MODULE_LABELS = {
   poetry:       { en:'Poetry',            it:'Poesia' },
   story:        { en:'Story Time',        it:'Ora delle storie' },
   feiyi:        { en:'Heritage',          it:'Patrimonio' },
+  sishuwujing:  { en:'Four Books & Five Classics', it:'Quattro Libri e Cinque Classici' },
 
   riddles:      { en:'Lantern Riddles',   it:'Indovinelli' },
   radicals:     { en:'Radical Sounds',    it:'Suoni dei radicali' },
