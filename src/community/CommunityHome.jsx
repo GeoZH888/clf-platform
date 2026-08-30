@@ -77,7 +77,9 @@ const ROUTES = {
   feiyi:'https://feiyipedia.ci-world.com',
   hsk:'https://hsk-levelup.netlify.app',
   hanzi:'https://hanzi.ci-world.com',
-  sishuwujing:'https://hanzi.ci-world.com/classics',
+  // Moved off 問骨 onto its own deployment. The old /classics path is gone
+  // from that site, so this would 404 if left pointing there.
+  sishuwujing:'https://sishu-wujing.netlify.app',
   // Non-learning links — leave as before until those routes are built
   lessons:'/lessons',
   // 语音评测 is a UserApp screen like the other learning modules, not a route
