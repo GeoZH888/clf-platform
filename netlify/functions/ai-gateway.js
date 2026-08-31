@@ -2,6 +2,17 @@
 // Supports: fill, translate, generate_image, analyse_image, auto_populate
 // Providers: claude, deepseek, openai, gemini
 
+import { tracked } from './_aiTelemetry.js';
+
+// The action being served, so callAI can label the row without every handler
+// having to thread it through. One Lambda invocation serves one request, so a
+// module-scoped value is request-scoped in practice.
+let currentAction = null;
+
+// Anthropic returns token counts alongside the text; callClaude stashes them
+// here so callAI can record them without changing what it returns.
+let lastUsage = null;
+
 export const handler = async (event) => {
   const headers = {
     "Content-Type": "application/json",
@@ -36,6 +47,7 @@ export const handler = async (event) => {
     };
   }
 
+  currentAction = effectiveAction;
   try {
     switch (effectiveAction) {
       case "fill":
@@ -366,17 +378,28 @@ async function handleAnalyseImage({ imageBase64, mediaType = "image/jpeg" }, hea
 // ── AI ROUTER ─────────────────────────────────────────────────────────────────
 // Routes text prompts to the selected AI provider
 async function callAI(provider, prompt, maxTokens = 1500) {
-  switch (provider) {
-    case "deepseek":
-      return callDeepSeek(prompt, maxTokens);
-    case "openai":
-      return callOpenAI(prompt, maxTokens);
-    case "gemini":
-      return callGemini(prompt, maxTokens);
-    case "claude":
-    default:
-      return callClaude(prompt, maxTokens);
-  }
+  const p = provider || "claude";
+  lastUsage = null;
+  // Wrapped here rather than in each provider function: this is the one place
+  // every text generation passes through, so instrumenting it cannot be
+  // bypassed by adding a provider later.
+  return tracked(
+    { feature: "ai_gateway", action: currentAction, provider: p,
+      model: p === "claude" ? "claude-opus-5" : null },
+    () => {
+      switch (p) {
+        case "deepseek": return callDeepSeek(prompt, maxTokens);
+        case "openai":   return callOpenAI(prompt, maxTokens);
+        case "gemini":   return callGemini(prompt, maxTokens);
+        case "claude":
+        default:         return callClaude(prompt, maxTokens);
+      }
+    },
+    // An empty completion is a success by HTTP and a failure by every measure
+    // that matters — recording output tokens is what makes it visible.
+    () => ({ input: lastUsage?.input_tokens ?? null,
+             output: lastUsage?.output_tokens ?? null }),
+  );
 }
 
 // ── Claude ────────────────────────────────────────────────────────────────────
@@ -416,6 +439,7 @@ async function callClaude(prompt, maxTokens = 1500) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `Anthropic HTTP ${res.status}`);
+  lastUsage = data?.usage || null;
   return claudeText(data);
 }
 
