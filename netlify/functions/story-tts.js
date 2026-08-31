@@ -26,6 +26,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from '@supabase/supabase-js';
+import { recordAiCall } from './_aiTelemetry.js';
 
 const supabaseUrl    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -219,7 +220,26 @@ export async function handler(event) {
   try {
     await ensureBucket();
 
-    const audioBuffer = await synthesize(text, voiceConfig);
+    // Timed because this is the call that runs closest to the function limit:
+    // narration of a long page is the most likely thing here to time out, and
+    // latency is the only warning before it does.
+    const startedAt = Date.now();
+    let audioBuffer;
+    try {
+      audioBuffer = await synthesize(text, voiceConfig);
+    } catch (e) {
+      await recordAiCall({
+        feature: 'story_tts', provider: 'azure', model: voiceConfig.name,
+        ok: false, error: e, latencyMs: Date.now() - startedAt,
+        meta: { chars: text.length, voice },
+      });
+      throw e;
+    }
+    await recordAiCall({
+      feature: 'story_tts', provider: 'azure', model: voiceConfig.name,
+      ok: true, latencyMs: Date.now() - startedAt,
+      meta: { chars: text.length, voice, bytes: audioBuffer.length },
+    });
 
     const path = `${page.story_id}/${page.id}_${voice}_${Date.now()}.mp3`;
     const { error: upErr } = await supabase.storage
