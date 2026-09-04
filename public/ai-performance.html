@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>AI Readout · 大卫学中文</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --plane:#eceff4; --card:#fff; --card-2:#f5f7fa; --hairline:#dde2ea; --rule:#c9d1dd;
+  --ink:#141a23; --ink-2:#4c5666; --muted:#79828f; --accent:#2a4d8f;
+  --series-1:#2a78d6; --series-2:#eb6834;
+  --seq-mid:#2a78d6; --seq-soft:#9ec5f4; --seq-track:#e8eef7;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --good-bg:#e7f6e7; --warning-bg:#fdf3dd; --serious-bg:#fdeee7; --critical-bg:#fbe9e9;
+  --shadow:0 1px 2px rgba(20,26,35,.05), 0 6px 18px rgba(20,26,35,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane:#0e1117; --card:#191d26; --card-2:#1f242f; --hairline:#272d3a; --rule:#363d4c;
+    --ink:#e8ebf1; --ink-2:#a9b2c0; --muted:#7d8593; --accent:#83a6e2;
+    --series-1:#3987e5; --series-2:#d95926;
+    --seq-mid:#3987e5; --seq-soft:#256abf; --seq-track:#222836;
+    --good-bg:#14291a; --warning-bg:#2e2612; --serious-bg:#2e1f18; --critical-bg:#2c1618;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane:#0e1117; --card:#191d26; --card-2:#1f242f; --hairline:#272d3a; --rule:#363d4c;
+  --ink:#e8ebf1; --ink-2:#a9b2c0; --muted:#7d8593; --accent:#83a6e2;
+  --series-1:#3987e5; --series-2:#d95926;
+  --seq-mid:#3987e5; --seq-soft:#256abf; --seq-track:#222836;
+  --good-bg:#14291a; --warning-bg:#2e2612; --serious-bg:#2e1f18; --critical-bg:#2c1618;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);
+  font:400 15px/1.55 "Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 24px 64px;display:flex;flex-direction:column;gap:26px}
+.masthead{display:flex;flex-direction:column;gap:14px}
+.eyebrow{font:500 11.5px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+h1{font:700 clamp(28px,4.2vw,40px)/1.08 Archivo,system-ui,sans-serif;letter-spacing:-.022em;margin:0;text-wrap:balance}
+.thesis{font-size:16.5px;line-height:1.5;color:var(--ink-2);max-width:62ch;margin:0}
+.provenance{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding:11px 16px;background:var(--card);
+  border:1px solid var(--hairline);border-left:3px solid var(--accent);border-radius:3px;
+  font:400 12.5px/1.7 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink-2)}
+.provenance b{color:var(--ink);font-weight:500}
+.provenance .spacer{flex:1}
+button,select{font:inherit}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:4px;padding:6px 14px;
+  font:500 12.5px/1.5 "IBM Plex Mono",ui-monospace,monospace;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:var(--card-2);color:var(--ink);border:1px solid var(--hairline)}
+select.win{background:var(--card-2);color:var(--ink);border:1px solid var(--hairline);border-radius:4px;
+  padding:5px 8px;font:400 12.5px "IBM Plex Mono",ui-monospace,monospace}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+h2{font:600 12px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin:0;padding-bottom:9px;border-bottom:1px solid var(--rule);
+  display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+h2 span{font-family:"Source Sans 3",sans-serif;letter-spacing:0;text-transform:none;font-size:13px;font-weight:400}
+.note{font-size:13.5px;color:var(--ink-2);margin:0;max-width:76ch}
+.note strong{color:var(--ink);font-weight:600}
+code{font:400 .88em/1.4 "IBM Plex Mono",ui-monospace,monospace;background:var(--card-2);border-radius:2px;padding:0 3px;color:var(--ink)}
+.gauges{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:1000px){.gauges{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:540px){.gauges{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--hairline);border-radius:4px;box-shadow:var(--shadow);padding:18px}
+.gauge{padding:16px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.dial{position:relative;width:132px;height:100px}
+.dial svg{display:block;width:132px;height:92px;overflow:visible}
+.dial-val{position:absolute;inset:40px 0 auto 0;font:500 27px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.02em;color:var(--ink)}
+.dial-val.none{font-size:15px;color:var(--muted);letter-spacing:.04em}
+.dial-val small{font-size:14px;color:var(--ink-2)}
+.dial-den{position:absolute;inset:70px 0 auto 0;font:400 11.5px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+.gauge-name{font-size:14px;font-weight:600;line-height:1.3;color:var(--ink)}
+.gauge-sub{font-size:12.5px;color:var(--ink-2);line-height:1.4}
+.chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 6px;border-radius:3px;
+  font:500 11px/1.6 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.02em;white-space:nowrap}
+.chip .ic{font-size:10px;line-height:1}
+.chip.good{background:var(--good-bg);color:var(--good)}
+.chip.warning{background:var(--warning-bg);color:#8a6206}
+.chip.serious{background:var(--serious-bg);color:#a44b25}
+.chip.critical{background:var(--critical-bg);color:var(--critical)}
+.chip.neutral{background:var(--card-2);color:var(--ink-2)}
+:root[data-theme="dark"] .chip.warning{color:var(--warning)}
+:root[data-theme="dark"] .chip.serious{color:var(--serious)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .chip.warning{color:var(--warning)}
+  :root:not([data-theme="light"]) .chip.serious{color:var(--serious)}
+}
+.estate{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:1px;background:var(--hairline);
+  border:1px solid var(--hairline);border-radius:4px;overflow:hidden}
+.stat{background:var(--card);padding:14px 15px;display:flex;flex-direction:column;gap:3px}
+.stat .v{font:500 24px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink);letter-spacing:-.02em}
+.stat .k{font-size:12.5px;color:var(--ink-2)}
+.stat .sub{font:400 11px/1.4 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px}
+th{text-align:left;font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);padding:0 12px 9px 0;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:10px 12px 10px 0;border-bottom:1px solid var(--hairline);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right}
+td.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.model{font:400 12.5px/1.5 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink-2)}
+.unattr{color:var(--muted);font-style:italic}
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar-row{display:grid;grid-template-columns:minmax(140px,200px) 1fr 84px;align-items:center;gap:12px;padding:3px 4px;border-radius:3px}
+.bar-row:hover{background:var(--card-2)}
+.bar-row:hover .bar-raw{opacity:1}
+.bar-label{font-size:13px;color:var(--ink);line-height:1.3}
+.bar-label .qual{color:var(--muted);font-size:11.5px}
+.bar-track{background:var(--seq-track);border-radius:2px;height:15px}
+.bar-fill{height:15px;background:var(--seq-mid);border-radius:0 4px 4px 0;min-width:2px}
+.bar-fill.zero{background:transparent;border-left:2px solid var(--rule);border-radius:0;min-width:0;width:0}
+.bar-meta{display:flex;align-items:baseline;gap:8px;justify-content:flex-end}
+.bar-val{font:500 13px/1 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--ink)}
+.bar-raw{font:400 11px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);opacity:0;transition:opacity .12s}
+@media (prefers-reduced-motion:reduce){.bar-raw{transition:none}}
+.pair-row{display:grid;grid-template-columns:minmax(130px,180px) 1fr;gap:12px;align-items:center;padding:5px 4px;border-radius:3px}
+.pair-row:hover{background:var(--card-2)}
+.pair-bars{display:flex;flex-direction:column;gap:2px}
+.pair-line{display:grid;grid-template-columns:1fr 66px;gap:10px;align-items:center}
+.pair-track{background:var(--seq-track);border-radius:2px;height:11px}
+.pair-fill{height:11px;border-radius:0 3px 3px 0;min-width:2px}
+.pair-fill.s1{background:var(--series-1)}
+.pair-fill.s2{background:var(--series-2)}
+.pair-fill.nil{background:transparent;border-left:2px solid var(--rule);border-radius:0;min-width:0;width:0}
+.pair-val{font:500 11.5px/1 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--ink-2);text-align:right}
+.legend{display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.timeline{display:flex;align-items:flex-end;gap:5px;height:150px;padding-top:8px}
+.tl-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.tl-bar{width:100%;background:var(--seq-mid);border-radius:4px 4px 0 0;min-height:3px}
+.tl-bar.q{background:var(--seq-soft)}
+.tl-n{font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
+.tl-d{font:400 10px/1.3 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);text-align:center}
+.findings{display:flex;flex-direction:column;gap:10px}
+.finding{background:var(--card);border:1px solid var(--hairline);border-radius:4px;box-shadow:var(--shadow);
+  padding:14px 16px;display:grid;grid-template-columns:108px 1fr;gap:14px;align-items:start}
+.finding.sev-critical{border-left:3px solid var(--critical)}
+.finding.sev-serious{border-left:3px solid var(--serious)}
+.finding.sev-warning{border-left:3px solid var(--warning)}
+.finding h3{font:600 14.5px/1.35 "Source Sans 3",sans-serif;margin:0 0 4px;color:var(--ink)}
+.finding p{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+@media (max-width:640px){
+  .finding{grid-template-columns:1fr;gap:8px}
+  .bar-row{grid-template-columns:1fr 70px}
+  .bar-row .bar-track{grid-column:1/-1}
+}
+.msg{background:var(--card);border:1px solid var(--hairline);border-radius:4px;box-shadow:var(--shadow);
+  padding:26px 24px;display:flex;flex-direction:column;gap:10px;max-width:64ch}
+.msg.bad{border-left:3px solid var(--critical)}
+.msg h3{margin:0;font:600 17px/1.3 Archivo,system-ui,sans-serif;color:var(--ink)}
+.msg p{margin:0;font-size:14px;line-height:1.6;color:var(--ink-2)}
+.msg .row{display:flex;gap:10px;margin-top:6px}
+.skeleton{height:120px;background:linear-gradient(90deg,var(--card-2),var(--hairline),var(--card-2));
+  border-radius:4px;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.skeleton{animation:none}}
+footer{border-top:1px solid var(--rule);padding-top:18px;font-size:13px;line-height:1.65;color:var(--ink-2);
+  display:flex;flex-direction:column;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">zhongwen.ci-world.com · 大卫学中文 · production readout</div>
+    <h1>AI Readout</h1>
+    <p class="thesis">
+      What the AI pipelines have made, what they started and never finished, how much of it
+      anyone has checked, and which parts of the machine are running without instruments.
+    </p>
+    <div class="provenance">
+      <span><b>Source</b> /api/ai-performance</span>
+      <span id="p-read"><b>Read</b> —</span>
+      <span id="p-window"><b>Window</b> —</span>
+      <span class="spacer"></span>
+      <select class="win" id="window" aria-label="Time window">
+        <option value="">All time</option>
+        <option value="90">Last 90 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="7">Last 7 days</option>
+      </select>
+      <button class="btn" id="refresh">Refresh</button>
+    </div>
+  </header>
+  <div id="root"><div class="skeleton"></div></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const root = $('root');
+
+  // ── escaping: every value below comes from the database ─────────────
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const n = (v) => (v ?? 0).toLocaleString();
+  const pctText = (r) => (r && r.pct !== null && r.pct !== undefined ? r.pct + '%' : '—');
+
+  // ── session ─────────────────────────────────────────────────────────
+  // Same origin as the app, so the signed-in session is already in
+  // localStorage. supabase-js writes it under sb-<ref>-auth-token, and
+  // may split it into .0/.1 chunks and/or base64-prefix the payload.
+  function readSession() {
+    const keys = Object.keys(localStorage).filter((k) => /^sb-.+-auth-token(\.\d+)?$/.test(k));
+    if (!keys.length) return null;
+    const base = keys.find((k) => !/\.\d+$/.test(k)) ||
+                 keys.filter((k) => /\.\d+$/.test(k)).sort()[0].replace(/\.\d+$/, '');
+    const chunks = keys.filter((k) => k === base || k.startsWith(base + '.'))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    let raw = chunks.map((k) => localStorage.getItem(k) || '').join('');
+    if (!raw) return null;
+    try {
+      if (raw.startsWith('base64-')) raw = atob(raw.slice(7));
+      const s = JSON.parse(raw);
+      const sess = s.currentSession || s;
+      if (!sess || !sess.access_token) return null;
+      return { token: sess.access_token, expires_at: sess.expires_at || null };
+    } catch { return null; }
+  }
+
+  // ── status tone: semantic, never the accent hue ─────────────────────
+  // invert = lower is better (e.g. share of runs that never finished).
+  function tone(pct, good, warn, invert) {
+    if (pct === null || pct === undefined) return 'neutral';
+    const v = invert ? 100 - pct : pct;
+    return v >= good ? 'good' : v >= warn ? 'warning' : 'critical';
+  }
+
+  // ── components ──────────────────────────────────────────────────────
+  const ARC = 163.363; // length of the 180° r=52 dial arc
+
+  function gauge(o) {
+    const has = o.pct !== null && o.pct !== undefined;
+    const t = o.tone || 'neutral';
+    const stroke = { good: 'var(--good)', warning: 'var(--warning)', serious: 'var(--serious)',
+                     critical: 'var(--critical)', neutral: 'var(--seq-mid)' }[t];
+    let art;
+    if (o.text !== undefined && o.text !== null && !has) {
+      // A real reading that has no natural denominator: solid track, no arc.
+      art = `<path d="M14 84 A52 52 0 1 1 118 84" fill="none" stroke="var(--seq-track)"
+               stroke-width="13" stroke-linecap="round"/>`;
+    } else if (!has) {
+      art = `<path d="M14 84 A52 52 0 1 1 118 84" fill="none" stroke="var(--seq-track)"
+               stroke-width="13" stroke-linecap="round" stroke-dasharray="4 9"/>`;
+    } else if (o.pct === 0) {
+      art = `<path d="M14 84 A52 52 0 1 1 118 84" fill="none" stroke="var(--seq-track)" stroke-width="13" stroke-linecap="round"/>
+             <circle cx="14" cy="84" r="4.5" fill="${stroke}"/>`;
+    } else {
+      const off = (ARC * (1 - Math.min(o.pct, 100) / 100)).toFixed(1);
+      art = `<path d="M14 84 A52 52 0 1 1 118 84" fill="none" stroke="var(--seq-track)" stroke-width="13" stroke-linecap="round"/>
+             <path d="M14 84 A52 52 0 1 1 118 84" fill="none" stroke="${stroke}" stroke-width="13"
+               stroke-linecap="round" stroke-dasharray="${ARC.toFixed(1)}" stroke-dashoffset="${off}"/>`;
+    }
+    // `text` is for readings that are not percentages — a latency in ms, a
+    // count of providers. Showing those as "100%" would be a lie dressed as
+    // precision, and showing them as "NO DATA" hides a real measurement.
+    const value = o.text !== undefined && o.text !== null
+      ? `<div class="dial-val">${esc(o.text)}${o.unit ? `<small>${esc(o.unit)}</small>` : ''}</div>`
+      : has
+        ? `<div class="dial-val">${Math.round(o.pct)}<small>%</small></div>`
+        : `<div class="dial-val none">NO DATA</div>`;
+    const chips = (o.chips || []).map((c) =>
+      `<span class="chip ${c.t}"><span class="ic">${c.t === 'good' ? '✓' : c.t === 'critical' ? '●' : c.t === 'neutral' ? '◇' : '▲'}</span>${esc(c.x)}</span>`).join('');
+    return `<div class="card gauge">
+      <div class="dial">
+        <svg viewBox="0 0 132 92" role="img" aria-label="${esc(o.name)}: ${has ? o.pct + ' percent' : 'no data'}, ${esc(o.den)}">${art}</svg>
+        ${value}<div class="dial-den">${esc(o.den)}</div>
+      </div>
+      <div class="gauge-name">${esc(o.name)}</div>
+      <div class="gauge-sub">${o.sub}</div>
+      <div class="chips">${chips}</div>
+    </div>`;
+  }
+
+  function bar(label, r, qual) {
+    const pct = r && r.pct !== null && r.pct !== undefined ? r.pct : 0;
+    const zero = pct === 0;
+    return `<div class="bar-row">
+      <span class="bar-label">${esc(label)}${qual ? ` <span class="qual">${esc(qual)}</span>` : ''}</span>
+      <div class="bar-track"><div class="bar-fill${zero ? ' zero' : ''}" style="width:${zero ? 0 : pct}%"></div></div>
+      <span class="bar-meta"><span class="bar-val">${pctText(r)}</span><span class="bar-raw">${n(r && r.n)}</span></span>
+    </div>`;
+  }
+
+  function pairRow(label, a, b) {
+    const line = (r, cls, tag) => {
+      const pct = r && r.pct !== null && r.pct !== undefined ? r.pct : 0;
+      const zero = pct === 0;
+      return `<div class="pair-line">
+        <div class="pair-track"><div class="pair-fill ${cls}${zero ? ' nil' : ''}" style="width:${zero ? 0 : pct}%"></div></div>
+        <span class="pair-val">${tag} ${pctText(r)}</span></div>`;
+    };
+    return `<div class="pair-row"><span class="bar-label">${esc(label)}</span>
+      <div class="pair-bars">${line(a, 's1', 'AI')}${line(b, 's2', 'Sch')}</div></div>`;
+  }
+
+  const SEV = { missing: 'critical', uninstrumented: 'critical', stalled: 'critical',
+                denied: 'serious', timeout: 'serious', inline_blob: 'serious',
+                empty: 'warning', error: 'warning' };
+  const KIND_TITLE = { missing: 'Table missing', uninstrumented: 'Not instrumented',
+                       stalled: 'Work parked mid-pipeline', denied: 'Read denied',
+                       timeout: 'Query timed out', inline_blob: 'Oversized inline data',
+                       empty: 'Table empty', error: 'Read failed' };
+
+  function finding(sev, title, body) {
+    return `<div class="finding sev-${sev}">
+      <div class="chips" style="justify-content:flex-start">
+        <span class="chip ${sev}"><span class="ic">${sev === 'critical' ? '●' : '▲'}</span>${sev}</span>
+      </div>
+      <div><h3>${esc(title)}</h3><p>${body}</p></div>
+    </div>`;
+  }
+
+  const FIELD_LABEL = {
+    meaning_zh: 'Meaning · Chinese', meaning_en: 'Meaning · English', meaning_it: 'Meaning · Italian',
+    mnemonic_zh: 'Mnemonic · Chinese', mnemonic_en: 'Mnemonic · English', mnemonic_it: 'Mnemonic · Italian',
+    etymology: 'Etymology', example_word_zh: 'Example word', hsk_level: 'HSK level',
+    illustration_url: 'Illustration', mnemonic_image_url: 'Mnemonic image', svg_modern: 'Oracle-bone SVG',
+    audio_url: 'Audio', image_url: 'Image', pinyin: 'Pinyin', question: 'Question', answer: 'Answer',
+    explanation: 'Explanation', example_zh: 'Example · Chinese', example_en: 'Example · English',
+    example_it: 'Example · Italian', approved_at: 'Approval timestamp', generated_by: 'Model recorded',
+    image_provider: 'Image provider', image_style: 'Image style',
+  };
+  const fieldLabel = (f) => FIELD_LABEL[f] || f;
+
+  // ── render ──────────────────────────────────────────────────────────
+  function render(d) {
+    const P = d.pipelines, Q = d.quality, out = [];
+
+    $('p-read').innerHTML = '<b>Read</b> ' + esc(new Date(d.generated_at).toLocaleString());
+    $('p-window').innerHTML = '<b>Window</b> ' +
+      esc(d.window && d.window.days ? 'last ' + d.window.days + ' days' : 'all time');
+
+    // ── production line ──────────────────────────────────────────────
+    const durAvailable = P.duration_ms && P.duration_ms.n > 0;
+    const missingStamp = P.timestamps && P.timestamps.started_at.n === 0 ? 'started_at'
+                       : P.timestamps && P.timestamps.completed_at.n === 0 ? 'completed_at' : null;
+    out.push(`<section><h2>The production line <span>${n(P.runs.total)} pipeline runs.</span></h2>
+      <div class="gauges">
+        ${gauge({
+          name: 'Run success', pct: P.runs.success.pct, den: `${n(P.runs.success.n)} / ${n(P.runs.success.of)}`,
+          tone: tone(P.runs.success.pct, 90, 70),
+          sub: 'Runs that finished clean, of those that finished at all.',
+          chips: P.runs.success.small_sample ? [{ t: 'neutral', x: 'n=' + P.runs.success.of }] : [],
+        })}
+        ${gauge({
+          name: 'Runs never finished', pct: P.runs.unfinished.pct,
+          den: `${n(P.runs.unfinished.n)} / ${n(P.runs.unfinished.of)}`,
+          tone: tone(P.runs.unfinished.pct, 95, 85, true),
+          sub: 'No completion ever reported.',
+          chips: P.runs.unfinished.held_candidates
+            ? [{ t: 'critical', x: n(P.runs.unfinished.held_candidates) + ' held' }] : [],
+        })}
+        ${gauge({
+          name: 'Candidate yield', pct: P.yield.add_rate.pct,
+          den: `${n(P.yield.add_rate.n)} / ${n(P.yield.add_rate.of)}`,
+          tone: tone(P.yield.add_rate.pct, 80, 50),
+          sub: 'Candidates the pipelines produced that entered the estate.',
+          chips: [{ t: 'neutral', x: n(P.yield.candidates - P.yield.added) + ' unlanded' }],
+        })}
+        ${gauge({
+          name: 'Run duration', pct: durAvailable ? 100 : null,
+          den: durAvailable ? `p50 ${n(P.duration_ms.p50)} ms` : `0 / ${n(P.runs.total)}`,
+          tone: 'neutral',
+          sub: durAvailable
+            ? `p50 ${n(P.duration_ms.p50)} ms · p95 ${n(P.duration_ms.p95)} ms · max ${n(P.duration_ms.max)} ms`
+            : `<code>${esc(missingStamp || 'timestamps')}</code> missing, so no run has both ends.`,
+          chips: durAvailable ? [{ t: 'good', x: 'n=' + P.duration_ms.n }]
+                              : [{ t: 'critical', x: 'uninstrumented' }],
+        })}
+      </div>`);
+
+    const methods = Object.entries(P.by_method || {}).sort((a, b) => b[1].runs - a[1].runs);
+    if (methods.length) {
+      out.push(`<div class="card scroll"><table>
+        <thead><tr><th>Method</th><th class="num">Runs</th><th class="num">Unfinished</th>
+          <th class="num">Candidates</th><th class="num">Added</th><th style="width:32%">Yield</th></tr></thead>
+        <tbody>${methods.map(([m, v]) => {
+          const pct = v.add_rate.pct ?? 0;
+          return `<tr><td><b>${esc(m)}</b></td><td class="num">${n(v.runs)}</td>
+            <td class="num">${n(v.unfinished)}</td><td class="num">${n(v.candidates)}</td>
+            <td class="num">${n(v.added)}</td>
+            <td><div class="bar-track"><div class="bar-fill${pct === 0 ? ' zero' : ''}"
+              style="width:${pct}%;${pct > 0 && pct < 50 ? 'background:var(--serious)' : ''}"></div></div>
+              <span class="bar-val" style="font-size:12px">${pctText(v.add_rate)}</span></td></tr>`;
+        }).join('')}</tbody></table></div>`);
+    }
+
+    if (P.failures && P.failures.length) {
+      out.push(`<div class="card"><h2 style="border:0;padding:0;margin-bottom:10px">Recent failures</h2>
+        ${P.failures.map((f) => `<p class="note" style="margin-bottom:6px">
+          <code>${esc(f.method)}</code> ${f.source ? '· ' + esc(f.source) : ''} —
+          <strong>${esc(f.error)}</strong></p>`).join('')}</div>`);
+    }
+    out.push('</section>');
+
+    // ── quality ──────────────────────────────────────────────────────
+    const C = Q.characters, R = Q.riddles, L = Q.learners;
+    const conf = C.confidence || {};
+    out.push(`<section><h2>Quality &amp; acceptance <span>Every reading carries its denominator.</span></h2>
+      <div class="gauges">
+        ${gauge({
+          name: 'Generator self-check', pct: R.self_check.pct,
+          den: `${n(R.self_check.n)} / ${n(R.self_check.of)}`,
+          tone: tone(R.self_check.pct, 90, 70),
+          sub: 'AI-written riddles whose own <code>self_check_passed</code> came back true.',
+          chips: [
+            R.self_check.of - R.self_check.n > 0
+              ? { t: 'critical', x: (R.self_check.of - R.self_check.n) + ' failures live' } : null,
+            R.self_check.small_sample ? { t: 'neutral', x: 'n=' + R.self_check.of } : null,
+          ].filter(Boolean),
+        })}
+        ${gauge({
+          name: 'Approval audit trail', pct: R.approval_timestamp.pct,
+          den: `${n(R.approval_timestamp.n)} / ${n(R.approval_timestamp.of)}`,
+          tone: tone(R.approval_timestamp.pct, 90, 50),
+          sub: `Riddles carrying an <code>approved_at</code>. ${n(R.approved.n)} of ${n(R.approved.of)} are marked approved.`,
+          chips: R.approval_actor.n === 0 ? [{ t: 'critical', x: '0 approvers named' }] : [],
+        })}
+        ${gauge({
+          name: 'Human verification', pct: C.human_edited.pct,
+          den: `${n(C.human_edited.n)} / ${n(C.human_edited.of)}`,
+          tone: C.human_edited.n === 0 ? 'critical' : tone(C.human_edited.pct, 50, 20),
+          sub: 'Characters with <code>human_edited_at</code>, <code>verified</code>, or <code>needs_review</code> set.',
+          chips: [
+            C.human_edited.n === 0 ? { t: 'critical', x: 'never exercised' } : null,
+            conf.mean ? { t: 'neutral', x: 'conf ' + conf.mean.toFixed(3).replace(/^0/, '') } : null,
+          ].filter(Boolean),
+        })}
+        ${gauge({
+          name: 'Learner solve rate', pct: L.solved.pct, den: `${n(L.solved.n)} / ${n(L.solved.of)}`,
+          tone: tone(L.solved.pct, 70, 50),
+          sub: L.time_ms && L.time_ms.n
+            ? `Riddle attempts that succeeded. Median ${(L.time_ms.p50 / 1000).toFixed(1)} s.`
+            : 'Riddle attempts that succeeded.',
+          chips: L.solved.small_sample ? [{ t: 'warning', x: 'n=' + L.solved.of }] : [],
+        })}
+      </div>`);
+
+    if (conf.n && C.human_edited.n === 0) {
+      out.push(`<p class="note"><strong>${conf.mean} confidence, zero checks.</strong>
+        ${n(conf.n)} characters carry an <code>ai_confidence</code> averaging ${conf.mean}
+        (min ${conf.min}). Across all ${n(C.total)}, <code>human_edited_at</code> is null,
+        <code>needs_review</code> false and <code>verified</code> false — without exception.
+        The number measures the model's certainty and nothing else.</p>`);
+    }
+    out.push('</section>');
+
+    // ── provider calls (clf_ai_calls) ────────────────────────────────
+    // The only real latency on the platform. Extraction jobs never stamp
+    // started_at, so this table is the whole answer to "how slow is it".
+    const K = d.provider_calls;
+    if (K) {
+      const lat = K.latency_ms || {};
+      out.push(`<section><h2>Provider calls
+        <span>${K.available ? `${n(K.total)} call${K.total === 1 ? '' : 's'} recorded in <code>clf_ai_calls</code>.`
+                             : 'Telemetry table not reachable.'}</span></h2>`);
+      if (!K.available) {
+        out.push(`<div class="card"><p class="note">
+          <code>clf_ai_calls</code> could not be read — see Blind spots. Until it is,
+          latency and provider failure rates have no source.</p></div></section>`);
+      } else {
+        out.push(`<div class="gauges">
+          ${gauge({
+            name: 'Call success', pct: K.success.pct, den: `${n(K.success.n)} / ${n(K.success.of)}`,
+            tone: K.total === 0 ? 'neutral' : tone(K.success.pct, 98, 90),
+            sub: 'Provider calls returning without an error.',
+            chips: [
+              K.success.small_sample && K.total > 0 ? { t: 'warning', x: 'n=' + K.total } : null,
+              K.empty_completions > 0 ? { t: 'critical', x: K.empty_completions + ' empty' } : null,
+            ].filter(Boolean),
+          })}
+          ${gauge({
+            name: 'Call latency',
+            text: lat.n ? n(lat.p95) : null, unit: lat.n ? ' ms' : null,
+            pct: null, den: lat.n ? `p95 · n=${lat.n}` : `0 / ${n(K.total)}`,
+            tone: 'neutral',
+            sub: lat.n
+              ? `p50 ${n(lat.p50)} ms · max ${n(lat.max)} ms · mean ${n(Math.round(lat.mean))} ms`
+              : 'No call has recorded a latency yet.',
+            chips: lat.n ? [{ t: 'good', x: 'measured' }] : [{ t: 'warning', x: 'awaiting calls' }],
+          })}
+          ${gauge({
+            name: 'Providers exercised',
+            text: String(Object.keys(K.by_provider || {}).length),
+            pct: null, den: 'distinct providers',
+            tone: 'neutral',
+            sub: Object.entries(K.by_provider || {}).map(([p, c]) => `${esc(p)} ×${c}`).join(' · ') || 'none yet',
+            chips: [{ t: 'neutral', x: `${n(K.tokens.output)} out-tokens` }],
+          })}
+          ${gauge({
+            name: 'Failure classes', pct: K.total ? +(100 * (K.total - K.success.n) / K.total).toFixed(1) : null,
+            den: `${n(K.total - K.success.n)} / ${n(K.total)}`,
+            tone: K.total === 0 ? 'neutral' : tone(100 - (100 * (K.total - K.success.n) / K.total), 98, 90),
+            sub: Object.keys(K.by_error_kind || {}).length
+              ? Object.entries(K.by_error_kind).map(([k, c]) => `${esc(k)} ×${c}`).join(' · ')
+              : 'No failures recorded.',
+            chips: [],
+          })}
+        </div>`);
+
+        if (K.recent && K.recent.length) {
+          out.push(`<div class="card scroll"><table>
+            <thead><tr><th>When</th><th>Feature</th><th>Provider / model</th>
+              <th class="num">Latency</th><th class="num">Tokens</th><th>Result</th></tr></thead>
+            <tbody>${K.recent.map((c) => `<tr>
+              <td class="num">${esc(new Date(c.at).toLocaleString())}</td>
+              <td>${esc(c.feature)}${c.action ? ` <span class="qual">· ${esc(c.action)}</span>` : ''}</td>
+              <td class="model">${esc(c.provider || '—')}${c.model ? ' / ' + esc(c.model) : ''}</td>
+              <td class="num">${c.latency_ms === null ? '—' : n(c.latency_ms) + ' ms'}</td>
+              <td class="num">${n(c.input_tokens)} → ${n(c.output_tokens)}</td>
+              <td><span class="chip ${c.ok ? (c.output_tokens === 0 ? 'critical' : 'good') : 'critical'}">
+                <span class="ic">${c.ok && c.output_tokens !== 0 ? '✓' : '●'}</span>${
+                  c.ok ? (c.output_tokens === 0 ? 'empty completion' : 'ok') : esc(c.error_kind || 'failed')
+                }</span></td></tr>`).join('')}</tbody></table></div>`);
+        }
+
+        if (K.total > 0 && K.total < 30) {
+          out.push(`<p class="note">Instrumentation went in on
+            <strong>${esc(new Date(K.first_call).toLocaleDateString())}</strong>, so this panel is
+            still filling. At ${n(K.total)} call${K.total === 1 ? '' : 's'} the rates above are not
+            yet meaningful — the latency figures are, since each is a real measurement.</p>`);
+        }
+        out.push('</section>');
+      }
+    }
+
+    // ── attribution roster ───────────────────────────────────────────
+    out.push(`<section><h2>The collective <span>Who made what, and whether the artefact says so.</span></h2>
+      <div class="card scroll"><table>
+        <thead><tr><th>Pipeline</th><th>Job</th><th>Model / provider</th>
+          <th class="num">Output</th><th>Attribution</th></tr></thead>
+        <tbody>${(d.attribution || []).map((a) => {
+          const provs = Object.entries(a.providers || {}).filter(([k]) => k !== '(none)');
+          const noColumn = !a.column;
+          const label = noColumn ? 'no provider column on the table'
+            : provs.length ? provs.map(([k, v]) => esc(k) + (v > 1 ? ' ×' + v : '')).join(' · ')
+            : 'column exists, null on every row';
+          const chip = noColumn ? { t: 'serious', x: 'nowhere to record' }
+            : a.pct === 100 ? { t: 'good', x: `${a.n}/${a.of} on the row` }
+            : a.pct === 0 ? { t: 'serious', x: `0/${a.of} on the row` }
+            : { t: 'warning', x: `${a.n}/${a.of} recorded` };
+          return `<tr><td><b>${esc(a.label)}</b></td><td>${esc(a.medium)}</td>
+            <td class="model${provs.length && !noColumn ? '' : ' unattr'}">${label}</td>
+            <td class="num">${n(a.total)}</td>
+            <td><span class="chip ${chip.t}"><span class="ic">${chip.t === 'good' ? '✓' : '▲'}</span>${esc(chip.x)}</span></td></tr>`;
+        }).join('')}</tbody></table></div>`);
+
+    const T = d.teacher_ai;
+    out.push(`<p class="note">Teacher assistant — slide decks, quizzes, worksheets, chat and Q&amp;A —
+      ${T.available
+        ? `logs to <code>${esc(T.table)}</code>, currently holding <strong>${n(T.runs)} run${T.runs === 1 ? '' : 's'}</strong>.`
+        : `has <strong>no job table at all</strong>; nothing it does is recorded.`}</p></section>`);
+
+    // ── estate + timeline ────────────────────────────────────────────
+    const est = d.estate || {};
+    const estTotal = Object.values(est).reduce((s, v) => s + v, 0);
+    const EST_LABEL = { characters: 'characters', words: 'words', grammar: 'grammar items',
+                        riddles: 'riddles', chengyu: 'chengyu', poems: 'poems' };
+    out.push(`<section><h2>What exists today <span>${n(estTotal)} records across ${Object.keys(est).length} content types.</span></h2>
+      <div class="estate">
+        ${Object.entries(est).map(([k, v]) =>
+          `<div class="stat"><span class="v">${n(v)}</span><span class="k">${esc(EST_LABEL[k] || k)}</span></div>`).join('')}
+        <div class="stat"><span class="v">${n(P.runs.total)}</span><span class="k">pipeline runs</span>
+          <span class="sub">${n(P.runs.total - P.runs.unfinished.n)} completed</span></div>
+        <div class="stat"><span class="v">${n(L.attempts)}</span><span class="k">learner attempts</span>
+          <span class="sub">across ${n(L.riddles_tried)} riddles</span></div>
+      </div>`);
+
+    const prod = d.production || [];
+    if (prod.length) {
+      const max = Math.max(...prod.map((p) => p.total), 1);
+      const days = prod.slice(-24);
+      out.push(`<div class="card">
+        <div class="legend" style="margin-bottom:6px">
+          <span style="font-size:13px;color:var(--ink);font-weight:600">Records created per day</span>
+          <span style="color:var(--muted);font-size:12px">all content types</span></div>
+        <div class="timeline">${days.map((p) => {
+          const h = Math.max(2, Math.round((p.total / max) * 92));
+          return `<div class="tl-day" title="${esc(p.day)}: ${n(p.total)}">
+            <span class="tl-n">${n(p.total)}</span>
+            <div class="tl-bar${p.total < max * 0.05 ? ' q' : ''}" style="height:${h}%"></div>
+            <span class="tl-d">${esc(p.day.slice(5))}</span></div>`;
+        }).join('')}</div>
+        ${d.last_learner_activity ? `<p class="note" style="margin-top:14px">Last learner activity
+          <strong>${esc(new Date(d.last_learner_activity).toLocaleDateString())}</strong>.</p>` : ''}
+      </div>`);
+    }
+    out.push('</section>');
+
+    // ── coverage ─────────────────────────────────────────────────────
+    const cc = d.coverage && d.coverage.characters;
+    if (cc && cc.fields) {
+      const sorted = [...cc.fields].sort((a, b) => (b.all.pct ?? -1) - (a.all.pct ?? -1));
+      out.push(`<section><h2>Field completeness <span>Character estate, n = ${n(cc.total)}.</span></h2>
+        <div class="card"><div class="bars">
+          ${sorted.map((f) => bar(fieldLabel(f.field), f.all)).join('')}
+        </div><p class="note" style="margin-top:16px">Hover a row for the raw count.</p></div>`);
+
+      const split = sorted.filter((f) =>
+        f.ai_extracted && f.other &&
+        Math.abs((f.ai_extracted.pct ?? 0) - (f.other.pct ?? 0)) > 25);
+      if (split.length) {
+        out.push(`<h2 style="margin-top:8px">Two producers, disjoint output
+            <span>Fields where the cohorts differ by more than 25 points.</span></h2>
+          <div class="card">
+            <div class="legend" style="margin-bottom:12px">
+              <span><i style="background:var(--series-1)"></i>AI-extracted · n=${n(cc.cohorts.ai_extracted)}</span>
+              <span><i style="background:var(--series-2)"></i>Scholarly corpus · n=${n(cc.cohorts.other)}</span></div>
+            <div class="bars">${split.map((f) => pairRow(fieldLabel(f.field), f.ai_extracted, f.other)).join('')}</div>
+            <p class="note" style="margin-top:16px">Nothing in the pipeline merges the two, so a learner
+              meets two different grades of entry depending on which character they open.</p>
+          </div>`);
+      }
+      out.push('</section>');
+    }
+
+    const others = ['words', 'poems', 'chengyu', 'riddles', 'grammar']
+      .map((k) => [k, d.coverage && d.coverage[k]]).filter(([, v]) => v && v.total);
+    if (others.length) {
+      out.push(`<section><h2>Other content types <span>Completeness within each set.</span></h2>
+        <div class="card"><div class="bars">${others.map(([k, v]) => {
+          const rows = (v.fields || []).map((f) => bar(k[0].toUpperCase() + k.slice(1) + ' · ' + fieldLabel(f.field), f, 'n=' + v.total));
+          if (k === 'chengyu' && v.image_url_measured) {
+            rows.unshift(bar('Chengyu · image', v.image_url, 'n=' + v.total));
+          }
+          return rows.join('');
+        }).join('')}</div></div></section>`);
+    }
+
+    // ── blind spots: endpoint notes + derived checks ──────────────────
+    const findings = (d.notes || []).map((nt) =>
+      finding(SEV[nt.kind] || 'warning',
+        `${KIND_TITLE[nt.kind] || 'Issue'} — ${nt.table}`,
+        `${esc(nt.message)} <em>${esc(nt.impact)}</em>`));
+
+    if (R.approved.n > 0 && R.approval_actor.n === 0) {
+      findings.push(finding('critical', 'Approval is the default state, not a decision',
+        `${n(R.approved.n)} of ${n(R.approved.of)} riddles are marked approved, but only
+         ${n(R.approval_timestamp.n)} carry an <code>approved_at</code> and none has an
+         <code>approved_by</code>.` +
+        (R.self_check.of - R.self_check.n > 0
+          ? ` ${n(R.self_check.of - R.self_check.n)} of them recorded
+             <code>self_check_passed: false</code> at generation and are published anyway.` : '')));
+    }
+    if (conf.n && C.human_edited.n === 0) {
+      findings.push(finding('serious', 'Model confidence has never been validated',
+        `${n(conf.n)} characters average ${conf.mean} confidence while
+         <code>human_edited_at</code>, <code>needs_review</code> and <code>verified</code>
+         are unset on all ${n(C.total)}.`));
+    }
+    if (R.votes === 0 && R.total > 0) {
+      findings.push(finding('warning', 'The feedback loop is wired but empty',
+        `<code>upvotes</code>, <code>downvotes</code> and the attempt <code>vote</code> column are
+         zero or null across every row, so no learner signal reaches the models.`));
+    }
+    const unattributed = (d.attribution || []).filter((a) => !a.column || a.pct === 0);
+    if (unattributed.length) {
+      findings.push(finding('warning', 'Attribution stops before the artefact',
+        `${unattributed.length} of ${d.attribution.length} pipelines leave no model on the row they
+         produce: ${unattributed.map((a) => esc(a.label)).join(', ')}. Comparing one model against
+         another over that part of the estate is not possible.`));
+    }
+
+    out.push(`<section><h2>Blind spots <span>${findings.length} open.</span></h2>
+      <div class="findings">${findings.length ? findings.join('')
+        : '<div class="card"><p class="note">Nothing flagged — every panel above resolved cleanly.</p></div>'}</div>
+    </section>`);
+
+    out.push(`<footer>
+      <p>Read live from the database through <code>/api/ai-performance</code>, a role-gated
+        aggregation restricted to <code>super_admin</code> and <code>school_master</code>. Rates are
+        exact counts over the full table and the denominator is printed beside each one; nothing is
+        modelled or estimated. Where a panel would be empty the endpoint returns the reason instead,
+        and those reasons are the Blind spots above.</p>
+      <p>Readings on fewer than 30 records are marked with their sample size. Treat those as
+        direction, not measurement.</p>
+    </footer>`);
+
+    root.innerHTML = out.join('');
+  }
+
+  // ── shell states ────────────────────────────────────────────────────
+  function signInPrompt() {
+    root.innerHTML = `<div class="msg">
+      <h3>Sign in first</h3>
+      <p>This readout uses your existing 大卫学中文 session. Sign in to the platform in this
+         browser as a super admin or school master, then come back and refresh.</p>
+      <div class="row"><a class="btn" href="/">Go to the platform</a>
+        <button class="btn ghost" onclick="location.reload()">Reload</button></div></div>`;
+  }
+  function errorPanel(title, detail) {
+    root.innerHTML = `<div class="msg bad"><h3>${esc(title)}</h3><p>${esc(detail)}</p>
+      <div class="row"><button class="btn" onclick="location.reload()">Try again</button></div></div>`;
+  }
+
+  async function load() {
+    const btn = $('refresh');
+    btn.disabled = true;
+    root.innerHTML = '<div class="skeleton"></div>';
+    const sess = readSession();
+    if (!sess) { btn.disabled = false; return signInPrompt(); }
+    if (sess.expires_at && sess.expires_at * 1000 < Date.now()) {
+      btn.disabled = false;
+      return errorPanel('Session expired', 'Your sign-in has expired. Reload the platform to refresh it, then come back.');
+    }
+    const days = $('window').value;
+    try {
+      const res = await fetch('/api/ai-performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sess.token },
+        body: JSON.stringify(days ? { action: 'summary', days: +days } : { action: 'summary' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 401) return errorPanel('Not signed in', body.error || 'The session was rejected. Sign in again.');
+      if (res.status === 403) return errorPanel('Not permitted', body.error || 'This readout is limited to super admins and school masters.');
+      if (!res.ok) return errorPanel('Request failed', body.error || ('HTTP ' + res.status));
+      render(body);
+    } catch (e) {
+      errorPanel('Could not reach the endpoint', String(e && e.message ? e.message : e));
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  $('refresh').addEventListener('click', load);
+  $('window').addEventListener('change', load);
+  load();
+})();
+</script>
+</body>
+</html>
