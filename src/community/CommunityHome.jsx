@@ -85,7 +85,10 @@ const ROUTES = {
   // 语音评测 is a UserApp screen like the other learning modules, not a route
   // of its own — /voice was never served and would have 404'd.
   voice:'/learn?module=voice',
-  chat:'/chat', homework:'/homework', shop:'/shop', parents:'/parents',
+  // 智能对话 is a UserApp screen, like 语音评测 — /chat was never served
+  // and would have 404'd the moment the module was switched on.
+  chat:'/learn?module=chat',
+  homework:'/homework', shop:'/shop', parents:'/parents',
 };
 
 // Home-only string bundle. We don't add these to LanguageContext because they
