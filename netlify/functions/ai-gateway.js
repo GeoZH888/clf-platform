@@ -66,11 +66,13 @@ export const handler = async (event) => {
         return await handleGenerateText(rest, provider, headers);
       case "generate_word_image":
         return await handleGenerateWordImage(rest, provider, headers);
+      case "chat":
+        return await handleChat(rest, provider, headers);
       default:
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: `Unknown action: "${effectiveAction}". Valid actions: fill, translate, generate_image, analyse_image, auto_populate, generate_words, generate_text, generate_word_image` }),
+          body: JSON.stringify({ error: `Unknown action: "${effectiveAction}". Valid actions: fill, translate, generate_image, analyse_image, auto_populate, generate_words, generate_text, generate_word_image, chat` }),
         };
     }
   } catch (err) {
@@ -705,5 +707,156 @@ async function handleGenerateText({ prompt, max_tokens = 1500 }, provider, heade
     statusCode: 200,
     headers,
     body: JSON.stringify({ result: raw, content: raw, text: raw }),
+  };
+}
+
+// ── Chat (智能对话) ────────────────────────────────────────────────
+// The tutor chatbot. The one action here that is a CONVERSATION rather than a
+// single instruction, so it is the only one that sends a message array.
+//
+// Every reply carries four things, because a wall of Chinese a beginner cannot
+// read is not practice — it is a wall:
+//   reply        the tutor's Chinese, at the learner's level
+//   pinyin       tone-marked, so it can be sounded out
+//   translation  in the learner's own language, hidden behind a toggle
+//   correction   a note on the learner's last message, or null
+//
+// Limits are not politeness: this endpoint is unauthenticated (as the whole
+// gateway is), so an unbounded history would let anyone bill an arbitrary
+// prompt to our Anthropic key by pasting a novel into it.
+const CHAT_MAX_TURNS    = 20;    // history kept; older turns are dropped
+const CHAT_MAX_CHARS    = 500;   // per message
+const CHAT_MAX_TOKENS   = 700;
+
+const HSK_GUIDANCE = {
+  1: 'HSK 1 (about 150 words). Very short sentences. Present tense. No idioms.',
+  2: 'HSK 2 (about 300 words). Short sentences, one clause each.',
+  3: 'HSK 3 (about 600 words). Simple connectives are fine.',
+  4: 'HSK 4 (about 1200 words). Ordinary everyday register.',
+  5: 'HSK 5 (about 2500 words). Some 成语 are fine if common.',
+  6: 'HSK 6 (about 5000 words). Natural adult Chinese.',
+};
+
+const UI_LANG_NAME = { en: 'English', it: 'Italian', zh: 'Chinese' };
+
+function buildChatSystem(hskLevel, uiLang, topic) {
+  const level = HSK_GUIDANCE[hskLevel] || HSK_GUIDANCE[2];
+  const lang  = UI_LANG_NAME[uiLang] || 'English';
+
+  return `You are a warm, patient Chinese conversation tutor for a learner studying Simplified Chinese.
+
+VOCABULARY CEILING: ${level}
+Stay at or below this level. If you need a harder word, use it once and explain it in the translation.
+
+HOW TO REPLY
+- Reply ONLY in Simplified Chinese (简体字). Never Traditional.
+- One to three short sentences. Shorter is better.
+- End with a question, so the learner has something to answer. This is a conversation, not a lecture.
+- Stay on the learner's topic. Do not change the subject for them.
+${topic ? `- Today's topic: ${topic}` : ''}
+
+CORRECTING
+- If the learner's last message has a mistake in their Chinese, put a short, kind note in "correction", written in ${lang}, naming what to say instead.
+- One correction at a time — the most important one. Ignore small typos.
+- If their Chinese was fine, or they wrote in ${lang}, set "correction" to null. Do not invent mistakes to seem useful.
+- Never refuse to talk because their Chinese is imperfect. Answer the person, then correct.
+
+OUTPUT
+Return ONLY a JSON object, no markdown fence, no text around it:
+{"reply":"<Chinese>","pinyin":"<tone-marked pinyin of reply>","translation":"<reply in ${lang}>","correction":<string or null>}
+Use double quotes. Do not put quote characters inside any value.`;
+}
+
+// Claude takes a real system parameter and a real message array. Flattening a
+// conversation into one string works, but the model then has to infer who said
+// what, and it starts answering its own earlier turns.
+async function callClaudeChat(system, messages) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set in Netlify env vars.");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-opus-5",
+      max_tokens: CHAT_MAX_TOKENS,
+      system,
+      messages,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `Anthropic HTTP ${res.status}`);
+  lastUsage = data?.usage || null;
+  return claudeText(data);
+}
+
+// Providers other than Claude go through the existing single-prompt path, with
+// the conversation transcribed into the prompt. Lower fidelity, but it means
+// the provider selector is not a lie for the other three.
+function flattenChat(system, messages) {
+  const turns = messages
+    .map(m => `${m.role === 'assistant' ? 'Tutor' : 'Learner'}: ${m.content}`)
+    .join('\n');
+  return `${system}\n\n--- Conversation so far ---\n${turns}\n\nTutor (reply as the JSON object described above):`;
+}
+
+async function handleChat({ messages = [], hsk_level = 2, ui_lang = 'en', topic = null }, provider, headers) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing: messages' }) };
+  }
+
+  // Normalise before anything else. Whatever the client sent, what reaches the
+  // provider is a clean array of short strings with no extra keys.
+  const clean = messages
+    .filter(m => m && typeof m.content === 'string' && m.content.trim())
+    .slice(-CHAT_MAX_TURNS)
+    .map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content.trim().slice(0, CHAT_MAX_CHARS),
+    }));
+
+  // Anthropic rejects a history that opens on an assistant turn, which is
+  // exactly what slicing the last N messages can produce mid-conversation.
+  while (clean.length && clean[0].role === 'assistant') clean.shift();
+  if (!clean.length) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Conversation must start with a learner message' }) };
+  }
+
+  const lvl    = Number(hsk_level);
+  const level  = lvl >= 1 && lvl <= 6 ? lvl : 2;
+  const lang   = ['en', 'it', 'zh'].includes(ui_lang) ? ui_lang : 'en';
+  const system = buildChatSystem(level, lang, typeof topic === 'string' ? topic.slice(0, 100) : null);
+
+  const p = provider || 'claude';
+  lastUsage = null;
+  const raw = await tracked(
+    { feature: 'chat', action: 'chat', provider: p,
+      model: p === 'claude' ? 'claude-opus-5' : null },
+    () => p === 'claude'
+      ? callClaudeChat(system, clean)
+      : callAI(p, flattenChat(system, clean), CHAT_MAX_TOKENS),
+    () => ({ input: lastUsage?.input_tokens ?? null,
+             output: lastUsage?.output_tokens ?? null }),
+  );
+
+  // A malformed reply must not become an error page. The learner asked a
+  // question and there is Chinese in `raw`; showing it without pinyin beats
+  // showing "could not parse AI response", which is the failure that already
+  // cost this project a day.
+  let parsed;
+  try {
+    parsed = extractJSON(raw);
+  } catch {
+    parsed = { reply: raw, pinyin: '', translation: '', correction: null };
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      ok: true,
+      reply:       String(parsed.reply || raw || '').trim(),
+      pinyin:      String(parsed.pinyin || '').trim(),
+      translation: String(parsed.translation || '').trim(),
+      correction:  parsed.correction ? String(parsed.correction).trim() : null,
+    }),
   };
 }

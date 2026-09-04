@@ -19,6 +19,7 @@ import RadicalGame    from './games/RadicalGame.jsx';
 import CompositionGame from './games/CompositionGame.jsx';
 import ChengyuApp     from './chengyu/ChengyuApp.jsx';
 import ScenarioApp    from './scenario/ScenarioApp.jsx';
+import ChatApp        from './chat/ChatApp.jsx';
 import VoiceApp       from './voice/VoiceApp.jsx';
 import LianLianKan    from './games/LianLianKan.jsx';
 import QuickPractice  from './lianzi/QuickPractice.jsx';
@@ -511,6 +512,9 @@ function UserApp() {
             )}
             {screen === 'voice' && (
               <VoiceApp onBack={()=>{ window.location.href = '/community'; }}/>
+            )}
+            {screen === 'chat' && (
+              <ChatApp onBack={()=>{ window.location.href = '/community'; }}/>
             )}
             {screen === 'dictation' && (
               <QuickPractice mode="dictation" onBack={()=>{ window.location.href = '/community'; }}/>

@@ -95,7 +95,11 @@ export const MODULES = [
 
   // ── Premium / opt-in (defaultEnabled: false) ────────────────────────
   { id: 'lessons',    label: '课程',     icon: '📖', gateable: true,  defaultEnabled: false, category: 'learning' , pillar: 'community', audience: 'learner' },
-  { id: 'chat',       label: '问答聊天', icon: '💬', gateable: true,  defaultEnabled: false, category: 'practice' , pillar: 'community', audience: 'learner' },
+  // 智能对话 — the AI conversation tutor. On by default: it is the only
+  // module where the learner PRODUCES Chinese rather than recognising it, and
+  // step one is open free use. Its own daily allowance is counted in messages
+  // (see lib/chatQuota.js), not in the minutes the rest of the app meters.
+  { id: 'chat',       label: '智能对话', icon: '🤖', gateable: true,  defaultEnabled: true,  category: 'practice' , pillar: 'community', audience: 'learner' },
   // Built now — per-character tone and pronunciation scoring. On by default:
   // step one is open free use, and this is the feature that distinguishes the
   // platform from tools that return one vague overall score.
@@ -154,7 +158,7 @@ const MODULE_LABELS = {
   dictation:    { en:'Dictation',         it:'Dettato' },
   completion:   { en:'Fill the Gaps',     it:'Completa' },
   voice:        { en:'Pronunciation',     it:'Pronuncia' },
-  chat:         { en:'Ask & Chat',        it:'Domande e chat' },
+  chat:         { en:'AI Chat Tutor',     it:'Tutor AI' },
   homework:     { en:'Homework',          it:'Compiti' },
 
   shop:         { en:'Shop',              it:'Negozio' },
