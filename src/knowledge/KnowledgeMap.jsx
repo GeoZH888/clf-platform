@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../school/contexts/AuthContext';
 import { effectiveMastery } from '../lib/mastery';
+import { localStateByAtom } from '../lib/localMastery';
 import KnowledgeTreeMap from './KnowledgeTreeMap';
 import KnowledgeBubbleMap from './KnowledgeBubbleMap';
 import KnowledgeGalaxy from './KnowledgeGalaxy';
@@ -32,8 +33,12 @@ export default function KnowledgeMap() {
     localStorage.setItem(STORAGE_KEY, view);
   }, [view]);
 
+  // The map used to refuse to load at all without a session. But the atoms are
+  // the curriculum, not anybody's private data, and this device has been
+  // recording practice in localStorage since long before anyone logs in — so a
+  // signed-out visitor has both halves of a real map. Only the SERVER half of
+  // the progress needs an account.
   useEffect(() => {
-    if (!user?.id) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -42,9 +47,9 @@ export default function KnowledgeMap() {
       supabase.from('clf_atoms')
         .select('id, type, display_text, level, difficulty')
         .order('type'),
-      supabase.from('clf_user_learning_state')
-        .select('*')
-        .eq('user_id', user.id),
+      user?.id
+        ? supabase.from('clf_user_learning_state').select('*').eq('user_id', user.id)
+        : Promise.resolve({ data: [], error: null }),
     ])
       .then(([atomsRes, stateRes]) => {
         if (cancelled) return;
@@ -67,10 +72,28 @@ export default function KnowledgeMap() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  // What this device knows, for the signed-out case. Keyed by atom id, same as
+  // stateMap, so the decorator below reads one or the other without branching
+  // on auth in the middle of the loop.
+  const localState = useMemo(
+    () => (user?.id ? {} : localStateByAtom(atoms)),
+    [atoms, user?.id],
+  );
+
+  // "有记录" must count whichever source is actually in play, or a guest with
+  // real local practice is told they have none.
+  const trackedCount = user?.id
+    ? Object.keys(stateMap).length
+    : Object.keys(localState).length;
+
   // Decorate atoms with state derived from stateMap + forgetting curve
   const decoratedAtoms = useMemo(() => {
     const now = Date.now();
     return atoms.map(a => {
+      if (!user?.id) {
+        const l = localState[a.id];
+        return l ? { ...a, ...l } : { ...a, state: 'unseen', mastery: 0, practiceCount: 0 };
+      }
       const s = stateMap[a.id];
       let stateName = 'unseen';
       let mastery = 0;
@@ -100,15 +123,8 @@ export default function KnowledgeMap() {
       }
       return { ...a, state: stateName, mastery, practiceCount };
     });
-  }, [atoms, stateMap]);
+  }, [atoms, stateMap, localState, user?.id]);
 
-  if (!user?.id) {
-    return (
-      <Wrapper>
-        <Empty icon="🔐" title="请先登录" subtitle="登录后查看你的知识地图"/>
-      </Wrapper>
-    );
-  }
   if (loading) {
     return (
       <Wrapper>
@@ -136,6 +152,8 @@ export default function KnowledgeMap() {
 
   return (
     <Wrapper>
+      {!user?.id && <GuestNotice/>}
+
       {/* View toggle */}
       <div style={{
         display: 'flex', gap: 8, padding: '12px 16px',
@@ -144,7 +162,7 @@ export default function KnowledgeMap() {
         alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ fontSize: 13, color: '#5d4630' }}>
-          {atoms.length} 个学习单元 · {Object.keys(stateMap).length} 个有记录
+          {atoms.length} 个学习单元 · {trackedCount} 个有记录
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {VIEWS.map(v => (
@@ -178,6 +196,29 @@ export default function KnowledgeMap() {
       {/* Legend */}
       <Legend/>
     </Wrapper>
+  );
+}
+
+// Signed out is a normal way to use this platform, not an error — so this says
+// what a guest gets and what signing in would add, and does not nag.
+function GuestNotice() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+      padding: '10px 14px', marginBottom: 12,
+      background: '#fffbeb', border: '1px solid #fcd34d',
+      borderRadius: 10, fontSize: 12, color: '#92400e',
+    }}>
+      <span style={{ fontSize: 15 }}>📍</span>
+      <span style={{ flex: 1, minWidth: 200, lineHeight: 1.5 }}>
+        进度只保存在这台设备上 · Progress on this device only
+      </span>
+      <button onClick={() => { window.location.href = '/login'; }} style={{
+        background: '#92400e', color: '#fffbeb', border: 'none',
+        padding: '5px 14px', borderRadius: 14,
+        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+      }}>登录 · Sign in</button>
+    </div>
   );
 }
 
